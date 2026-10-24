@@ -1,0 +1,219 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.banner {
+  padding: 8px 16px;
+  background: var(--dock);
+  color: var(--on-dark);
+  font-size: 13px;
+}
+.layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 30%);
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+.left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.stage {
+  position: relative;
+  min-height: 420px;
+  border-radius: 16px;
+  background: linear-gradient(var(--panel) 0 70%, #dfe6d6 70%);
+  border: 2px solid var(--ink);
+  box-shadow: var(--shadow);
+}
+.beam {
+  position: absolute;
+  left: 22%;
+  right: 22%;
+  bottom: 6%;
+  width: 56%;
+  height: auto;
+}
+.readout {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.bot {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: 3px solid var(--ink);
+  background: #fff;
+}
+.bot[data-shape="pip"] {
+  border-radius: 50%;
+}
+.bot[data-shape="nova"] {
+  border-radius: 14px;
+}
+.eyes {
+  display: flex;
+  gap: 10px;
+  transition: translate 0.25s;
+}
+.eyes i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+/* Gaze: facing the learner is centred and down; facing the peer shifts sideways. */
+.bot[data-bot="pip"][data-facing="nova"] .eyes {
+  translate: 10px 0;
+}
+.bot[data-bot="nova"][data-facing="pip"] .eyes {
+  translate: -10px 0;
+}
+.bot[data-facing="you"] .eyes {
+  translate: 0 4px;
+}
+.bot[data-state="thinking"],
+.bot[data-state="waiting"] {
+  animation: beat 1.2s ease-in-out infinite;
+}
+.tag {
+  position: absolute;
+  bottom: -26px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.dock {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--dock);
+  color: var(--on-dark);
+  animation: dockPulse 0.7s ease-out;
+}
+.picker {
+  display: flex;
+  gap: 6px;
+}
+.dock button,
+.dock select {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 2px solid var(--on-dark);
+  background: transparent;
+  color: var(--on-dark);
+  font-weight: 700;
+}
+.dock select option {
+  color: var(--ink);
+}
+.dock button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.dock button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.form {
+  flex: 1 1 240px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.form label {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 2px solid var(--on-dark);
+  background: var(--panel);
+  color: var(--ink);
+}
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+.tools label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.step {
+  width: 100%;
+  margin: 0;
+  font-size: 13px;
+  color: var(--on-dark-muted);
+}
+@keyframes beat {
+  50% {
+    scale: 1.06;
+  }
+}
+@keyframes dockPulse {
+  from {
+    box-shadow: 0 0 0 0 var(--accent);
+  }
+  to {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .stage {
+    min-height: 360px;
+  }
+}
+@media (max-width: 600px) {
+  .stage {
+    min-height: 420px;
+  }
+  .bot {
+    width: 52px;
+    height: 52px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bot[data-state] {
+    animation: none;
+  }
+  .dock {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .bot,
+  .stage {
+    border-color: CanvasText;
+  }
+}
