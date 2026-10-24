@@ -9,3 +9,6 @@ playwright-report/
 test-results/
 .pnpm-store/
 .impeccable/review/
+
+# Machine-specific private vault pointer
+CLAUDE.local.md

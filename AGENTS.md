@@ -1,6 +1,6 @@
 # Working on Kestrel
 
-Read PRODUCT.md, DESIGN.md and docs/ROADMAP.md before changing behavior. README distinguishes implemented preview behavior from the intended product.
+Planning source of truth: the local Obsidian project `01-Projects/HackPSU-2026`. Resolve the vault root from the ignored `CLAUDE.local.md` pointer or the `KESTREL_VAULT` environment variable, then read `_context.md` and `build-order.md` first, followed by only the relevant notes. Use local vault access; never copy private vault content into this public repo. If the vault is unavailable, request access/location before treating unresolved planning as settled. PRODUCT.md, DESIGN.md and docs/ROADMAP.md are portable project snapshots; README records implemented capabilities. Do not create Orca feature worktrees until the owner requests them.
 
 - This is the fresh product repo. Do not migrate practice code or private Obsidian notes wholesale.
 - Preserve the three differentiators: interactive embodied bots, excellent Open Space-inspired UI, and meaningful bot-to-bot collaboration.
