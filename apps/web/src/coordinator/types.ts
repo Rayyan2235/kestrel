@@ -1,4 +1,9 @@
-import type { Addressee, BotId, LedgerEvent } from "@kestrel/contracts";
+import type {
+  Addressee,
+  BotId,
+  LedgerEvent,
+  Respond,
+} from "@kestrel/contracts";
 
 export type BotState =
   | "idle"
@@ -26,6 +31,9 @@ export const DEFAULT_COORDINATOR_CONFIG: CoordinatorConfig = {
   maxHops: 1,
 };
 
+/** What the fast path wants said and done for a built-in command. */
+export type LocalReply = { say: string; action: Respond["action"] };
+
 export type Budget = { callsUsed: number; hopsUsed: number; capMs: number };
 
 export type TurnHandle = {
@@ -45,6 +53,8 @@ export interface Coordinator {
   subscribe(listener: () => void): () => void;
   /** Learner talks to `recipient`, bound now. Aborts any running chain. */
   learnerTurn(text: string, recipient: BotId): TurnHandle;
+  /** Learner command answered by the fast path: no provider call, source `built-in`. Aborts any running chain. */
+  localTurn(recipient: BotId, text: string, reply: LocalReply): TurnHandle;
   /** Learner pulls a handoff: `from` asks `to`, `to` answers the learner. */
   askPeer(from: BotId, to: BotId): TurnHandle;
   /** Aborts the chain and drops late results. */

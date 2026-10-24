@@ -36,6 +36,8 @@ export const LedgerEventSchema = z
     from: SpeakerSchema,
     to: AddresseeSchema,
     text: z.string().min(1).max(500),
+    /** Handoff only: what the asker is showing the peer. */
+    evidence: z.string().min(1).max(200).optional(),
   })
   .strict()
   .refine((e) => e.from !== e.to, {

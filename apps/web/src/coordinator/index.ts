@@ -17,6 +17,7 @@ import {
   type Budget,
   type Coordinator,
   type CoordinatorConfig,
+  type LocalReply,
   type TurnHandle,
 } from "./types.js";
 
@@ -67,6 +68,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     input: string,
     learnerText: string,
     pull: BotId | null,
+    local: LocalReply | null,
   ): Promise<void> => {
     const alive = () => token === epoch;
     let last: string | null = null;
@@ -77,6 +79,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       text: string,
       source: Source,
       hop: number,
+      evidence?: string,
     ) => {
       const seq = ledger.length;
       const id = eventId(token, seq);
@@ -95,6 +98,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
           from,
           to,
           text: fit(text),
+          ...(evidence ? { evidence } : {}),
         },
       ];
       last = id;
@@ -176,13 +180,20 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       add("you", bot, "learner", learnerText, "built-in", 0);
       setState(bot, "thinking");
       const v1 = sim.snapshot().version;
-      const r1 = await call({
-        bot,
-        rootTurnId: `t${token}`,
-        worldVersion: v1,
-        input,
-        peer: null,
-      });
+      // A built-in command answers locally: no provider call, labelled `built-in`.
+      const r1: CallResult = local
+        ? {
+            ok: true,
+            respond: { say: local.say, action: local.action, ask_peer: null },
+            source: "built-in",
+          }
+        : await call({
+            bot,
+            rootTurnId: `t${token}`,
+            worldVersion: v1,
+            input,
+            peer: null,
+          });
       if (!alive()) return;
       if (!r1.ok) {
         add(
@@ -207,7 +218,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       const question = ask?.question ?? "Can you check this with me?";
       const evidence = ask?.evidence ?? "Balance reading";
       budget = { ...budget, hopsUsed: 1 };
-      add(bot, peer, "handoff", question, r1.source, 1);
+      add(bot, peer, "handoff", question, r1.source, 1, evidence);
       setState(bot, "waiting");
       setState(peer, "thinking");
       const v2 = sim.snapshot().version;
@@ -250,13 +261,14 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     input: string,
     learnerText: string,
     pull: BotId | null,
+    local: LocalReply | null = null,
   ): TurnHandle => {
     supersede();
     const token = epoch;
     chain = new AbortController();
     budget = { callsUsed: 0, hopsUsed: 0, capMs: cfg.chainCapMs };
     // Dispatched synchronously: the recipient is bound now, not when the reply lands.
-    const done = run(token, chain.signal, bot, input, learnerText, pull);
+    const done = run(token, chain.signal, bot, input, learnerText, pull, local);
     return { rootTurnId: `t${token}`, recipient: bot, done };
   };
 
@@ -270,6 +282,8 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       return () => void listeners.delete(listener);
     },
     learnerTurn: (text, recipient) => start(recipient, text, text, null),
+    localTurn: (recipient, text, reply) =>
+      start(recipient, text, text, null, reply),
     askPeer: (from, to) =>
       start(from, `Ask ${BOT_NAMES[to]}`, `Ask ${BOT_NAMES[to]}`, to),
     stop: () => {
