@@ -1,5 +1,4 @@
 import type { Addressee, LedgerEvent } from "@kestrel/contracts";
-import { notImplemented } from "../notImplemented.js";
 
 export type CapsulePhase = {
   name: "depart" | "travel" | "arrive" | "exit";
@@ -18,8 +17,49 @@ export type CapsulePlan = {
   durationMs: number;
 };
 
+const FULL = {
+  handoff: [
+    ["depart", 200],
+    ["travel", 600],
+    ["arrive", 200],
+  ],
+  handback: [
+    ["depart", 200],
+    ["travel", 500],
+    ["arrive", 150],
+    ["exit", 350],
+  ],
+} as const;
+
+/** Reduced motion: no travel; the glyph holds still, then a handback leaves. */
+const STILL = {
+  handoff: [["arrive", 800]],
+  handback: [
+    ["arrive", 800],
+    ["exit", 300],
+  ],
+} as const;
+
 /** Null for events that carry no capsule. Timing is pure data so tests can drive a fake clock. */
 export const planCapsule = (
-  _event: LedgerEvent,
-  _opts: { reducedMotion: boolean },
-): CapsulePlan | null => notImplemented("planCapsule");
+  event: LedgerEvent,
+  opts: { reducedMotion: boolean },
+): CapsulePlan | null => {
+  if (event.kind !== "handoff" && event.kind !== "handback") return null;
+  const steps = (opts.reducedMotion ? STILL : FULL)[event.kind];
+  let t = 0;
+  const phases: CapsulePhase[] = steps.map(([name, ms]) => {
+    const phase = { name, startMs: t, endMs: t + ms };
+    t += ms;
+    return phase;
+  });
+  return {
+    eventId: event.id,
+    from: event.from,
+    to: event.to,
+    kind: event.kind,
+    glyphOnly: opts.reducedMotion,
+    phases,
+    durationMs: t,
+  };
+};
