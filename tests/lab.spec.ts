@@ -61,8 +61,10 @@ test("conversation follows new replies after its cap and when reopened", async (
 }) => {
   await page.goto("/");
   const chat = page.getByRole("log");
-  for (let i = 0; i < 31; i++)
-    await page.getByRole("button", { name: "Give me a hint" }).click();
+  // Each hint adds a user message and a reply; 16 activations exceed the cap.
+  // Keyboard activation avoids 31 repeated pointer-stability waits on CI's GPU.
+  for (let i = 0; i < 16; i++)
+    await page.getByRole("button", { name: "Give me a hint" }).press("Enter");
   await chat.evaluate((el) => {
     el.scrollTop = 0;
   });
