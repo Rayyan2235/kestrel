@@ -1,20 +1,20 @@
 import { create } from "zustand";
 import {
-  applyWeight,
   CommandSchema,
-  createWorld,
-  createSimulationSnapshot,
-  type SimulationSnapshot,
-  type ActionSubmission,
   messageFor,
   previewExchange,
+  type SimulationAdapter,
+  type SimulationSnapshot,
+  type ActionSubmission,
   type BotId,
   type Message,
   type World,
 } from "@kestrel/contracts";
+import { createSimulation } from "../simulation/runtime.js";
+
 type Lab = {
-  lastSubmission: ActionSubmission | null;
   simulation: SimulationSnapshot;
+  lastSubmission: ActionSubmission | null;
   selected: BotId;
   world: World;
   messages: Message[];
@@ -23,6 +23,7 @@ type Lab = {
   queued: Message[];
   nextTurn: number;
   select: (id: BotId) => void;
+  submitAction: (input: unknown) => ActionSubmission;
   moveWeight: (side: "left" | "right", cm: number) => void;
   send: (text: string) => void;
   startExchange: () => number;
@@ -30,25 +31,48 @@ type Lab = {
   stop: () => void;
   reset: () => void;
 };
+const runtime = createSimulation();
+let requestSequence = 0;
+
 export const useLab = create<Lab>((set, get) => ({
+  simulation: runtime.getSnapshot(),
   lastSubmission: null,
-  simulation: createSimulationSnapshot(),
   selected: "pip",
-  world: createWorld(),
+  world: runtime.getSnapshot().world,
   messages: [],
   busy: false,
   epoch: 0,
   queued: [],
   nextTurn: 0,
   select: (selected) => set({ selected }),
-  moveWeight: (side, cm) => {
+  submitAction: (input) => {
+    const result = runtime.submit(input);
     const s = get();
     set({
-      world: applyWeight(s.world, side, cm, s.world.version),
-      epoch: s.epoch + 1,
-      busy: false,
-      queued: [],
-      nextTurn: 0,
+      lastSubmission: result,
+      ...(result.accepted && !result.duplicate
+        ? {
+            epoch: s.epoch + 1,
+            queued: [],
+            nextTurn: 0,
+            busy: !!runtime.getSnapshot().activeAction,
+          }
+        : {}),
+    });
+    return result;
+  },
+  moveWeight: (side, cm) => {
+    const s = get(),
+      snapshot = runtime.getSnapshot();
+    s.submitAction({
+      requestId: `ui-${++requestSequence}`,
+      botId: s.selected,
+      worldRevision: snapshot.worldRevision,
+      resetGeneration: snapshot.resetGeneration,
+      action: "move-weight",
+      stationId: "balance",
+      objectId: side === "left" ? "left-weight" : "right-weight",
+      parameters: { positionCm: cm },
     });
   },
   send: (text) => {
@@ -59,31 +83,49 @@ export const useLab = create<Lab>((set, get) => ({
       worldVersion: s.world.version,
     });
     if (!parsed.success) return;
-    const reply = messageFor(parsed.data, s.world);
-    const world = reply.action
-      ? applyWeight(
-          s.world,
-          reply.action.side,
-          reply.action.cm,
-          s.world.version,
-        )
-      : s.world;
+    // Existing grammar is a scripted fixture. Its action suggestion is never a completion.
+    const suggestion = messageFor(parsed.data, s.world);
+    const capturedSnapshot = runtime.getSnapshot();
     const userMessage: Message = {
       speaker: "you",
       recipient: s.selected,
       text: parsed.data.text,
     };
-    set({
-      world,
-      messages: [...s.messages, userMessage, reply].slice(-30),
-      epoch: s.epoch + 1,
-      busy: false,
-      queued: [],
-      nextTurn: 0,
-    });
+    set({ messages: [...s.messages, userMessage].slice(-30) });
+    if (suggestion.action) {
+      s.submitAction({
+        requestId: `ui-${++requestSequence}`,
+        botId: parsed.data.botId,
+        worldRevision: capturedSnapshot.worldRevision,
+        resetGeneration: capturedSnapshot.resetGeneration,
+        action: "move-weight",
+        stationId: "balance",
+        objectId:
+          suggestion.action.side === "left" ? "left-weight" : "right-weight",
+        parameters: { positionCm: suggestion.action.cm },
+      });
+      const submission = get().lastSubmission;
+      if (submission && !submission.accepted)
+        set((current) => ({
+          messages: [
+            ...current.messages,
+            {
+              speaker: parsed.data.botId,
+              recipient: "you" as const,
+              text: submission.error.message,
+            },
+          ].slice(-30),
+        }));
+    } else {
+      set((current) => ({
+        messages: [...current.messages, suggestion].slice(-30),
+      }));
+    }
   },
   startExchange: () => {
     const s = get();
+    // The fixture exchanges observations only while the apparatus is settled.
+    if (runtime.getSnapshot().activeAction) return s.epoch;
     const epoch = s.epoch + 1;
     set({
       epoch,
@@ -95,23 +137,71 @@ export const useLab = create<Lab>((set, get) => ({
   },
   deliverExchange: (token, turn) => {
     const s = get();
-    if (!s.busy || token !== s.epoch || turn !== s.nextTurn || !s.queued[turn])
-      return;
+    if (token !== s.epoch || turn !== s.nextTurn || !s.queued[turn]) return;
+    const remains = turn + 1 < s.queued.length;
     set({
       messages: [...s.messages, s.queued[turn]!].slice(-30),
       nextTurn: turn + 1,
-      busy: turn + 1 < s.queued.length,
+      queued: remains ? s.queued : [],
+      busy: remains || !!runtime.getSnapshot().activeAction,
     });
   },
-  stop: () =>
-    set((s) => ({ epoch: s.epoch + 1, busy: false, queued: [], nextTurn: 0 })),
-  reset: () =>
+  stop: () => {
+    runtime.stop();
+    set((s) => ({ epoch: s.epoch + 1, busy: false, queued: [], nextTurn: 0 }));
+  },
+  reset: () => {
+    runtime.reset();
     set((s) => ({
-      world: { ...createWorld(), version: s.world.version + 1 },
       messages: [],
       epoch: s.epoch + 1,
       busy: false,
       queued: [],
       nextTurn: 0,
-    })),
+      lastSubmission: null,
+    }));
+  },
 }));
+
+runtime.subscribe((event) => {
+  useLab.setState((s) => {
+    const messages = [...s.messages];
+    const action = event.action;
+    if (action?.status === "started")
+      messages.push({
+        speaker: action.request.botId,
+        recipient: "you",
+        text: "I’ll approach the balance station and operate its weight control. (Game-controlled fixture.)",
+      });
+    if (action?.status === "completed" && action.result) {
+      const side = action.request.objectId === "left-weight" ? "left" : "right";
+      const cm = action.request.parameters.positionCm;
+      messages.push({
+        speaker: action.request.botId,
+        recipient: "you",
+        action: { side, cm },
+        text: `The ${side} weight is now ${cm} cm from the pivot. Measured mass × distance: ${action.result.leftGramCentimeters} g·cm left and ${action.result.rightGramCentimeters} g·cm right. What changed?`,
+      });
+    }
+    if (action?.status === "failed" || action?.status === "cancelled")
+      messages.push({
+        speaker: action.request.botId,
+        recipient: "you",
+        text: action.error?.message ?? "The action did not finish.",
+      });
+    return {
+      simulation: event.snapshot,
+      world: event.snapshot.world,
+      messages: messages.slice(-30),
+      busy: !!event.snapshot.activeAction || s.nextTurn < s.queued.length,
+    };
+  });
+});
+
+/** Provider-free local adapter. No work is scheduled until submit is called. */
+export const labSimulation: SimulationAdapter = {
+  ...runtime,
+  submit: (input) => useLab.getState().submitAction(input),
+  stop: () => useLab.getState().stop(),
+  reset: () => useLab.getState().reset(),
+};

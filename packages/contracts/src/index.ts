@@ -42,8 +42,13 @@ export function applyWeight(
   version: number,
 ): World {
   if (version !== world.version) throw new Error("stale world version");
+  z.enum(["left", "right"]).parse(side);
   z.number().min(5).max(45).parse(cm);
-  return { ...world, [side === "left" ? "leftCm" : "rightCm"]: cm };
+  return {
+    ...world,
+    version: world.version + 1,
+    [side === "left" ? "leftCm" : "rightCm"]: cm,
+  };
 }
 export function messageFor(command: Command, world: World): Message {
   if (command.worldVersion !== world.version)

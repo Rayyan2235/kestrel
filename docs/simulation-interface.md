@@ -6,20 +6,22 @@ The local controller owns one shared world. Rendering consumes snapshots; extern
 senders request supported actions. Existing balance behavior is a development
 fixture, not a choice of opening mission.
 
-- [ ] C0: additive contracts, render fixture and initial snapshot; isolated dev/test
+- [x] C0: additive contracts, render fixture and initial snapshot; isolated dev/test
       configuration. Validate malformed requests, run `pnpm check`, commit separately.
-- [ ] Runtime: implement `createSimulation` in `apps/web/src/simulation/runtime.ts`.
+- [x] Runtime: implement `createSimulation` in `apps/web/src/simulation/runtime.ts`.
       First test measured execution, pinned recipient, stale/malformed input, duplicate
       IDs, apparatus contention, Stop/reset, late callbacks, controller failure and
       deterministic event order with a controlled clock. Run focused tests red/green.
-- [ ] Facade: migrate `apps/web/src/state/lab.ts` to runtime submission and results,
+- [x] Facade: migrate `apps/web/src/state/lab.ts` to runtime submission and results,
       retain scripted exchange and selection methods. Test completion timing and
       cancellation, expose a provider-free mock sender, run `pnpm check`, commit.
 
 Review focus: mutated caller objects must not change accepted requests; observer
 exceptions must not strand locks; synchronous observers must not reenter mutation;
 duplicate IDs must not execute after reset; direct controls must obey ownership.
-These cases belong in runtime/facade behavioral tests.
+These cases are exercised in runtime/facade behavioral tests. Work stays in the
+existing checkout; the interface and runtime are separate commits. No providers,
+new dependencies or presentation edits are part of this slice.
 
 ## Boundary
 
@@ -38,12 +40,22 @@ World revision increments on apparatus changes and reset, not on motion or
 event publication. Reset also advances reset generation. Stop cancels active
 work, clears scheduled callbacks and fences callbacks already delivered by the
 scheduler. Both release ownership. Identical retries return the prior record;
-reusing a request ID with another payload fails `REQUEST_ID_CONFLICT`.
+reusing a request ID with another payload fails `REQUEST_ID_CONFLICT`. The local
+session keeps up to 1,000 accepted request identities, including terminal and
+pre-reset requests. At capacity it rejects new actions until a new runtime/session
+is created. Reset does not erase deduplication history. An old retry returns its
+historical result without publishing another event or changing the current world.
 
 Events have monotonic sequence numbers and immutable snapshots. Action lifecycle:
 received → validated → started → completed/failed/cancelled. Rejections never
 replace an active action. Progress phases are approach → dock → operate → done.
 The result reports actual authoritative quantities, never text-match success.
+Submission rejections return an error and produce no action events. `lastSubmission`
+is a receipt, not a live progress record; follow snapshot/events for progress.
+Subscribers receive historical immutable event snapshots in sequence order;
+`getSnapshot()` returns the newest state. A throwing subscriber is isolated from
+the controller and other subscribers. Submitting from an event callback returns
+`REENTRANT_CALL`; Stop/reset are supported there.
 
 ## Render fixture
 
@@ -60,6 +72,15 @@ moves at 0.8 scene m/s, docks for 0.3 s and operates for 0.6 s before applying
 the change. This is game-controlled station actuation, not learned walking,
 physical gripping or collision simulation. Bot mass does not enter beam science.
 
+The runtime advances a fixed 50 ms simulation step per scheduled callback; a
+throttled tab slows the authored animation instead of jumping to a late success.
+Each action is bounded to 30 simulated seconds. It validates controller output
+for finite positions, walkway bounds, maximum step distance, phase order,
+docking position and minimum dock/operate durations. Failure releases ownership.
+Stop leaves the bot at its current pose; reset restores both spawn poses. A
+subsequent action reuses its bot-specific lane. The view must render published
+poses rather than run its own navigation.
+
 The beam is ideal and massless. Results use mass × distance in g·cm and turning
 effects in N·m with gravity 9.81 m/s². Tilt is illustrative; no angular dynamics.
 
@@ -72,6 +93,77 @@ timer still owns scripted exchange delivery; runtime owns only action motion.
 Existing `select`, `send`, `moveWeight`, `startExchange`,
 `deliverExchange`, `stop`, `reset` remain. Sliders should submit once on release,
 keyboard controls on keyup. C0 alone supplies static fixture state, not motion.
+
+`submitAction(input)` also exists on the store, and `labSimulation` is the exported
+adapter from `apps/web/src/state/lab.ts`. Motion timers run only during accepted
+actions. `busy` includes both motion and scripted exchange. Starting an exchange
+during motion does not queue stale observations. Starting an action invalidates
+queued exchange turns; hints and selection do not cancel motion. `applyWeight`
+now increments `World.version`; it remains a pure helper, not an adapter bypass.
+
+## Executable integration example
+
+Run this provider-free example from the repository root (it exits after completion):
+
+```sh
+pnpm exec tsx -e 'import { createSimulation } from "./apps/web/src/simulation/runtime.ts"; import { createMockSender } from "./apps/web/src/simulation/mock-sender.ts"; const sim = createSimulation(); sim.subscribe(e => { if (e.action?.status === "completed") console.log(e.action.result); }); const sender = createMockSender(sim, "pip", "demo"); sender.send(sender.prepareMove("right", 40));'
+```
+
+Use the application adapter in the UI. In a headless integration harness, replace
+it with `createSimulation()` from `apps/web/src/simulation/runtime.ts`.
+
+```ts
+import { labSimulation } from "../state/lab.js";
+import { createMockSender } from "../simulation/mock-sender.js";
+
+const sender = createMockSender(labSimulation, "pip", "voice-demo-session-1");
+const unsubscribe = labSimulation.subscribe((event) => {
+  if (event.action?.status === "completed") console.log(event.action.result);
+});
+// Capture at input start, before asynchronous interpretation or selection changes.
+const prepared = sender.prepareMove("right", 40);
+const receipt = sender.send(prepared);
+// Repeating sender.send(prepared) deduplicates; a new intent needs a new ID.
+// labSimulation.stop() cancels motion; labSimulation.reset() restores the fixture.
+// unsubscribe() when the integration no longer needs events.
+```
+
+`prepareMove` captures bot identity, world revision and reset generation. Give
+each sender instance a unique short request prefix. Keep the prepared request
+unchanged across retries. A delayed pre-reset request fails `STALE_WORLD`; read
+a fresh snapshot and obtain a new user intent rather than silently refreshing it.
+The mock invokes no provider and captures no microphone input.
+
+Example payload at the initial world:
+
+```ts
+const request = {
+  requestId: "voice-demo-session-1-1",
+  botId: "pip",
+  worldRevision: 0,
+  resetGeneration: 0,
+  action: "move-weight",
+  stationId: "balance",
+  objectId: "right-weight",
+  parameters: { positionCm: 40 },
+} satisfies import("@kestrel/contracts").ActionRequest;
+```
+
+Completion produces world revision 1, right position 40 cm, and:
+
+```ts
+const result = {
+  leftGramCentimeters: 4000,
+  rightGramCentimeters: 4000,
+  leftNewtonMeters: 0.3924,
+  rightNewtonMeters: 0.3924,
+  balance: "balanced",
+} satisfies import("@kestrel/contracts").BalanceMeasurement;
+```
+
+The current scaffold scene does not yet consume motion poses; combined rendered
+action/reset evidence belongs to the presentation integration. Runtime tests
+verify state and event behavior independently of WebGL.
 
 ## Local isolation
 

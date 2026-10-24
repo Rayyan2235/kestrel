@@ -22,15 +22,18 @@ Try **right weight to 40 cm**, **left weight to 10 cm**, or **hint**. Select Pip
 ## What is implemented
 
 - Responsive React interface, isometric Three.js room and two original procedural placeholder robots.
-- Analytic mass × distance balance preview, sliders and a small supported typed-command grammar.
+- Analytic mass × distance balance fixture, sliders and a small supported typed-command grammar.
+- Deterministic local action runtime with authored approach, docking and station operation, measured results, read-only snapshots, retry deduplication and exclusive station ownership. Controls submit actions; completion messages follow actual results.
 - Addressed messages, explicit bot-to-bot recipients, a two-turn exchange limit, stop/reset and a 30-message display cap.
 - Shared Zod contracts, Fastify health/command skeleton, unit/integration tests and browser checks.
 
 ## What is not integrated yet
 
-Live LLM conversation, microphone/STT, MuJoCo physics, ONNX walking, final Kestrel assets, navigation, physical manipulation, accounts and deployment. MuJoCo/ONNX/OpenAI dependencies are pinned integration foundations; package presence is not runtime capability. `/api/commands` validates requests and returns an explicit `501 PROVIDER_NOT_CONNECTED`.
+Live LLM conversation, microphone/STT, MuJoCo physics, ONNX walking, final Kestrel assets, general navigation, physical manipulation, accounts and deployment. MuJoCo/ONNX/OpenAI dependencies are pinned integration foundations; package presence is not runtime capability. `/api/commands` validates requests and returns an explicit `501 PROVIDER_NOT_CONNECTED`.
 
-The beam is an **ideal massless model** and its visual tilt is illustrative. Direct apparatus changes in this scaffold do not demonstrate a robot physically moving a weight. The UI explicitly labels scripted behavior.
+The beam is an **ideal massless model** and its visual tilt is illustrative. The runtime uses game-controlled waypoints and station actuation, not trained walking or physical gripping. It supplies bot poses/progress for rendering; the original scene in this branch still uses static bot placements until the separate presentation integration lands. Runtime unit tests do not establish rendered-action evidence. The UI explicitly labels scripted behavior.
+
+See [simulation interface v1](docs/simulation-interface.md) for typed requests, results, a provider-free mock sender, cancellation/revision semantics and scene coordinates. The balance is a development fixture; the first product physics mission remains open.
 
 ## Workspace
 
@@ -54,6 +57,11 @@ pnpm test:e2e
 ```
 
 `pnpm check` runs typecheck, unit/API tests and both builds. Browser tests cover desktop/mobile recipient selection, command effects, collaboration, stop/reset and overflow. CI runs these checks with Node 24.
+
+For parallel checkouts, use `KESTREL_UI_PORT=5190 pnpm --filter @kestrel/web dev`
+or `KESTREL_TEST_PORT=5192 pnpm test:e2e` after reserving a free port.
+Playwright starts its own web-only server and refuses reuse. API configuration
+uses `PORT` (server) and `KESTREL_API_PORT` (web proxy); defaults remain 5180/5181.
 
 ## Build next
 

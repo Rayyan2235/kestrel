@@ -32,6 +32,12 @@ describe("bounded preview contracts", () => {
       applyWeight({ ...createWorld(), version: 2 }, "left", 10, 1),
     ).toThrow("stale");
   });
+  it("advances revision on an applied change and rejects reuse of the old revision", () => {
+    const next = applyWeight(createWorld(), "left", 10, 0);
+    expect(next.version).toBe(1);
+    expect(() => applyWeight(next, "right", 40, 0)).toThrow("stale");
+    expect(() => applyWeight(next, "wrong" as "left", 10, 1)).toThrow();
+  });
   it("preserves the captured recipient and refuses unsupported input without inventing an action", () => {
     const command = CommandSchema.parse({
       botId: "pip",
