@@ -2,7 +2,19 @@
 
 ## Authority
 
-Owner-selected: Open Space's inhabited room, compact agent windows, distinct identities and thought bubbles, translated into a 3D isometric lab. Keep Kestrel's expressive 3D direction. Reference: https://github.com/Fantomiald/open-space . No final asset or rendered reference is copied into this scaffold.
+Owner-selected: expressive 3D Kestrels in an isometric science lab. Open Space is an important reference for inhabited rooms, compact agent windows, distinct identities and thought bubbles. The owner's latest clarification explicitly calls for independent research, creative judgment and an original Kestrel identity; Open Space is one influence, not a fixed visual specification. No final asset or rendered reference is copied into this scaffold.
+
+## Creative direction and research
+
+Proposed direction: a beautiful miniature science workshop. Tactile apparatus, carefully lit materials, expressive robot silhouettes and compact controls should make the room inviting to explore. Aim for playful sophistication appropriate to teenage learners. The current scaffold's palette, font and layout are a starting point, not approved final art.
+
+Research informs specific choices rather than prescribing a composite of other products:
+
+- [Open Space](https://github.com/Fantomiald/open-space): study crew identity, room presence and readable agent conversation.
+- [Townscaper](https://www.townscapergame.com/): its toy-like building premise and immediate transformations suggest making each experiment adjustment visibly satisfying.
+- [Duolingo's craft process](https://blog.duolingo.com/core-tabs-redesign/): study deliberate typography, spacing and the balance between simplicity and clarity; evaluate a few distinct directions before settling the final design.
+
+Kestrel's own signature should be visible collaboration: a bot turns to a peer, asks for a measurement, the peer checks the apparatus, and both react to the observed result. Selection, gaze, short bubbles and apparatus feedback should tell one coherent story. This is design intent for future implementation, not a claim about the scripted scaffold's capabilities.
 
 ## First surface
 
