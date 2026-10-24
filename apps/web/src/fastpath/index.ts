@@ -201,6 +201,12 @@ export const parseFast = (text: string, ctx: FastContext): FastResult => {
 /** True when input is too short to be speech; such input never reaches the router. */
 export const isTooShort = (durationMs: number, text: string): boolean => {
   if (durationMs < MIN_SPEECH_MS) return true;
-  const n = normalize(text);
-  return n === "" || PHANTOM.has(n);
+  // Phantoms are matched before normalize(), which drops "you" and politeness.
+  const plain = text
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .join(" ");
+  return normalize(text) === "" || PHANTOM.has(plain);
 };
