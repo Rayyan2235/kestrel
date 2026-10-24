@@ -1,6 +1,5 @@
 import type { BotId, LedgerEvent } from "@kestrel/contracts";
 import type { Budget, BotState } from "../coordinator/types.js";
-import { notImplemented } from "../notImplemented.js";
 
 export type ChannelView = {
   /** "You and Pip": events where the learner is `from` or `to`. */
@@ -15,7 +14,18 @@ export type ChannelView = {
 };
 
 export const deriveChannel = (
-  _ledger: readonly LedgerEvent[],
-  _status: Record<BotId, BotState>,
-  _budget: Budget,
-): ChannelView => notImplemented("deriveChannel");
+  ledger: readonly LedgerEvent[],
+  status: Record<BotId, BotState>,
+  budget: Budget,
+): ChannelView => {
+  const withYou = (e: LedgerEvent) => e.from === "you" || e.to === "you";
+  const last = ledger.at(-1);
+  return {
+    youThread: ledger.filter(withYou),
+    botChannel: ledger.filter((e) => !withYou(e)),
+    status,
+    budget,
+    handback: last?.kind === "handback" && last.to === "you" ? last : null,
+    learnerCanType: false,
+  };
+};
