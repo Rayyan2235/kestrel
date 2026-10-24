@@ -1,4 +1,5 @@
 import { z } from "zod";
+export * from "./simulation.js";
 export const BotSchema = z.enum(["pip", "nova"]);
 export type BotId = z.infer<typeof BotSchema>;
 export const CommandSchema = z

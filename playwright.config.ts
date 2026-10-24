@@ -1,8 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+const port = Number(process.env.KESTREL_TEST_PORT || 5180);
+const baseURL = `http://127.0.0.1:${port}`;
+const token = randomUUID();
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
-  use: { baseURL: "http://127.0.0.1:5180", trace: "retain-on-failure" },
+  use: { baseURL, trace: "retain-on-failure" },
   projects: [
     {
       name: "desktop",
@@ -17,9 +21,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm dev",
-    url: "http://127.0.0.1:5180",
-    reuseExistingServer: !process.env.CI,
+    command: "pnpm --filter @kestrel/web dev",
+    cwd: import.meta.dirname,
+    env: { KESTREL_UI_PORT: String(port), KESTREL_TEST_TOKEN: token },
+    url: `${baseURL}/__kestrel_test__/${token}`,
+    reuseExistingServer: false,
     timeout: 60000,
   },
 });

@@ -3,6 +3,9 @@ import {
   applyWeight,
   CommandSchema,
   createWorld,
+  createSimulationSnapshot,
+  type SimulationSnapshot,
+  type ActionSubmission,
   messageFor,
   previewExchange,
   type BotId,
@@ -10,6 +13,8 @@ import {
   type World,
 } from "@kestrel/contracts";
 type Lab = {
+  lastSubmission: ActionSubmission | null;
+  simulation: SimulationSnapshot;
   selected: BotId;
   world: World;
   messages: Message[];
@@ -26,6 +31,8 @@ type Lab = {
   reset: () => void;
 };
 export const useLab = create<Lab>((set, get) => ({
+  lastSubmission: null,
+  simulation: createSimulationSnapshot(),
   selected: "pip",
   world: createWorld(),
   messages: [],
