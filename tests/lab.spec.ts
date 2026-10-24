@@ -1,5 +1,94 @@
 import { expect, test } from "@playwright/test";
 
+test("keyboard selection and conversation focus remain usable with reduced motion", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/");
+  const nova = page.getByRole("button", { name: "Select Nova" });
+  await nova.focus();
+  await nova.press("Enter");
+  await expect(nova).toHaveAttribute("aria-pressed", "true");
+  await expect(nova).toBeFocused();
+  expect(
+    await nova.evaluate((el) => getComputedStyle(el).outlineStyle),
+  ).not.toBe("none");
+  await page.getByRole("button", { name: "Close conversation" }).press("Enter");
+  const open = page.getByRole("button", { name: "Open conversation" });
+  await expect(open).toBeFocused();
+  await open.press("Enter");
+  await expect(
+    page.getByRole("button", { name: "Close conversation" }),
+  ).toBeFocused();
+  const slider = page.getByRole("slider", {
+    name: "right distance from pivot",
+  });
+  await slider.focus();
+  await page.keyboard.down("End");
+  await expect(page.getByTestId("balance-result")).toHaveText("Left side down");
+  await page.keyboard.up("End");
+  await expect(page.getByTestId("balance-result")).toHaveText(
+    "Right side down",
+    { timeout: 10000 },
+  );
+});
+
+test("WebGL failure preserves recipient selection and experiment controls", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+      kind: string,
+      ...args: unknown[]
+    ) {
+      if (kind.includes("webgl")) return null;
+      return getContext.call(this, kind as "2d", ...args);
+    } as typeof getContext;
+  });
+  await page.goto("/");
+  await expect(
+    page.getByText(
+      /The 3D room could not start|This browser cannot show the 3D room/,
+    ),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Select Nova" }).click();
+  const distance = page.getByRole("spinbutton", {
+    name: "Right distance in centimeters",
+  });
+  await distance.fill("40");
+  await distance.press("Enter");
+  await expect(page.getByTestId("balance-result")).toHaveText("Balanced", {
+    timeout: 10000,
+  });
+  await page.screenshot({
+    path: `test-results/fallback-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+});
+
+test("exact distance entry rejects invalid values and commits with the keyboard", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const distance = page.getByRole("spinbutton", {
+    name: "Right distance in centimeters",
+  });
+  await distance.fill("90");
+  await distance.press("Enter");
+  await expect(distance).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByTestId("balance-result")).toHaveText("Left side down");
+  await distance.fill("40");
+  await distance.press("Enter");
+  await expect(page.getByTestId("balance-result")).toHaveText("Balanced", {
+    timeout: 10000,
+  });
+  await expect(distance).not.toHaveAttribute("aria-invalid", "true");
+  await page.getByRole("button", { name: "Reset lab" }).click();
+  await expect(distance).toHaveValue("20");
+});
+
 test("a learner can address a bot, balance the beam, watch an exchange and reset", async ({
   page,
 }) => {

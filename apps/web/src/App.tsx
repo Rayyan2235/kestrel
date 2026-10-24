@@ -19,10 +19,11 @@ import {
   Square,
   X,
 } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { balance, BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { useLab } from "./state/lab";
 import styles from "./App.module.css";
+import { WeightControl } from "./components/WeightControl";
 const LabScene = lazy(() =>
   import("./world/LabScene").then((module) => ({ default: module.LabScene })),
 );
@@ -31,6 +32,8 @@ export function App() {
   const lab = useLab();
   const [text, setText] = useState("");
   const [chatOpen, setChatOpen] = useState(true);
+  const reopen = useRef<HTMLButtonElement>(null);
+  const close = useRef<HTMLButtonElement>(null);
   const reduced = Boolean(useReducedMotion());
   const log = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -40,16 +43,33 @@ export function App() {
         : 0;
   }, [lab.messages, chatOpen]);
   useEffect(() => {
-    if (!lab.busy) return;
+    if (!lab.busy || lab.simulation.activeAction) return;
     const token = lab.epoch;
     const timer = window.setTimeout(
       () => useLab.getState().deliverExchange(token, lab.nextTurn),
       lab.nextTurn === 0 ? 650 : 1100,
     );
     return () => window.clearTimeout(timer);
-  }, [lab.busy, lab.epoch, lab.nextTurn]);
+  }, [lab.busy, lab.epoch, lab.nextTurn, lab.simulation.activeAction]);
   const result = balance(lab.world);
   const latest = [...lab.messages].reverse().find((m) => m.speaker !== "you");
+  const simulation = lab.simulation;
+  const active = simulation.activeAction;
+  const last = simulation.lastAction;
+  const live = simulation.mode === "game-controlled";
+  const rejected =
+    lab.lastSubmission && !lab.lastSubmission.accepted
+      ? lab.lastSubmission.error
+      : null;
+  const actionText = active
+    ? `${BOT_NAMES[active.request.botId]} · ${active.phase === "approach" ? "Approaching the bench" : active.phase === "dock" ? "Getting into position" : "Adjusting the weight"}`
+    : last?.status === "completed"
+      ? `${BOT_NAMES[last.request.botId]} finished · ${last.request.parameters.positionCm} cm`
+      : last?.status === "cancelled"
+        ? "Action stopped. Ready when you are."
+        : last?.status === "failed"
+          ? "Action could not finish. Try again."
+          : "Choose a weight. Predict what will change.";
   function send(e: FormEvent) {
     e.preventDefault();
     if (!text.trim()) return;
@@ -66,9 +86,7 @@ export function App() {
         </a>
         <span className={styles.tagline}>A little world of why.</span>
         <div className={styles.headerActions}>
-          <span className={styles.preview}>
-            Scaffold preview · scripted bots
-          </span>
+          <span className={styles.preview}>Lab preview · scripted bots</span>
           <Dialog.Root>
             <Dialog.Trigger asChild>
               <button
@@ -105,7 +123,9 @@ export function App() {
           </Dialog.Root>
         </div>
       </header>
-      <main className={styles.workspace}>
+      <main
+        className={`${styles.workspace} ${!chatOpen ? styles.chatClosed : ""}`}
+      >
         <section className={styles.room} aria-label="Science lab">
           <div className={styles.mission}>
             <div className={styles.missionIcon}>
@@ -114,26 +134,32 @@ export function App() {
             <div>
               <h2>A matter of balance</h2>
               <p>Change one thing. See what happens.</p>
+              <span className={styles.fixtureLabel}>
+                Balance development fixture
+              </span>
             </div>
           </div>
           <div className={styles.scene}>
             <Suspense
               fallback={<div className="scene-fallback">Opening the lab…</div>}
             >
-              <LabScene reduced={reduced} />
+              <LabScene
+                reduced={reduced}
+                latest={
+                  active
+                    ? {
+                        speaker: active.request.botId,
+                        recipient: "you",
+                        text:
+                          active.phase === "operate"
+                            ? `Adjusting the ${active.request.objectId === "left-weight" ? "left" : "right"} weight to ${active.request.parameters.positionCm} cm.`
+                            : "On my way to the balance bench.",
+                      }
+                    : latest
+                }
+              />
             </Suspense>
           </div>
-          {latest && (
-            <motion.div
-              key={lab.messages.length}
-              initial={reduced ? false : { opacity: 0.6, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className={styles.bubble}
-            >
-              <strong>{BOT_NAMES[latest.speaker as BotId]}</strong>
-              <span>{latest.text}</span>
-            </motion.div>
-          )}
           <section
             className={styles.measurements}
             aria-label="Balance controls"
@@ -155,28 +181,41 @@ export function App() {
             </div>
             <div className={styles.sliders}>
               {(["left", "right"] as const).map((side) => (
-                <label key={side}>
-                  <span>
-                    {side === "left" ? "Blue · 200 g" : "Coral · 100 g"}
-                    <output>
-                      {lab.world[side === "left" ? "leftCm" : "rightCm"]} cm
-                    </output>
-                  </span>
-                  <input
-                    aria-label={`${side} distance from pivot`}
-                    type="range"
-                    min="5"
-                    max="45"
-                    step="5"
-                    value={lab.world[side === "left" ? "leftCm" : "rightCm"]}
-                    onChange={(e) =>
-                      lab.moveWeight(side, Number(e.target.value))
-                    }
-                  />
-                </label>
+                <WeightControl
+                  key={`${side}-${simulation.resetGeneration}-${live ? 0 : lab.world.version}`}
+                  side={side}
+                  value={lab.world[side === "left" ? "leftCm" : "rightCm"]}
+                  grams={
+                    lab.world[side === "left" ? "leftGrams" : "rightGrams"]
+                  }
+                  disabled={Boolean(active)}
+                  onCommit={(cm) => lab.moveWeight(side, cm)}
+                />
               ))}
             </div>
-            <p>Distances from the pivot · ideal massless beam</p>
+            <div className={styles.actionState}>
+              <p role="status" aria-live="polite">
+                {actionText}
+              </p>
+              {active && (
+                <progress
+                  aria-label={`${BOT_NAMES[active.request.botId]} action progress`}
+                  max={1}
+                  value={active.progress}
+                />
+              )}
+              {rejected && (
+                <p className={styles.error} role="alert">
+                  {rejected.message}
+                </p>
+              )}
+              {!rejected && last?.status === "failed" && (
+                <p className={styles.error} role="alert">
+                  {last.error?.message}
+                </p>
+              )}
+            </div>
+            <p>Ideal massless beam · tilt is illustrative</p>
           </section>
         </section>
         {chatOpen ? (
@@ -190,7 +229,11 @@ export function App() {
               <button
                 className={styles.darkIcon}
                 aria-label="Close conversation"
-                onClick={() => setChatOpen(false)}
+                ref={close}
+                onClick={() => {
+                  setChatOpen(false);
+                  requestAnimationFrame(() => reopen.current?.focus());
+                }}
               >
                 <X size={18} />
               </button>
@@ -249,7 +292,14 @@ export function App() {
             </div>
           </aside>
         ) : (
-          <button className={styles.reopen} onClick={() => setChatOpen(true)}>
+          <button
+            ref={reopen}
+            className={styles.reopen}
+            onClick={() => {
+              setChatOpen(true);
+              requestAnimationFrame(() => close.current?.focus());
+            }}
+          >
             <MessageCircle size={18} /> Open conversation
           </button>
         )}
@@ -272,7 +322,9 @@ export function App() {
                 <span>
                   {BOT_NAMES[id]}
                   <small>
-                    {id === "pip" ? "Try & explore" : "Observe & explain"}
+                    {lab.selected === id
+                      ? "Selected recipient"
+                      : "Select companion"}
                   </small>
                 </span>
                 {lab.selected === id && <Check size={14} />}
@@ -299,11 +351,11 @@ export function App() {
             </button>
           </form>
           <div className={styles.dockActions}>
-            {lab.busy ? (
+            {lab.busy || active ? (
               <button
                 className={styles.collaborate}
                 onClick={lab.stop}
-                aria-label="Stop exchange"
+                aria-label={active ? "Stop action" : "Stop exchange"}
               >
                 <Square size={15} /> Stop
               </button>
@@ -319,18 +371,22 @@ export function App() {
               </button>
             )}
             <button
-              className={styles.iconButton}
+              className={styles.reset}
               aria-label="Reset lab"
               onClick={lab.reset}
             >
-              <RotateCcw size={18} />
+              <RotateCcw size={18} /> <span>Reset</span>
             </button>
           </div>
         </section>
       </main>
       <footer className={styles.footer}>
-        <span>Your ideas. Their little helping hands.</span>
-        <span>Moments study · early visual foundation</span>
+        <span>Select a companion. Try an idea. See why.</span>
+        <span>
+          {live
+            ? "Game-controlled movement · scripted conversation"
+            : "View-only pose fixture · direct apparatus preview"}
+        </span>
       </footer>
     </div>
   );

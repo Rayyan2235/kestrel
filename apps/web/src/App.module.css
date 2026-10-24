@@ -4,8 +4,8 @@
   flex-direction: column;
 }
 .header {
-  height: 78px;
-  padding: 0 36px;
+  min-height: 72px;
+  padding: 0 32px;
   display: flex;
   align-items: center;
   gap: 28px;
@@ -31,11 +31,11 @@
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 14px;
 }
 .preview {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 12px;
 }
 .iconButton,
 .darkIcon {
@@ -43,8 +43,8 @@
   background: transparent;
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   color: inherit;
   border-radius: 10px;
   flex-shrink: 0;
@@ -56,87 +56,72 @@
   position: relative;
   flex: 1;
   margin: 0 20px;
-  background: #dde5d5;
+  padding: 22px;
+  background: #dce5d4;
   border-radius: 20px;
-  min-height: 760px;
-  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 20px;
 }
 .room {
-  position: absolute;
-  inset: 0 350px 110px 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 .mission {
-  position: absolute;
+  position: relative;
   z-index: 2;
-  left: 30px;
-  top: 29px;
   display: flex;
   gap: 13px;
   align-items: center;
+  padding: 4px 8px 0;
 }
 .missionIcon {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: 12px;
-  background: #cad7bc;
+  background: #c9d7b9;
 }
 .mission h2 {
-  font-size: 19px;
+  font-size: 21px;
   letter-spacing: -0.025em;
-  margin: 0 0 6px;
+  margin: 0 0 5px;
 }
 .mission p {
   margin: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
-.scene {
-  position: absolute;
-  inset: 40px -35px 60px -45px;
-}
-.bubble {
-  position: absolute;
-  top: 100px;
-  left: 42%;
-  max-width: 280px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: #fcfcf4;
-  box-shadow: var(--shadow);
-  z-index: 3;
-  font-size: 11px;
-  line-height: 1.65;
-  pointer-events: none;
-}
-.bubble strong {
+.fixtureLabel {
   display: block;
-  margin-bottom: 3px;
   font-size: 11px;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.scene {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  min-height: 390px;
 }
 .measurements {
-  position: absolute;
-  z-index: 2;
-  bottom: 0;
-  left: 30px;
-  right: 15px;
-  max-width: 540px;
-  background: rgba(251, 252, 247, 0.96);
-  box-shadow: var(--shadow);
+  position: relative;
+  background: var(--panel);
   border-radius: 16px;
-  padding: 18px 22px 13px;
+  padding: 18px 22px 14px;
 }
 .result {
   display: flex;
   gap: 8px;
   align-items: center;
-  font-size: 12px;
+  font-size: 14px;
 }
 .result > span:last-child {
   margin-left: auto;
   color: var(--muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 .observationDot,
 .balancedDot,
@@ -145,7 +130,7 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #c18b4f;
+  background: #a46d32;
   display: inline-block;
   flex-shrink: 0;
 }
@@ -155,44 +140,50 @@
 .sliders {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
-  margin-top: 18px;
-}
-.sliders label > span {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  gap: 8px;
-}
-.sliders output {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.sliders input {
-  display: block;
-  width: 100%;
-  margin: 10px 0 0;
+  gap: 32px;
+  margin-top: 12px;
 }
 .measurements > p {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   margin: 12px 0 0;
 }
+.actionState {
+  margin-top: 16px;
+  border-top: 1px solid #e0e6d8;
+  padding-top: 12px;
+}
+.actionState p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.actionState progress {
+  display: block;
+  width: 100%;
+  height: 6px;
+  accent-color: #426c50;
+  margin-top: 9px;
+}
+.actionState .error {
+  color: #963b29;
+  margin-top: 7px;
+}
 .conversation {
-  position: absolute;
-  top: 24px;
-  right: 24px;
-  bottom: 110px;
-  width: 310px;
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 480px;
+  max-height: 720px;
   border-radius: 16px;
   background: var(--dock);
   color: var(--on-dark);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 32px rgba(25, 50, 38, 0.18);
+  box-shadow: 0 12px 28px #19322618;
 }
 .chatHeader {
-  padding: 14px 14px 14px 18px;
+  padding: 12px 10px 12px 18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -205,14 +196,14 @@
   flex-wrap: wrap;
 }
 .chatHeader strong {
-  font-size: 13px;
+  font-size: 15px;
 }
 .online,
 .smallDot {
   background: var(--accent);
 }
 .crewCount {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--on-dark-muted);
   flex-basis: 100%;
   margin-left: 15px;
@@ -232,30 +223,30 @@
   min-height: 0;
 }
 .empty {
-  padding: 42px 8px;
+  padding: 32px 6px;
   color: var(--on-dark-muted);
   line-height: 1.7;
 }
 .empty h3 {
   color: var(--on-dark);
-  font-size: 16px;
-  margin: 22px 0 9px;
+  font-size: 18px;
+  margin: 20px 0 9px;
   font-weight: 600;
 }
 .empty p {
-  font-size: 12px;
-  margin: 0 0 30px;
+  font-size: 14px;
+  margin: 0 0 24px;
 }
 .empty > span {
-  font-size: 10px;
+  font-size: 12px;
   display: block;
-  max-width: 180px;
+  max-width: 210px;
 }
 .message {
   margin-bottom: 20px;
 }
 .messageMeta {
-  font-size: 10px;
+  font-size: 12px;
   color: #dfedce;
   display: flex;
   justify-content: space-between;
@@ -265,8 +256,8 @@
   color: var(--on-dark-muted);
 }
 .message p {
-  font-size: 12px;
-  line-height: 1.75;
+  font-size: 13px;
+  line-height: 1.65;
   margin: 0;
   padding: 12px 14px;
   border-radius: 12px;
@@ -277,7 +268,7 @@
   background: #385744;
 }
 .thinking {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--on-dark-muted);
   padding: 8px 0;
 }
@@ -289,7 +280,7 @@
   gap: 12px;
 }
 .chatFooter > span {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--on-dark-muted);
   display: flex;
   align-items: center;
@@ -299,23 +290,20 @@
   background: #28463b;
   color: var(--on-dark);
   border: 0;
-  padding: 9px 14px;
+  padding: 10px 14px;
+  min-height: 44px;
   border-radius: 9px;
-  font-size: 11px;
+  font-size: 12px;
   align-self: flex-start;
 }
 .dock {
-  position: absolute;
-  bottom: 22px;
-  left: 24px;
-  right: 24px;
+  grid-column: 1 / -1;
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   background: var(--panel);
   border-radius: 16px;
-  padding: 12px 16px;
-  box-shadow: var(--shadow);
+  padding: 12px;
 }
 .crew {
   display: flex;
@@ -325,28 +313,30 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: 9px 10px;
+  min-height: 52px;
   border: 0;
   background: transparent;
   color: var(--ink);
   border-radius: 10px;
   text-align: left;
-  min-width: 135px;
+  min-width: 133px;
 }
 .bot:hover {
   background: #e9eddf;
 }
 .bot.selected {
-  background: #e5edda;
+  background: #e1ecd0;
+  box-shadow: inset 0 0 0 1px #a4b98b;
 }
 .bot > span:nth-child(2) {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
 }
 .bot small {
-  font-size: 8px;
+  font-size: 10px;
   display: block;
-  margin-top: 5px;
+  margin-top: 4px;
   font-weight: 400;
   color: var(--muted);
   white-space: nowrap;
@@ -354,7 +344,7 @@
 .face {
   width: 31px;
   height: 26px;
-  border-radius: 9px;
+  border-radius: 8px;
   background: var(--coral);
   display: flex;
   justify-content: center;
@@ -379,13 +369,13 @@
   align-items: center;
   background: #edf0e7;
   border-radius: 12px;
-  padding: 7px 8px 7px 14px;
+  padding: 5px 6px 5px 14px;
   min-width: 120px;
-  gap: 12px;
+  gap: 10px;
 }
 .command label {
-  font-size: 10px;
-  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
 .command input {
@@ -394,16 +384,16 @@
   color: var(--ink);
   min-width: 0;
   flex: 1;
-  font-size: 11px;
-  height: 30px;
+  font-size: 13px;
+  height: 42px;
 }
 .command input::placeholder {
   color: #536960;
   opacity: 1;
 }
 .command button {
-  width: 32px;
-  height: 32px;
+  width: 44px;
+  height: 44px;
   border: 0;
   background: var(--dock);
   color: var(--on-dark);
@@ -417,48 +407,71 @@
   align-items: center;
   gap: 8px;
 }
-.collaborate {
+.collaborate,
+.reset {
   border: 0;
-  background: var(--accent);
-  color: var(--ink);
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  padding: 12px 15px;
+  min-height: 44px;
+  padding: 12px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
+}
+.collaborate {
+  background: var(--accent);
+  color: var(--ink);
+}
+.reset {
+  background: transparent;
+  color: var(--ink);
+}
+.reset:hover {
+  background: #e9eddf;
 }
 .collaborate:hover,
 .primary:hover {
   background: #bfdc70;
 }
 .footer {
-  padding: 18px 38px;
+  padding: 15px 32px;
   display: flex;
   justify-content: space-between;
-  font-size: 10px;
+  gap: 20px;
+  font-size: 11px;
   color: var(--muted);
+  line-height: 1.5;
 }
 .reopen {
   position: absolute;
-  right: 24px;
-  top: 24px;
+  right: 26px;
+  top: 26px;
   background: var(--dock);
   color: var(--on-dark);
-  padding: 14px;
+  padding: 12px 16px;
+  min-height: 44px;
   border: 0;
   border-radius: 12px;
   display: flex;
   gap: 10px;
   align-items: center;
   font-size: 12px;
+  z-index: 3;
+}
+.chatClosed {
+  grid-template-columns: minmax(0, 1fr);
+}
+.chatClosed .measurements {
+  width: min(820px, 100%);
+  align-self: center;
 }
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(17, 36, 28, 0.5);
+  background: #11241c80;
   z-index: 10;
 }
 .dialog {
@@ -483,7 +496,7 @@
 }
 .dialog p {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
 }
 .primary {
@@ -493,118 +506,95 @@
   border: 0;
   padding: 12px 18px;
   border-radius: 10px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
 }
 @media (min-width: 1500px) {
-  .room {
-    right: 400px;
-  }
-  .conversation {
-    width: 350px;
-  }
   .scene {
-    inset: 40px -35px 60px -45px;
+    min-height: 470px;
+  }
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 330px;
+  }
+  .workspace.chatClosed {
+    grid-template-columns: 1fr;
   }
 }
-@media (max-width: 1100px) {
-  .dock {
-    gap: 8px;
+@media (max-width: 1150px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) 270px;
+    padding: 18px;
+    gap: 16px;
   }
   .bot {
-    min-width: 83px;
+    min-width: 87px;
   }
   .bot small {
     display: none;
   }
-  .room {
-    right: 320px;
+  .dock {
+    gap: 8px;
   }
-  .conversation {
-    width: 285px;
-  }
-  .tagline {
-    display: none;
-  }
-  .command label {
-    display: none;
-  }
-  .scene {
-    inset: 50px -90px 90px -90px;
+  .sliders {
+    gap: 18px;
   }
   .result > span:last-child {
+    display: none;
+  }
+  .tagline {
     display: none;
   }
 }
 @media (max-width: 900px) {
   .header {
-    height: 70px;
+    min-height: 68px;
     padding: 0 20px;
     gap: 10px;
   }
   .preview {
-    font-size: 9px;
-    max-width: 112px;
-    line-height: 1.6;
+    max-width: 140px;
+    line-height: 1.5;
+    font-size: 11px;
   }
   .headerActions {
-    gap: 4px;
+    gap: 3px;
   }
   .workspace {
     display: flex;
     flex-direction: column;
-    overflow: visible;
-    min-height: 0;
     margin: 0 12px;
-    padding-bottom: 14px;
+    padding: 14px;
     gap: 14px;
   }
   .room {
-    position: relative;
-    inset: auto;
-    height: 610px;
-    overflow: hidden;
-    border-radius: 20px;
+    order: 0;
   }
   .mission {
-    left: 20px;
-    top: 22px;
+    padding: 4px 2px 0;
     gap: 10px;
   }
   .mission h2 {
-    font-size: 17px;
+    font-size: 19px;
   }
   .mission p {
-    font-size: 10px;
+    font-size: 12px;
   }
   .scene {
-    inset: 66px -110px 100px -110px;
-  }
-  .bubble {
-    top: 92px;
-    left: auto;
-    right: 16px;
-    max-width: 220px;
-    font-size: 10px;
+    flex: none;
+    min-height: 0;
+    height: 350px;
   }
   .measurements {
-    bottom: 12px;
-    left: 14px;
-    right: 14px;
     padding: 16px;
-    max-width: none;
   }
   .conversation {
-    position: relative;
-    top: auto;
-    right: auto;
-    bottom: auto;
-    margin: 0 14px;
-    width: auto;
-    height: 390px;
+    order: 2;
+    height: 360px;
+    min-height: 0;
+    max-height: none;
   }
   .empty {
-    padding: 14px 8px;
+    padding: 10px 8px;
   }
   .empty h3 {
     margin-top: 10px;
@@ -616,11 +606,9 @@
     max-width: none;
   }
   .dock {
-    position: relative;
-    inset: auto;
-    margin: 0 14px;
+    order: 1;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
     padding: 12px;
   }
   .crew {
@@ -628,57 +616,77 @@
   }
   .bot {
     min-width: 90px;
-    padding: 6px;
+    padding: 8px;
   }
   .command {
     order: 3;
     flex-basis: 100%;
   }
   .command input {
-    font-size: 13px;
+    font-size: 16px;
   }
   .dockActions {
-    gap: 3px;
-  }
-  .collaborate {
-    padding: 10px;
-    font-size: 10px;
+    gap: 4px;
   }
   .footer {
     padding: 16px 24px;
-    line-height: 1.6;
-    gap: 14px;
+    gap: 16px;
   }
   .footer > span:last-child {
     text-align: right;
   }
   .reopen {
-    position: relative;
-    top: auto;
-    right: auto;
-    margin: 0 14px;
+    order: 2;
+    position: static;
     justify-content: center;
   }
+  .chatClosed .measurements {
+    width: 100%;
+  }
 }
-@media (max-width: 440px) {
-  .dockActions .iconButton {
-    width: 30px;
+@media (max-width: 500px) {
+  .workspace {
+    padding: 10px;
+    margin: 0 8px;
   }
-  .bot {
-    min-width: 70px;
-    gap: 6px;
+  .scene {
+    height: 300px;
   }
-  .face {
-    width: 25px;
-    height: 23px;
+  .mission {
+    padding: 8px 4px 0;
   }
-  .bot > svg {
+  .missionIcon {
     display: none;
   }
-  .collaborate {
-    padding: 10px 8px;
+  .dock {
+    gap: 8px;
+  }
+  .crew {
+    flex-basis: 100%;
+  }
+  .bot {
+    flex: 1;
+  }
+  .bot small {
+    display: block;
+    font-size: 10px;
+  }
+  .dockActions {
+    order: 4;
+    width: 100%;
+    justify-content: space-between;
   }
   .sliders {
-    gap: 16px;
+    gap: 18px;
+  }
+  .measurements {
+    padding: 14px;
+  }
+  .footer {
+    font-size: 10px;
+    padding: 14px 18px;
+  }
+  .preview {
+    max-width: 115px;
   }
 }
