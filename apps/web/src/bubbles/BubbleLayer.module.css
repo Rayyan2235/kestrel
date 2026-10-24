@@ -1,0 +1,128 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.bubble {
+  --bw: min(250px, 72%);
+  position: absolute;
+  width: var(--bw);
+  left: clamp(calc(var(--bw) / 2), var(--x), calc(100% - var(--bw) / 2));
+  top: var(--y);
+  transform: translate(-50%, -100%);
+  padding: 9px 12px 10px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.35;
+  animation: pop 0.22s ease-out;
+}
+.bubble::after {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: inherit;
+  border: inherit;
+  transform: rotate(45deg);
+}
+/* Light surface: involves the learner. 2px ink outline, tail points down at the speaker. */
+.bubble[data-variant="to-you"] {
+  background: var(--panel);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: var(--shadow);
+}
+.bubble[data-variant="to-you"]::after {
+  left: calc(50% - 7px);
+  bottom: -9px;
+  border-top: 0;
+  border-left: 0;
+  border-width: 0 2px 2px 0;
+  border-style: solid;
+  border-color: var(--ink);
+}
+/* Dark surface: bots only. Tail points sideways at the listener. */
+.bubble[data-variant="bot-to-bot"] {
+  background: var(--dock);
+  color: var(--on-dark);
+  border: 2px solid var(--dock);
+  --bw: min(230px, 66%);
+}
+.bubble[data-variant="bot-to-bot"][data-tail="right"]::after {
+  right: -8px;
+  top: calc(50% - 7px);
+  border: 0;
+}
+.bubble[data-variant="bot-to-bot"][data-tail="left"]::after {
+  left: -8px;
+  top: calc(50% - 7px);
+  border: 0;
+}
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+[data-variant="to-you"] .chip {
+  background: var(--accent);
+  color: var(--ink);
+}
+[data-variant="bot-to-bot"] .chip {
+  border: 1.5px solid var(--on-dark);
+  color: var(--on-dark);
+}
+.source {
+  font-weight: 600;
+  opacity: 0.85;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+.text {
+  margin: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  -webkit-line-clamp: 4; /* about 120 characters */
+}
+[data-variant="bot-to-bot"] .text {
+  -webkit-line-clamp: 2; /* about 80 characters */
+}
+@media (max-width: 600px) {
+  .bubble {
+    font-size: 14px;
+  }
+  /* One compact pill on phones; the full text is in the channel. */
+  [data-variant="bot-to-bot"] .text {
+    -webkit-line-clamp: 1;
+  }
+  [data-variant="to-you"] .text {
+    -webkit-line-clamp: 3;
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    translate: 0 6px;
+  }
+}
+@media (forced-colors: active) {
+  .bubble {
+    border: 2px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+  .bubble[data-variant="bot-to-bot"] {
+    border-style: dashed;
+  }
+}
