@@ -1,0 +1,17 @@
+{
+  "name": "@kestrel/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/apps/api/src/index.js"
+  },
+  "dependencies": {
+    "@kestrel/contracts": "workspace:*",
+    "fastify": "5.12.7",
+    "openai": "7.43.0",
+    "zod": "4.6.7"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Kestrel",
+  "mode": "experience",
+  "tokens": {
+    "font": "Plus Jakarta Sans Variable",
+    "ink": "#203b33",
+    "muted": "#536960",
+    "canvas": "#e9ede4",
+    "panel": "#fbfcf7",
+    "dock": "#18352c",
+    "accent": "#d2eb88",
+    "coral": "#dc8060",
+    "teal": "#5caca4",
+    "spacing": [4, 8, 12, 16, 24, 32, 48]
+  },
+  "reference": "https://github.com/Fantomiald/open-space",
+  "status": "initial scaffold direction; final asset integration pending"
+}

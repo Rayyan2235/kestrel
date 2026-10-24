@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+.pnpm-store
+dist
+node_modules
+test-results
+playwright-report
+.impeccable/review

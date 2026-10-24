@@ -1,0 +1,69 @@
+@import url("./tokens.css");
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans Variable", sans-serif;
+  color: var(--ink);
+  background: var(--canvas);
+}
+button,
+input {
+  font: inherit;
+}
+button {
+  cursor: pointer;
+}
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+button {
+  transition:
+    background 0.16s,
+    color 0.16s;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 3px solid #558b77;
+  outline-offset: 4px;
+}
+::selection {
+  background: #c5dfa2;
+  color: #19382c;
+}
+input {
+  caret-color: #32664f;
+}
+input[type="range"] {
+  accent-color: #456c53;
+  cursor: pointer;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #799186 transparent;
+}
+.scene-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 100px 25%;
+  text-align: center;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

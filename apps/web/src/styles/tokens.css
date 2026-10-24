@@ -1,0 +1,13 @@
+:root {
+  --ink: #203b33;
+  --muted: #536960;
+  --canvas: #e9ede4;
+  --panel: #fbfcf7;
+  --dock: #18352c;
+  --on-dark: #f2f6ed;
+  --on-dark-muted: #bfcfc3;
+  --accent: #d2eb88;
+  --coral: #dc8060;
+  --teal: #5caca4;
+  --shadow: 0 14px 36px rgba(33, 58, 42, 0.12);
+}
