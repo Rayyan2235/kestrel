@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useReducedMotion } from "motion/react";
-import { balance, BOT_NAMES, type BotId } from "@kestrel/contracts";
+import { balance, BOT_NAMES } from "@kestrel/contracts";
 import { useLab } from "./state/lab";
 import styles from "./App.module.css";
 import { WeightControl } from "./components/WeightControl";
@@ -272,7 +272,7 @@ export function App() {
                   </div>
                 ))
               )}
-              {lab.busy && (
+              {lab.busy && !active && (
                 <div className={styles.thinking} role="status">
                   The crew is comparing notes…
                 </div>

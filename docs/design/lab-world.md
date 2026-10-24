@@ -82,3 +82,32 @@ First implementation captures (`test-results/kestrel-desktop.png`,
 The mobile room now fits; commands precede chat; validation and fallback remain
 usable. Name tags were moved below robots after inspection to uncover the beam.
 Final runtime integration and confirmation captures remain pending.
+
+Final independent UI checks: `KESTREL_TEST_PORT=5190 pnpm test:e2e` passed 14/14
+on desktop and mobile. The 320px overflow regression was reproduced, traced to
+non-wrapping recipient captions, fixed and checked again. `pnpm check` passed
+10/10 tests, typecheck, both builds and API health after the fix. `git diff --check`
+passed. A unique readiness token and returned Vite root verified this checkout.
+All test/dev servers started for this pass were stopped.
+
+Confirmation captures inspected: `test-results/confirmation-desktop.png`,
+`confirmation-mobile.png`, `confirmation-narrow.png`, `bubble-desktop.png` and
+`bubble-mobile.png`. The desktop/mobile captures confirm names below the bots,
+public speech above the speaker, an uncropped room and commands before chat.
+No additional visual polish loop was run.
+
+Self-review (no additional agents, per task boundary): persistence passes via
+this surface document and unchanged PRODUCT/DESIGN guidance; typography, palette,
+procedural 3D material and room-first layout match the existing direction.
+The name-tag overlap and narrow recipient overflow findings are resolved in
+confirmation captures. Keep the apparatus central and selection explicit.
+DESIGN.md and tokens were inspected and preserved; no new global identity or
+raster assets were introduced. The Impeccable context/detector launcher returned
+permission denied, so automated design detection did not run.
+
+Combined runtime checks remain pending until an explicitly reported runtime-ready
+commit is reviewed and locally integrated: real motion/progress, pinned recipient
+through action completion, busy rejection, Stop/reset and late result fencing.
+The current branch labels its static pose fixture honestly; no completion is
+claimed for those runtime behaviors. The existing lazy 3D chunk remains above
+Vite's 500 kB warning threshold.

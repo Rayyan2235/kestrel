@@ -663,13 +663,16 @@
   }
   .crew {
     flex-basis: 100%;
+    min-width: 0;
   }
   .bot {
     flex: 1;
+    min-width: 0;
   }
   .bot small {
     display: block;
     font-size: 10px;
+    white-space: normal;
   }
   .dockActions {
     order: 4;

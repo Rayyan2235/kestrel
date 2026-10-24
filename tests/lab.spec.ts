@@ -1,5 +1,21 @@
 import { expect, test } from "@playwright/test";
 
+test("narrow screens keep recipient controls inside the viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Select Nova" }).click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await expect(
+    page.getByRole("button", { name: "Select Nova" }),
+  ).toBeInViewport();
+});
+
 test("keyboard selection and conversation focus remain usable with reduced motion", async ({
   page,
 }) => {
