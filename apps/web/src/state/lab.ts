@@ -1,10 +1,12 @@
 import { create } from "zustand";
 import {
   applyWeight,
+  bumpVersion,
   CommandSchema,
   createWorld,
   messageFor,
   previewExchange,
+  resetWorld,
   type BotId,
   type Message,
   type World,
@@ -60,7 +62,7 @@ export const useLab = create<Lab>((set, get) => ({
           reply.action.cm,
           s.world.version,
         )
-      : s.world;
+      : bumpVersion(s.world);
     const userMessage: Message = {
       speaker: "you",
       recipient: s.selected,
@@ -100,7 +102,7 @@ export const useLab = create<Lab>((set, get) => ({
     set((s) => ({ epoch: s.epoch + 1, busy: false, queued: [], nextTurn: 0 })),
   reset: () =>
     set((s) => ({
-      world: { ...createWorld(), version: s.world.version + 1 },
+      world: resetWorld(s.world),
       messages: [],
       epoch: s.epoch + 1,
       busy: false,

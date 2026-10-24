@@ -1,6 +1,7 @@
 import { z } from "zod";
-export const BotSchema = z.enum(["pip", "nova"]);
-export type BotId = z.infer<typeof BotSchema>;
+import { BotSchema, type BotId } from "./bot.js";
+export { BotSchema, type BotId } from "./bot.js";
+export * from "./ledger.js";
 export const CommandSchema = z
   .object({
     botId: BotSchema,
@@ -42,8 +43,21 @@ export function applyWeight(
 ): World {
   if (version !== world.version) throw new Error("stale world version");
   z.number().min(5).max(45).parse(cm);
-  return { ...world, [side === "left" ? "leftCm" : "rightCm"]: cm };
+  return {
+    ...world,
+    [side === "left" ? "leftCm" : "rightCm"]: cm,
+    version: world.version + 1,
+  };
 }
+/** Every mutation, including a learner turn that moves nothing, bumps the version so late results read as stale. */
+export const bumpVersion = (world: World): World => ({
+  ...world,
+  version: world.version + 1,
+});
+export const resetWorld = (world: World): World => ({
+  ...createWorld(),
+  version: world.version + 1,
+});
 export function messageFor(command: Command, world: World): Message {
   if (command.worldVersion !== world.version)
     throw new Error("stale world version");
