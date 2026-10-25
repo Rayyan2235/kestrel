@@ -106,7 +106,7 @@ World/experiment state, per-bot session, crew coordinator (turn/time/token budge
 
 ## Product entry integration — 2026-10-25
 
-- `src/main.tsx`: `/` renders `welcome/WelcomePage`; `/console`, `/lab` and nested `/lab/` paths lazy-load `sandbox/SandboxApp` outside StrictMode to boot physics once. `?demo=two-bot` remains a separately lazy-loaded teammate demo.
+- `src/main.tsx`: `/` renders `welcome/WelcomePage` (a GIC hero; art paths in its `LANDING` config); `/console`, `/lab` and nested `/lab/` paths lazy-load `sandbox/SandboxApp` outside StrictMode to boot physics once. `?demo=two-bot` remains a separately lazy-loaded teammate demo.
 - `sandbox.html`: legacy console entry retained. Console Home links return to `/`.
 - `src/welcome/`: imported landing UI and Arc controls; public artwork/font assets under `public/welcome/`. Landing balance example uses shared deterministic contracts but does not load MuJoCo or ONNX.
 - Removed the old `App.tsx`, `App.module.css`, `world/LabScene.tsx`, and preview-only Zustand `state/lab.ts` plus its obsolete tests. The older map above is historical for those files. Shared contracts and teammate demo runtime remain.
