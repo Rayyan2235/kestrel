@@ -20,6 +20,7 @@ The learner speaks to the duck; Claude decides whether to answer, act, or both; 
 - **"Move the crate to the right"** (Free play) pushes the crate 16 cm **screen-right**, and Claude reports the measured result accurately.
 - **Claude's honesty:** results include measured distances, and the closing summary describes the current world, failures included.
 - **Moments physics:** the plank tips to about −12° under the 200 g weight, after the pivot was rotated (`yaw: π/2`).
+- **Moments display:** the camera frames the duck plus the lesson apparatus (`LabKit.focus`), so the tipping plank is visible.
 - **Tests:** 27/27 unit tests and `tsc` clean.
 
 ## Unreliable or broken

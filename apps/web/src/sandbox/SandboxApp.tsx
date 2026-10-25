@@ -19,7 +19,7 @@ const LESSONS: { id: KitId; subject: string; topic: string }[] = [
 const OBJECTIVE: Record<KitId, string> = {
   pythagoras:
     "Push each square onto the side of the right triangle that matches it. Count the tiles: does 9 + 16 make 25?",
-  moments: "The plank tips on its pivot. Push the 100 g weight around and watch what the beam does.",
+  moments: "A 200 g weight sits 20 cm from the pivot with nothing on the other side, so the plank tips. Ask Pip what moments are. Placing weights on the plank comes next.",
   free: "Walk, turn, kick and push blocks around the lab.",
 };
 

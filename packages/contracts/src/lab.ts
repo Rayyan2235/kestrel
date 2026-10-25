@@ -54,6 +54,8 @@ export type LabKit = {
   slots: SlotSpec[];
   /** Lines of the right triangle drawn on the floor, in metres. */
   outline?: Vec2[];
+  /** Where the lesson's apparatus is; the camera keeps it in view with the duck. */
+  focus: Vec2;
 };
 
 /** One Pythagoras unit, in metres. The duck stands about 0.25 m tall. */
@@ -179,6 +181,7 @@ export function pythagorasKit(): LabKit {
   });
   return {
     id: "pythagoras",
+    focus: [0.45, -0.05],
     subject: "Maths",
     topic: "Pythagorean theorem",
     props: [
@@ -197,6 +200,7 @@ export function momentsKit(): LabKit {
   const pivotH = 0.06;
   return {
     id: "moments",
+    focus: [0.5, 0],
     subject: "Physics",
     topic: "Moments and balance",
     props: [
@@ -243,6 +247,7 @@ export function momentsKit(): LabKit {
 export function freeKit(): LabKit {
   return {
     id: "free",
+    focus: [0.1, 0],
     subject: "Sandbox",
     topic: "Free play",
     props: [

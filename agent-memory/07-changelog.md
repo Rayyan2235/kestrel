@@ -123,3 +123,13 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 - Created branch `as-kestrel` from `73a294c` (the scaffold). It is **not** rebased onto `origin/main` (`32c575d`, a DESIGN.md update) and **not** merged with the owner's `origin/microduck-lab-windows`, which also puts real Microduck robots in a lab with per-bot agent windows and overlaps this work. Compare the two before merging.
 - The repo is public. Before committing: scanned for secrets (none), removed the ElevenLabs quota details and the private vault path from memory, and confirmed `.env`, `context/` and `CLAUDE.local.md` stay gitignored. Excluded `debug.log` and the `tests/.probe-*.mjs` scratch probes.
 - Rewrote `06-handoff.md` to the current state (the voice loop is built and verified, the demo is unreliable, Moments physics is fixed but there's no experiment action) and added a progress update to `08-current-scope.md`.
+
+## 2026-10-24 · Claude Code · Moments display fix
+
+- **Problem (screenshot):** the follow camera was centred on the duck at zoom 420, so the Moments plank and pivot (about 1.1 m away) were off-screen; only a plank corner showed. The lesson card also claimed pushing the floor weight affects the beam.
+- **Fix:**
+  - `LabKit.focus` (required): pythagoras (0.45, −0.05), moments (0.5, 0), free (0.1, 0).
+  - `Duck` in `SandboxScene` centres the camera between the duck and `kit.focus`, with zoom easing from 420 down to 240 as they separate.
+  - The Moments card text now describes the real state and says placing weights comes next.
+- **Verified:** the screenshot shows the duck, pivot, tipped plank with the 200 g weight, and the floor weight. Tilt is −11.8°, no page errors, `tsc` clean, 27/27 tests.
+- **Minor:** the duck's bubble can overlap the lesson card when the duck is top-left.

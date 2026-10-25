@@ -217,10 +217,13 @@ function Duck({
   sim,
   rig,
   bubble,
+  focus,
 }: {
   sim: DuckSim;
   rig: DuckRig;
   bubble: React.RefObject<HTMLDivElement | null>;
+  /** The lesson's apparatus, kept in frame together with the duck. */
+  focus: [number, number];
 }) {
   const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const angles = useMemo(() => new Float32Array(14), []);
@@ -231,10 +234,19 @@ function Duck({
   useFrame(() => {
     sim.readTrunk(pose);
     poseDuckRig(rig, pose.pos, pose.quat, sim.readJoints(angles));
-    // Isometric follow: ease toward the duck, keep the viewing angle fixed.
-    target.lerp(new THREE.Vector3(pose.pos[0], 0.1, -pose.pos[1]), 0.06);
+    // Isometric follow: centre between the duck and the lesson apparatus,
+    // zooming out as they separate, so the experiment stays on screen.
+    const mx = (pose.pos[0] + focus[0]) / 2;
+    const my = (pose.pos[1] + focus[1]) / 2;
+    target.lerp(new THREE.Vector3(mx, 0.1, -my), 0.06);
     camera.position.set(target.x + CAMERA_OFFSET[0], target.y + CAMERA_OFFSET[1], target.z + CAMERA_OFFSET[2]);
     camera.lookAt(target);
+    const spread = Math.hypot(pose.pos[0] - focus[0], pose.pos[1] - focus[1]);
+    const zoom = Math.min(420, Math.max(240, 470 - 170 * spread));
+    if (Math.abs(camera.zoom - zoom) > 0.5) {
+      camera.zoom += (zoom - camera.zoom) * 0.05;
+      camera.updateProjectionMatrix();
+    }
     // Anchor the speech bubble just above the duck's head, in screen space.
     const el = bubble.current;
     if (el) {
@@ -329,7 +341,7 @@ export function SandboxScene({
           <PropMesh key={`${kit.id}-${p.id}`} spec={p} sim={sim} />
         ))}
       </MjFrame>
-      {rig && <Duck sim={sim} rig={rig} bubble={bubbleRef} />}
+      {rig && <Duck sim={sim} rig={rig} bubble={bubbleRef} focus={kit.focus} />}
     </Canvas>
       {bubble && (
         <div key={bubble.id} ref={bubbleRef} className={styles.bubble} role="status">
