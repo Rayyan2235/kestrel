@@ -18,8 +18,9 @@ test("natural text explains, moves the real duck, and returns measured results",
   await page.getByRole("button", { name: "Robot reply sound" }).click();
   await page.getByLabel("Task for your duck").fill("Can you demonstrate moving a little?");
   await page.getByRole("button", { name: "Send task" }).click();
-  await expect(page.getByRole("log")).toContainText("I'll walk forward");
   await expect(page.getByRole("log")).toContainText("That distance came from the simulator.", { timeout: 40000 });
+  // A simple action runs without pre-action narration (#13's concise replies): only the measured result is said.
+  await expect(page.getByRole("log")).not.toContainText("I'll walk forward");
   expect(requests).toHaveLength(2);
   const result = requests[1].messages.at(-1).content[0];
   expect(result.type).toBe("tool_result");

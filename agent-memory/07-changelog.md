@@ -348,9 +348,8 @@ Applied owner-selected palette to console and rebuilt Workshop; added studioMate
 - Camera spec budget 180 s → 300 s; the sequence reached its last click at 172 s on CI.
 - `sandbox.spec` natural text still fails on main, #15 and #17 alike (#13's agent session no longer logs the pre-action line); not addressed here.
 
-## 2026-10-25 — Claude Code: robot narrates before acting again
+## 2026-10-25 — Claude Code: Pip ignored commands; stray blur
 
-- `sandbox.spec` natural text failed on main, #15 and #17: since #13's agent-session rewrite, words that arrive with a `duck_task` call ("I'll walk forward to demonstrate.") were never said or logged; only final words were. `AgentSession.submit` now says them before acting and records them in the turn summary so they are not repeated.
-- Checks: typecheck, 316 unit tests; `sandbox.spec` + `real-console.spec` locally 13 passed, 5 skipped, 0 failed (natural text passes on desktop and mobile).
-- Also fixed: the whole console rendered blurred. The Workshop backdrop rule (`div[data-state][class*="overlay"]`) also matched the teammate's always-on capsule overlay (`data-testid="capsule"`), dimming and blurring the full stage. The rule now matches only the Workshop dialog's preceding sibling (Radix backdrop). Verified: no full-screen blur at rest; only the Workshop backdrop blurs when it is open.
-
+- **Pip ignored commands.** Claude often answers "walk forward 20 cm" with `duck_task {kind: "move", meters: 0.2, direction: "forward"}`. The advertised tool schema allows `direction`, but the strict `move` schema does not, so `AgentResponseSchema` threw and every such turn failed as "Claude or speech request failed". `apps/api/src/agent.ts` now normalises tool input per task kind (`normalizeTask`): a backward/right direction becomes the sign of meters/degrees, unused fields are dropped, a sideways walk still fails visibly. Verified by replaying the captured failing request against live Bedrock: now returns `{kind: "move", meters: 0.2}`. Unit tests in `agent.test.ts`.
+- **Natural-text e2e.** #13 intentionally removed pre-action narration ("For a simple action request, do it with no pre-action narration"). The test still expected "I'll walk forward"; it now expects only the measured conclusion. (An earlier attempt to restore narration was reverted: it contradicted #13.)
+- **Whole console blurred.** The Workshop backdrop rule (`div[data-state][class*="overlay"]`) also matched the always-on capsule overlay (`data-testid="capsule"`). It now matches only the Workshop dialog's preceding sibling. Verified: no full-screen blur at rest; only the Workshop backdrop blurs when open.
