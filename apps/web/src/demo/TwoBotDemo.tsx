@@ -169,13 +169,23 @@ function DemoRoom({
         sim,
         provider,
         ...(progress
-          ? { log, ...(mujoco ? { tolGcm: DUCKSIM_TOL_GCM } : {}) }
+          ? {
+              log,
+              ...(mujoco ? { tolGcm: DUCKSIM_TOL_GCM, settleMs: 400 } : {}),
+            }
           : {}),
       }),
       log,
       store,
     };
   }, [lab, progress, mujoco]);
+  // Dev-only handle for browser tests: the logged lab events.
+  useEffect(() => {
+    if (!progress || !import.meta.env.DEV) return;
+    (window as unknown as { kestrelProgress: unknown }).kestrelProgress = {
+      events: () => log.events(),
+    };
+  }, [progress, log]);
   const held = useRef<HeldMove | null>(null);
   const [workshop, setWorkshop] = useState(false);
   const [setup, setSetup] = useState<"idle" | "busy" | "failed">("idle");

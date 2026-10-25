@@ -10,6 +10,7 @@ import {
   type Respond,
   type PredictionChoice,
   type Source,
+  type World,
 } from "@kestrel/contracts";
 import { challengeById } from "../progress/challenges.js";
 import { outcomeOf, STUB_TOL_GCM } from "../progress/outcome.js";
@@ -37,6 +38,8 @@ export type CoordinatorDeps = {
   log?: LabEventLog;
   /** Balance tolerance in g·cm for classifying measured outcomes (stub 0.001, DuckSim 100). */
   tolGcm?: number;
+  /** Real sims release the plank after a push: wait this long between reads until positions stop moving (0 = read at once). */
+  settleMs?: number;
 };
 
 export * from "./types.js";
@@ -84,6 +87,21 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
   const ownerOf = (side: "left" | "right"): BotId =>
     side === "left" ? "pip" : "nova";
   let pushingBot: BotId | null = null;
+  /** The world once positions stop changing, so the outcome is read after the plank settles. */
+  const settled = async (first: World, token: number): Promise<World> => {
+    const gap = deps.settleMs ?? 0;
+    if (gap <= 0) return first;
+    let prev = first;
+    for (let i = 0; i < 8; i++) {
+      await new Promise((resolve) => setTimeout(resolve, gap));
+      if (token !== epoch) return prev;
+      const now = sim.snapshot();
+      if (now.leftCm === prev.leftCm && now.rightCm === prev.rightCm)
+        return now;
+      prev = now;
+    }
+    return prev;
+  };
   const objectOf = (side: "left" | "right") =>
     side === "left" ? ("left-weight" as const) : ("right-weight" as const);
   const stamp = () => ({ epoch, worldVersion: sim.snapshot().version });
@@ -384,7 +402,18 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       cm: action.cm,
     };
     const proposed = sim.propose(task);
-    if (!proposed.ok) return inert;
+    if (!proposed.ok) {
+      // The sim refused (out of range, too close, locked): say so, hold nothing, count nothing.
+      say("you", recipient, "learner", text);
+      say(
+        recipient,
+        "you",
+        "notice",
+        proposed.summary ?? "I cannot make that move right now.",
+      );
+      emit();
+      return inert;
+    }
     const baseVersion = proposed.baseVersion;
     const key = `${context.challengeId}|${context.promptId}`;
     let open = true;
@@ -431,26 +460,28 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         if (applied.summary) say(recipient, "you", "notice", applied.summary);
         return false;
       }
+      const world = await settled(applied.world, token);
+      if (token !== epoch) return false;
       deps.log?.append({
         type: "move_applied",
         ...context,
         ...(attempt !== undefined ? { attempt } : {}),
         bot: ownerOf(action.side),
-        outcome: outcomeOf(applied.world, tol),
+        outcome: outcomeOf(world, tol),
         epoch: token,
-        worldVersion: applied.world.version,
+        worldVersion: world.version,
       });
       if (
         challenge === context.challengeId &&
         !completed.has(challenge) &&
-        outcomeOf(applied.world, tol) === challengeById(challenge)?.goal
+        outcomeOf(world, tol) === challengeById(challenge)?.goal
       ) {
         completed.add(challenge);
         deps.log?.append({
           type: "challenge_complete",
           challengeId: challenge,
           epoch: token,
-          worldVersion: applied.world.version,
+          worldVersion: world.version,
         });
       }
       say(
