@@ -155,7 +155,11 @@ export function SandboxApp() {
         setRescueOutcome({ok:false, summary:e.reason === "Rescue retry" ? "Pip is back at the start. Try a different checkpoint order." : "Course ready. Tell Pip the checkpoint order.",reset:true});
         setRescueRoute(null); setBubble(null);
       }
-      if (e.type === "task-done") {
+      if (e.type === "plan") {
+        const line = handoffLine(e.task);
+        crewOn.current = true;
+        if (line) crewSay("pip", line);
+      } else if (e.type === "task-done") {
         if (e.duck === "nova") crewSay("nova", e.summary, e.ok);
         else if (e.duck === "pip" && crewOn.current) crewSay("pip", e.summary, e.ok);
         else if (e.duck === "lab" && CREW_TASKS.has(e.task.kind)) {
@@ -200,18 +204,14 @@ export function SandboxApp() {
       const nova = sim.status("nova");
       setStatus(pip);
       setNova(nova);
-      // Pip hands Nova its part when a task needs both robots, or Nova's own weight.
-      const plan = pip.task && CREW_TASKS.has(pip.task.kind) ? pip.task : null;
-      // Inside a balance test Nova's weight move is part of the plan already announced.
+      // Two-robot plans announce themselves (the "plan" event). Nova's own weight, when
+      // Pip hands it over alone, shows up only as Nova's task, outside any plan.
       const idle = !pip.experiment || pip.experiment.phase === "DONE";
-      const task = plan ?? (idle && nova.task?.kind === "place_weight" ? nova.task : null);
+      const task = idle && nova.task?.kind === "place_weight" ? nova.task : null;
       if (task && !announced.current.has(task)) {
         announced.current.add(task);
         const line = handoffLine(task);
-        if (line) {
-          if (plan) crewOn.current = true;
-          crewSay("pip", line);
-        }
+        if (line) crewSay("pip", line);
       }
     }, 200);
     return () => window.clearInterval(t);

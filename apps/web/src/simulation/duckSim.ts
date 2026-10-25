@@ -26,7 +26,9 @@ export type SimEvent =
   | { type: "reset"; reason: string }
   | { type: "fell"; duck: BotId }
   | { type: "recovered"; duck: BotId }
-  | { type: "experiment"; result: BalanceResult };
+  | { type: "experiment"; result: BalanceResult }
+  /** A two-robot plan (set_balance, build_squares) has started. */
+  | { type: "plan"; task: DuckTask };
 
 export type SimStatus = {
   mode: DuckMode | "recovering" | "fallen";
@@ -292,6 +294,7 @@ export class DuckSim {
       this.results.clear();
       this.experiment = exp;
       this.experimentPhase = exp.phase;
+      this.listener({ type: "plan", task });
       return null;
     }
     if (task.kind === "build_squares") {
@@ -308,6 +311,7 @@ export class DuckSim {
         const all = filled.length === this.kit.slots.length;
         return { ok: all, summary: all ? "All three squares are on the triangle: 9 + 16 = 25." : `${filled.length} of ${this.kit.slots.length} squares are on their sides.` };
       });
+      this.listener({ type: "plan", task });
       return null;
     }
     const owner = task.kind === "place_weight" ? MOMENTS.weights.find((w) => w.id === task.target)?.owner ?? id : id;
