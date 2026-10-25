@@ -226,6 +226,13 @@ export const CATALOG: readonly Item[] = [
   { id: "none", slot: "head", label: "No hat", minLevel: 1, free: true },
   { id: "antenna", slot: "head", label: "Antenna", minLevel: 2, free: false },
   { id: "goggles", slot: "head", label: "Goggles", minLevel: 3, free: false },
+  {
+    id: "partyhat",
+    slot: "head",
+    label: "Party hat",
+    minLevel: 2,
+    free: false,
+  },
   { id: "none", slot: "back", label: "No pack", minLevel: 1, free: true },
   { id: "backpack", slot: "back", label: "Backpack", minLevel: 3, free: false },
   { id: "none", slot: "neck", label: "No scarf", minLevel: 1, free: true },

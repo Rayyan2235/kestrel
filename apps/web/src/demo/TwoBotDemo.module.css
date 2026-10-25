@@ -274,3 +274,13 @@
 .bot[data-neck="scarf"] {
   box-shadow: 0 8px 0 -2px var(--accent, var(--ink));
 }
+.bot[data-head="partyhat"]::before {
+  content: "";
+  position: absolute;
+  top: -24px;
+  left: 50%;
+  translate: -50% 0;
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-bottom: 22px solid var(--accent, var(--ink));
+}

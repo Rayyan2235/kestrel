@@ -63,6 +63,12 @@ const KEYS: [string, string][] = [
   ["Esc", "Stop task"],
 ];
 
+/** What the 3D robots can show today: six shell colours, a head prop, a backpack. */
+const CONSOLE_LOOKS: ReadonlySet<string> = new Set([
+  "shell-sky", "shell-mint", "shell-slate", "shell-plum", "shell-gold", "shell-coral",
+  "none", "antenna", "partyhat", "backpack",
+]);
+
 const safeStorage = (): Storage | null => {
   try {
     return window.localStorage;
@@ -523,7 +529,7 @@ export function SandboxApp() {
         <section className={styles.stage} aria-label="3D lab">
           {sim ? (
             <>
-              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} />
+              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} looks={view.equipped} />
               <Contained label="Speech bubbles">
             <div className={styles.overlayTokens}>
               <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
@@ -713,7 +719,7 @@ export function SandboxApp() {
               {coordinator.holding() && held.current && (
                 <PredictionPrompt onChoose={(choice) => void held.current?.commit(choice)} onSkip={() => void held.current?.skip()} />
               )}
-              <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} />
+              <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} shows={CONSOLE_LOOKS} />
               {demoProfile && <p>Demo profile: progress is not saved.</p>}
             </section>
             </Contained>
