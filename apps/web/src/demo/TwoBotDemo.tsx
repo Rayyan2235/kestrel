@@ -1,5 +1,7 @@
 // TEMPORARY demo page for the two-bot conversation: stub simulation, mock
-// provider, 2D placeholder stage. Reached only via ?demo=two-bot.
+// provider, 2D placeholder stage. Reached only via ?demo=two-bot; add
+// &sim=mujoco to drive the real MuJoCo Microducks instead of the stub, and
+// &provider=live for live Claude replies when the API reports liveAi.
 import { balance, BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { useReducedMotion } from "motion/react";
 import {
@@ -29,17 +31,77 @@ import { createCoordinator } from "../coordinator/index.js";
 import { parseFast, type Side } from "../fastpath/index.js";
 import { ChannelPanel } from "../handoff/ChannelPanel.js";
 import { deriveChannel } from "../handoff/model.js";
+import { createLiveProvider } from "../provider/live.js";
 import { createMockProvider } from "../provider/mock.js";
 import type { Provider } from "../provider/types.js";
 import { usePresentation } from "../presentation/usePresentation.js";
 import { createFakeSim } from "../simulation/fake/index.js";
+import type { SimAdapter } from "../simulation/types.js";
 import styles from "./TwoBotDemo.module.css";
 
 const ANCHORS: Anchors = { pip: { x: 24, y: 62 }, nova: { x: 76, y: 62 } };
 const DELAYS = [1000, 3000, 6000] as const;
 const SPEEDS = [0.5, 1] as const;
 
+/** Loads the real lab for `?sim=mujoco`; the stub otherwise, or if loading fails. */
 export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
+  const mujoco =
+    new URLSearchParams(window.location.search).get("sim") === "mujoco";
+  const stub = useMemo(() => createFakeSim(), []);
+  const [real, setReal] = useState<SimAdapter | null>(null);
+  const [boot, setBoot] = useState("Loading the MuJoCo lab");
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mujoco) return;
+    let live = true;
+    let dispose = () => {};
+    import("../simulation/real/load.js")
+      .then(({ loadDuckSimAdapter }) =>
+        loadDuckSimAdapter((line) => live && setBoot(line)),
+      )
+      .then((lab) => {
+        if (!live) return lab.dispose();
+        dispose = lab.dispose;
+        // Dev-only handle for browser tests, as in the sandbox.
+        if (import.meta.env.DEV)
+          (window as unknown as { kestrelSim: unknown }).kestrelSim = lab.duck;
+        setReal(lab.sim);
+      })
+      .catch((e) => live && setFailed(String(e?.message ?? e)));
+    return () => {
+      live = false;
+      dispose();
+    };
+  }, [mujoco]);
+  if (mujoco && !real && !failed)
+    return (
+      <div className={styles.page}>
+        <div className={styles.banner} data-testid="sim-loading" role="status">
+          {boot}…
+        </div>
+      </div>
+    );
+  return (
+    <DemoRoom
+      sim={real ?? stub}
+      mujoco={real !== null}
+      failed={failed}
+      progress={progress}
+    />
+  );
+}
+
+function DemoRoom({
+  sim: lab,
+  mujoco,
+  failed,
+  progress,
+}: {
+  sim: SimAdapter;
+  mujoco: boolean;
+  failed: string | null;
+  progress: boolean;
+}) {
   const reducedMotion = Boolean(useReducedMotion());
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   const [selected, setSelected] = useState<BotId>("pip");
@@ -60,9 +122,26 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
   const focus = useRef<Side | null>(null);
   const undo = useRef<{ side: Side; cm: number }[]>([]);
   const input = useRef<HTMLInputElement>(null);
+  // Live only when asked for and the API has model credentials; else the mock.
+  const wantsLive =
+    new URLSearchParams(window.location.search).get("provider") === "live";
+  const [live, setLive] = useState(false);
+  const liveRef = useRef(false);
+  liveRef.current = live;
+  useEffect(() => {
+    if (!wantsLive) return;
+    let on = true;
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((h) => on && setLive(Boolean(h?.capabilities?.liveAi)))
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, [wantsLive]);
 
   const { sim, c, log, store } = useMemo(() => {
-    const sim = createFakeSim();
+    const sim = lab;
     const log = createLabEventLog();
     // The progress demo profile lives in memory only: storage is never touched.
     const store = createProgressStore({
@@ -71,9 +150,17 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
       seed: demoSeed(),
     });
     // Reads the delay at call time so the selector applies to the next call.
-    const provider: Provider = {
+    const mock: Provider = {
       respond: (req, signal) =>
         createMockProvider({ delayMs: delayRef.current }).respond(req, signal),
+    };
+    const claude = createLiveProvider({
+      world: () => sim.snapshot(),
+      fallback: mock,
+    });
+    const provider: Provider = {
+      respond: (req, signal) =>
+        (liveRef.current ? claude : mock).respond(req, signal),
     };
     return {
       sim,
@@ -81,7 +168,7 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
       log,
       store,
     };
-  }, [progress]);
+  }, [lab, progress]);
   const held = useRef<HeldMove | null>(null);
   const [workshop, setWorkshop] = useState(false);
   const view = useProgress(store);
@@ -299,8 +386,28 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
   return (
     <div className={styles.page}>
       <div className={styles.banner} data-testid="demo-banner" role="note">
-        <strong>Temporary demo.</strong> Stub simulation and a scripted{" "}
-        <b>mock</b> provider. No AI, no network, no MuJoCo.
+        {live ? (
+          <>
+            <strong>Temporary demo.</strong>{" "}
+            {mujoco
+              ? "Real MuJoCo Microducks push the weights; positions are measured."
+              : "Stub simulation."}{" "}
+            Pip and Nova answer with <b>live</b> Claude; if a call fails, the
+            labelled mock answers.
+          </>
+        ) : mujoco ? (
+          <>
+            <strong>Temporary demo.</strong> Real MuJoCo Microducks push the
+            weights; positions are measured. Scripted <b>mock</b> provider. No
+            AI, no network.
+          </>
+        ) : (
+          <>
+            <strong>Temporary demo.</strong> Stub simulation and a scripted{" "}
+            <b>mock</b> provider. No AI, no network, no MuJoCo.
+            {failed && ` (The MuJoCo lab failed to load: ${failed})`}
+          </>
+        )}
         {progress && (
           <>
             {" "}
@@ -547,7 +654,7 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
               aria-live="polite"
             >
               {step ??
-                "Commands like “right weight to forty” run instantly. Questions go to the mock."}
+                `Commands like “right weight to forty” run instantly. Questions go to ${live ? "Claude" : "the mock"}.`}
             </p>
           </section>
         </section>

@@ -18,6 +18,13 @@ export const AgentRequestSchema = z.object({
     duck: z.object({ x: z.number().finite(), y: z.number().finite(), yawDeg: z.number().finite(), mode: z.string().max(30) }).strict(),
     props: z.array(z.object({ id: z.string().max(40), label: z.string().max(80), movable: z.boolean(), position: XY, units: z.number().optional() }).strict()).max(20),
     slots: z.array(z.object({ forProp: z.string().max(40), position: XY, filled: z.boolean() }).strict()).max(10),
+    // Measured state of the Moments balance: lock pin, tilt and each weight's rail position.
+    balance: z.object({
+      plank: z.enum(["locked", "levelling", "released"]),
+      lowSide: z.enum(["left", "right", "level"]),
+      tiltDeg: z.number().finite(),
+      weights: z.array(z.object({ id: z.string().max(40), grams: z.number().positive(), side: z.enum(["left", "right"]), cm: z.number().finite() }).strict()).max(4),
+    }).strict().optional(),
   }).strict(),
   messages: z.array(AgentMessageSchema).min(1).max(32),
   final: z.boolean().default(false),

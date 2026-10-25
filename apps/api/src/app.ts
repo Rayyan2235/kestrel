@@ -1,7 +1,7 @@
 import Fastify from "fastify";
 import { CommandSchema } from "../../../packages/contracts/src/index.js";
-import { registerLive, liveProviders } from "./live.js";
-export function buildApp(providers = liveProviders) {
+import { registerLive, liveProviders, type LiveProviders } from "./live.js";
+export function buildApp(providers: LiveProviders = liveProviders) {
   const app = Fastify({ bodyLimit: 16_384, logger: false });
   registerLive(app, providers);
   app.get("/api/health", async () => ({

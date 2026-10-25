@@ -148,3 +148,73 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - Tests: unit tests next to each module and `tests/two-bot-demo.spec.ts` (Playwright, installed Chrome, `playwright.chrome.config.ts`).
 - **Merge:** merged `origin/main` (PR #2, the Microduck sandbox) into `feat/two-bot-demo` with no conflicts. Contracts `index.ts` exports both sets. The coordinator is **not** wired to `duckSim` yet; that is a separate task.
 - **Checks:** `pnpm check` green after the merge (19 test files, 147 tests, build and API health OK).
+
+## 2026-10-24 · Claude Code (for the owner) · Moments: weights the duck physically pushes, on branch `moments-floor-push`
+
+- **What:** the Moments lesson is now a working experiment in the sandbox. It ports the owner's floor-balance work (weights on rails, paddles, a locked beam, and a driver tuned to the walking policy) into this lab's `PropSpec` / `buildSceneXml` / `DuckSim` / `TaskRunner` model, at real scale. Pythagoras and Free play are unchanged.
+- **Files:**
+  - `packages/contracts/src/lab.ts` (`PropSpec` mount fields, the `slide` joint, `MOMENTS`, `railAt`, the new `momentsKit`, three task kinds, grammar) and `agent.ts` (`world.balance`).
+  - `apps/web/src/simulation/mjcf.ts` (nested bodies, slide joints, excludes, depth-first keyframe), `duckSim.ts` (lock pin and brakes), `tasks.ts` (balance tasks) and the new `moments.ts` (`Driver`, `PlaceWeight`).
+  - `apps/web/src/sandbox/` (plank ruler, balance chips, Release/Lock button, measured balance in the agent snapshot, paddles hidden from Claude).
+  - `apps/api/src/agent.ts` (tool kinds, `cm`, Moments prompt, target check).
+  - Tests: `lab.test.ts` (+2), `tasks.test.ts` (+5), `tests/sandbox.spec.ts` (+1 mocked-Claude Moments spec).
+- **Fixed along the way:** the route planner let the final leg ignore the target's own paddle, so a diagonal route walked through it (one push took 31.5 s); it now only exempts a leg that stays behind the paddle (17 s). A refusal said "Try 8 cm" when 7 was right (float rounding).
+- **Checks:** `pnpm check` pass (154 tests); `pnpm test:e2e` 120/120 desktop + mobile; fast-stepped physics harness (24 random placements: 22 exact in 11–18 s, 1 refusal, 1 already there, 0 falls); live in the app, a 20 → 10 cm push then a level release. Not yet run: live Claude or voice.
+
+## 2026-10-24 · Claude Code (for the owner) · Live Claude check of Moments on `moments-floor-push`
+
+- Ran this branch's API (Bedrock credentials from the owner's local `.env`) behind the sandbox page, Moments lesson, voice off, and typed "Can you balance the plank?".
+- Claude: worked out 4000 vs 2000 g·cm, called `place_weight {weight-200, 10}` (measured: moved from 20 cm to 10 cm), then `release_plank` (measured: stayed level, 0.0°), then a closing explanation consistent with the measurement. 3 model turns, 1.3–2.2 s each, no errors, no page errors.
+- Not checked: spoken input and replies for Moments; "what are moments?".
+
+## 2026-10-24 · Claude Code (for the owner) · Two robots, faster navigation, cooperative experiments (`two-duck-lab`, uncommitted)
+
+- **Measured the walking policy first.** Dead zones: forward 0.10–0.20, backward −0.15 to −0.30, pure turns ≤ 1.0, and lateral entirely. Top safe forward command is about 0.6 (0.27 m/s); 1.0 falls. Pivots work at 1.6–4.0. Full table in `04-status.md`.
+- **Root causes fixed:** the old controllers commanded inside those dead zones (turn creep 0.1, push 0.12–0.20, back-up −0.2), and pushes ignored placed squares. A new `Navigator` replaced them: twice as fast, final error 6.2 → 2.6 cm, path 1.94× → 1.34× straight line.
+- **Two robots in one MjModel/MjData**, after ROSClaw Duckverse's composer and runtime, with a cross-talk check.
+- **Duckverse-style per-substep contact ledger.** Two binding bugs found and fixed along the way:
+  - stale WASM typed-array views;
+  - `mj_contactForce` needs a `DoubleBuffer` out-parameter.
+- **Moments:**
+  - The rail clamp no longer eases a carriage onto the mark; it only holds it where the robot left it.
+  - The pin was raised to 8 cm, the pivot narrowed, and the paddles stiffened.
+  - Added `set_balance`, the two-robot experiment, with a learner prediction panel.
+- **Pythagoras:** `build_squares` (two stages, two robots). Pushes withdraw off the square and detour around other props.
+- **Claude:** `set_balance` and `build_squares` tools, plus crew guidance in the prompt.
+- **Attribution:** `apps/web/src/simulation/THIRD_PARTY.md`. The mesh-licence caution (CC BY-SA-NC per Duckverse) is in `PROVENANCE.md`.
+- **Checks:**
+  - `pnpm check` pass (159 tests).
+  - `pnpm test:e2e` 121 passed and 1 skipped by design. The new UI spec runs the real two-robot experiment.
+  - Benchmarks in `scripts/bench/`.
+  - REA 6.7.0 `list-browser-targets` and `inspect-web-page` against the running sandbox reported no workers, and the changed modules are served.
+- **Not run:** a spoken (voice) or live-Claude run on this branch.
+
+## 2026-10-25 · Claude Code (side session for the owner) · Real `SimAdapter` for the two-bot demo (`two-bot-real-sim`)
+
+- **Seam:** `SimAdapter.apply(task, version, signal?)` is async. It settles when the physical action lands, fails (new `reason: "failed"`) or the signal aborts it, and holds the per-object lock until then. Results carry an optional `summary`. Stub: `apply` became `async`, nothing else.
+- **Coordinator:** `act` awaits the sim with an abort signal (chain + new `actTimeoutMs`, 60 s). The chain cap counts talk time and pauses while a bot acts. A failed action shows the sim's summary (the old notice is the fallback); a measured summary is added after the reply, before a handback.
+- **Adapter:** `apps/web/src/simulation/real/index.ts` over the two-robot `DuckSim`:
+  - `left-weight` → `weight-200` (Pip), `right-weight` → `weight-100` (Nova);
+  - rails 5–30 cm;
+  - snapshots are measured rail positions (0.1 cm, 100 ms poll, version bump on change);
+  - abort cancels the owner's task and the clamp holds the weight where it stands.
+  `real/load.ts` boots DuckSim on the Moments kit.
+- **Demo:** `?demo=two-bot&sim=mujoco` lazily loads the real lab, with a loading banner, falling back to the stub on failure. The banner says which sim runs.
+- **Files:** `apps/web/src/simulation/{types.ts,fake/index.ts,fake/sim.test.ts,real/*}`, `apps/web/src/coordinator/{index.ts,types.ts,coordinator.test.ts}`, `apps/web/src/demo/TwoBotDemo.tsx`, `tests/two-bot-real-sim.spec.ts`.
+- **Checks:**
+  - `pnpm check` pass (183 tests, 159 before).
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - `tests/two-bot-real-sim.spec.ts` 2/2 on desktop: "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)."; readout "Left 10.1 cm · Right 20 cm" equals the sim's measured rail; Pip's paddle contact in the contact ledger; Stop mid-push keeps the weight where it stood.
+- **Not changed:** Moments physics, navigation, contracts.
+- **Not run:** live provider or voice with the real sim; the mobile project for the real-sim spec (skipped by design).
+
+## 2026-10-25 · Claude Code (side session for the owner) · Live Claude for Pip and Nova in the two-bot demo (`two-bot-real-sim`)
+
+- **API:** `POST /api/two-bot/respond` (`apps/api/src/twoBot.ts`), registered in `live.ts`. It makes one Bedrock call per bot turn (`AnthropicBedrock`, `BEDROCK_MODEL_ID`, `AWS_REGION`), uses a persona per bot, forces a flat `respond` tool, maps it onto `Respond` and validates with Zod. A peer turn can never ask again. Keys stay server-side.
+- **Web:** `provider/live.ts` sits behind the existing `Provider`. It is labelled `live`; any API or contract failure falls back to the mock, labelled `mock`; an abort rejects. The demo uses it only for `?provider=live` when `/api/health` reports `liveAi`. The banner and hint say so. The default (`/?demo=two-bot`) is unchanged.
+- **Contracts:** `SourceSchema` gains `live`. The ledger test now rejects an unknown label instead of `live`.
+- **Checks:**
+  - `pnpm check` pass.
+  - New tests: 3 API with mocked Bedrock, 3 live provider with mocked fetch.
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - Live check `scripts/two-bot-live-check.mjs` (paid, cents): Pip handed off to Nova, Nova pushed the right weight 20 → 24.9 cm (measured), then a live handback, 15.7 s in all.

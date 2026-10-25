@@ -20,7 +20,7 @@ it("waits for physical completion and gives the model the actual failed result",
   const running = session.submit("Move please");
   await vi.waitFor(() => expect(sim.runTask).toHaveBeenCalledTimes(1));
   expect(requests).toHaveLength(1);
-  session.event({ type: "task-done", task: sim.runTask.mock.calls[0][0], ok: false, summary: "Measured 2 cm before falling." });
+  session.event({ type: "task-done", duck: "pip", task: sim.runTask.mock.calls[0][0], ok: false, summary: "Measured 2 cm before falling." });
   await running;
   expect(requests).toHaveLength(2);
   expect(requests[1].messages.at(-1).content[0]).toMatchObject({ type: "tool_result", is_error: true });
@@ -55,7 +55,7 @@ it("a replacement utterance interrupts an action and prevents its follow-up requ
 it("stops after six actions and asks for a text-only conclusion", async () => {
   const { session, sim } = harness();
   const requests: any[] = [];
-  sim.runTask.mockImplementation((task: DuckTask) => { queueMicrotask(() => session.event({ type: "task-done", task, ok: true, summary: "Moved 18 cm." })); return null; });
+  sim.runTask.mockImplementation((task: DuckTask) => { queueMicrotask(() => session.event({ type: "task-done", duck: "pip", task, ok: true, summary: "Moved 18 cm." })); return null; });
   vi.stubGlobal("fetch", vi.fn(async (_url, options) => { const b = JSON.parse(options.body); requests.push(b); return reply(b.worldVersion, b.final ? undefined : { kind: "move", meters: 0.2 }); }));
   await session.submit("Keep going");
   expect(sim.runTask).toHaveBeenCalledTimes(6);

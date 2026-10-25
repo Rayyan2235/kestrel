@@ -5,6 +5,7 @@ These files are copied unmodified from the Hugging Face Space `pollen-robotics/m
 - Revision: `ad9d41a763f30dc770817c33d92dcfec0205db1e` (2026-10-09)
 - Paths: `app/public/robot/mjlab/` and `app/public/policies/`
 - Space license: Apache-2.0 (`LICENSE-Apache-2.0.txt`). The upstream robot software repo (`pollen-robotics/microduck`) also declares Apache-2.0. Separate licenses for the CAD-derived meshes and the ONNX policies are **not stated** upstream. Confirm with Pollen Robotics before any public or commercial release.
+- **Mesh licence caution (added 2026-10-24):** ROSClaw Duckverse (`ros-claw/microduck` @ `1034ed0`, `THIRD_PARTY.md` and `upstream.lock.yaml`) records the `pollen-robotics/microduck_rl` 3D models as **CC BY-SA-NC** (attribution, share-alike, non-commercial), separately from its Apache-2.0 code. The collision meshes here come from that robot. Until Pollen Robotics confirms otherwise, treat the meshes and `microduck.glb` as non-commercial with attribution, and don't assume the Space's Apache-2.0 covers them.
 - Checksums: `SHA256SUMS`. Every file was checked to be real binary content, not a Git LFS pointer.
 
 ## Contents

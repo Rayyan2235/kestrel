@@ -1,10 +1,48 @@
 # Handoff
 
-_Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, after resuming from Codex and pushing `as-kestrel`)._
+_Rewrite this file at the end of every session. Last rewritten: 2026-10-25 (Claude Code, real `SimAdapter` for the two-bot demo on `two-bot-real-sim`)._
+
+## Two-bot demo on the real Microducks (branch `two-bot-real-sim`, PR into `two-duck-lab`)
+
+Cut from `two-duck-lab` (PR #6), so it stacks on #6 → #5. `/?demo=two-bot&sim=mujoco` runs the PR #4 demo on the real two-robot `DuckSim`; without `&sim=mujoco` it is the stub, unchanged.
+
+- **Seam change** (teammate's area, explained in the PR): `apply(task, version, signal?)` returns a promise that settles when the push lands, fails (`reason: "failed"`) or is aborted; optional `summary` on results; coordinator `actTimeoutMs` (60 s) and a chain cap that pauses while a bot acts.
+- **Adapter:** `apps/web/src/simulation/real/` (`index.ts` pure and unit-tested against a fake DuckSim; `load.ts` boots DuckSim on the Moments kit, lazily imported).
+- **Verified:** `pnpm check` (183 tests); stub specs `two-bot-demo`, `pacing`, `integration` (108/108 passed); new `tests/two-bot-real-sim.spec.ts` 2/2 (a real 20 → 10.1 cm push with the measured result in the rail and readout; Stop mid-push leaves the weight clamped where it stood).
+
+- **Live Claude for Pip and Nova** (`&provider=live`): API route `/api/two-bot/respond` (`apps/api/src/twoBot.ts`) and `provider/live.ts`; mock fallback stays labelled. Live check passed: Pip asked Nova, Nova pushed the right weight 20 → 24.9 cm.
+- PR #7's base is still `two-duck-lab`; #6 is merged into `moments-floor-push`, so the base should move there once the owner approves.
+
+**Next:**
+1. The teammate (PR #4 author) reviews the seam change and the live provider.
+2. Demo follow-ups in `11-remaining-steps.md`: release-and-measure so the room shows measured tilt; a "moving…" cue during the push; reply text after the measured result.
+3. Merge order: #5, then #6, then this PR.
+
+## Two robots, faster navigation, cooperative experiments (branch `two-duck-lab`, uncommitted)
+
+Built on `moments-floor-push` (PR #5). It is **not committed or pushed**: the owner asked not to commit unless requested. What it does (details and numbers in `04-status.md`):
+
+- Pip and Nova are both real Microducks in one MuJoCo world (`mjcf.ts`, `robot.ts`, `duckSim.ts`).
+- A new `Navigator` (`navigate.ts`) drives every task without commanding the measured dead zones, about twice as fast as before.
+- Moments: both robots push their own weights at once, step clear, and the lab verifies they are clear before releasing (`set_balance`). The learner predicts first.
+- Pythagoras: both robots build the squares in two stages (`build_squares`).
+- Claude has `set_balance` and `build_squares`.
+
+**Next:**
+1. The owner decides whether to commit it as a PR (it stacks on PR #5).
+2. A spoken (voice) run of both experiments.
+3. The owner's UI and palette pass.
+4. Robot-to-robot avoidance if lanes ever have to be shared.
+
+Benchmarks to rerun after any change to movement are in `scripts/bench/` (see `02-runbook.md`).
+
+## Moments balance branch (added 2026-10-24, Claude Code for the owner)
+
+Branch `moments-floor-push`, one commit on top of `main` (`4154acf`), with an open PR into `main`. It turns the Moments lesson into a working experiment in the sandbox: weights on rails that Pip pushes physically, a locked plank the learner or Claude releases, measured tilt results, and Claude tools plus prompt guidance. Details are in `04-status.md`. Verified with live Claude, typed and with voice off: "Can you balance the plank?" moved the 200 g weight to 10 cm and released a level plank (see `04-status.md`). **Next for this slice:** the same by voice (hold to talk, spoken replies), and "what are moments?". Pythagoras behaviour is unchanged.
 
 ## Two-bot demo branch (added 2026-10-24, implementer session)
 
-Branch `feat/two-bot-demo` holds the two-bot conversation demo (see `04-status.md` and `03-codebase-map.md`) merged with `origin/main` (PR #2). It stays behind `?demo=two-bot`. **Next task, separate PR:** implement `SimAdapter` over `duckSim` and wire the coordinator to it; do not change layers above `SimAdapter`. Open for the owner: default presentation speed, and whether Pause also holds an in-flight model call (currently it does not).
+Branch `feat/two-bot-demo` holds the two-bot conversation demo (see `04-status.md` and `03-codebase-map.md`) merged with `origin/main` (PR #2). It stays behind `?demo=two-bot`. The `SimAdapter` over `duckSim` is now on `two-bot-real-sim` (above). Open for the owner: default presentation speed, and whether Pause also holds an in-flight model call (currently it does not).
 
 ## The goal (teammate slice, see `08-current-scope.md`)
 
@@ -31,10 +69,7 @@ The learner speaks to the duck; Claude decides whether to answer, act, or both; 
 
 1. **Three-square demo.** Individual pushes reach 3–4 cm, but across a full demo the duck sometimes falls afterwards, or pushing the 5×5 stalls and disturbs placed tiles.
    - A proposed fix is **not applied**: prompt order largest-first (5 → 4 → 3) in `apps/api/src/agent.ts`, and push budget 120 → 150 s in `tasks.ts`, with the test loop updated to match.
-2. **Moments isn't an experiment yet.**
-   - The duck can't put a weight on the plank (the plank top is about 7 cm up; push only works along the floor).
-   - Claude's system prompt has only Pythagoras guidance.
-   - Moments is untested with Claude and voice.
+2. **Moments is untested with live Claude and voice.** The experiment itself works on `moments-floor-push`: the duck pushes each weight along a rail by a paddle at floor level, the plank stays locked until released, and Claude has tools and guidance for it.
 3. **First live voice run timed out once** (no "Moved" within 90 s). It was flaky and not reproduced.
 4. **Disk** is about 0.15 GB free on C:. Headless Chromium crashed once mid-demo, probably because of it. Check free space before installs or long runs.
 
@@ -42,10 +77,7 @@ The learner speaks to the duck; Claude decides whether to answer, act, or both; 
 
 This is the short list; the full backlog with acceptance checks is in `11-remaining-steps.md`.
 
-1. **Moments as a real lesson:**
-   - Add a bounded `place_weight` task: `{ weight, side: left|right, cm: 5–30 }`. It sets the weight onto the plank at that distance (an authored station action, honestly labelled; not a physical lift), and its result reports the measured tilt.
-   - Add Moments guidance to the agent prompt: explain moment = mass × distance, predict, place, observe the tilt, balance (200 g × 20 cm = 100 g × 40 cm).
-   - Verify by voice: "balance the plank".
+1. **Moments by voice.** `place_weight {target, cm}`, `release_plank`, `lock_plank` and the prompt guidance are on `moments-floor-push` (a physical push, not an authored placement; rails run 5–30 cm, so the balance is 200 g × 10 cm = 100 g × 20 cm). Verified with live Claude by typing; still to do: the spoken round trip.
 2. Apply the largest-first demo fix and re-run `tests/.probe-demo.mjs` (paid, about $0.10 per run) until the 3-square demo succeeds repeatably. Then investigate the post-push fall.
 3. Turn the useful probes (`tests/.probe-demo.mjs`, `.probe-right.mjs`, `.probe-moments.mjs`; gitignored) into Playwright specs with mocked Claude. Keep `scripts/live-voice-check.mjs` as the paid end-to-end check.
 4. Compare with and reconcile against the owner's `microduck-lab-windows` before opening a PR.

@@ -43,6 +43,14 @@ DESIGN.md             Visual reference, tokens and interaction requirements
 docs/                 Architecture, build roadmap and Claude context-audit prompt
 ```
 
+## Lab sandbox: two Microducks in MuJoCo (`/sandbox.html`)
+
+- Two policy-controlled Microducks, Pip and Nova, share one MuJoCo world with the apparatus. They walk with the upstream ONNX walking policy at 50 Hz; their motion comes from the policy's joint targets and MuJoCo contact.
+- **Moments:** a hinged beam with a 200 g and a 100 g weight on rails. Each robot pushes its own weight's paddle along its rail. The learner sets the targets, predicts, and runs the experiment: lock, push, withdraw, verify clear, release, then a measured tilt compared with the moments from the measured positions. Idealised parts: the lock pin and the rail clamps are kinematic holds (a clamp holds a carriage where a robot left it; it never moves one).
+- **Pythagoras:** square tiles pushed onto a floor triangle (9 + 16 = 25). The robots can build it together.
+- Claude (Bedrock) can drive the same tasks; voice uses ElevenLabs. Both need server keys in `.env`.
+- Not yet: robot avoidance while both walk the same lane (lanes are scheduled instead), grasping, a jump skill, hardware.
+
 Core stack: TypeScript, React 19, Fiber 9, Three.js, Zustand, Radix Primitives, Motion, Fastify and Zod. Exact versions are in `pnpm-lock.yaml`. Dependencies were selected against current package metadata; the Microduck physics/policy tuple must still be integrated and benchmarked as a unit.
 
 ## Checks
