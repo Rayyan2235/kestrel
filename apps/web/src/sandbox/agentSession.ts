@@ -14,11 +14,12 @@ async function checked(response: Response) {
 
 /** The balance as measured, in the learner's terms: grams, sides and centimetres. */
 export function balanceSnapshot(b: NonNullable<ReturnType<DuckSim["status"]>["balance"]>): NonNullable<AgentRequest["world"]["balance"]> {
-  const deg = Math.abs((b.angle * 180) / Math.PI);
+  // Round first, then classify, so the label agrees with the number shown.
+  const deg = Math.round(Math.abs((b.angle * 180) / Math.PI) * 10) / 10;
   return {
     plank: b.pin === "free" ? "released" : b.pin,
     lowSide: deg < 0.5 ? "level" : b.angle > 0 ? "left" : "right",
-    tiltDeg: Math.round(deg * 10) / 10,
+    tiltDeg: deg,
     weights: [...b.rails].map(([id, at]) => ({
       id,
       grams: MOMENTS.weights.find(w => w.id === id)?.grams ?? 0,

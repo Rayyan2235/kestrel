@@ -184,6 +184,21 @@ describe("balance tasks", () => {
     expect(last?.done?.summary).toBe("Released the plank. It stayed level (0.0°).");
   });
 
+  it("never says 'level' next to a number that rounds to 0.5° or more", () => {
+    const release = (deg: number) => {
+      const r = new TaskRunner();
+      r.start({ kind: "release_plank" }, scene(spawn));
+      r.step(scene(spawn), 0.02);
+      const tilted = () => scene(spawn, undefined, "free", (deg * Math.PI) / 180);
+      let last = r.step(tilted(), 0.02);
+      for (let i = 0; i < 400 && !last?.done; i++) last = r.step(tilted(), 0.02);
+      return last?.done?.summary;
+    };
+    expect(release(0.47)).toBe("Released the plank. The left side went down 0.5°.");
+    expect(release(0.44)).toBe("Released the plank. It stayed level (0.4°).");
+    expect(release(-0.47)).toBe("Released the plank. The right side went down 0.5°.");
+  });
+
   it("levels and locks the plank", () => {
     const r = new TaskRunner();
     r.start({ kind: "lock_plank" }, scene(spawn, undefined, "free", -0.1));
