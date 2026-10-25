@@ -331,3 +331,12 @@ Applied owner-selected palette to console and rebuilt Workshop; added studioMate
 - API now parses and surfaces ElevenLabs' bounded validation message for provider failures without logging or returning credentials. pnpm typecheck passes.
 
 - Live retry: POSTed local beep-bop MP3 to /api/voice/transcribe; ElevenLabs returned HTTP 200 and an empty transcript as expected for non-speech. Confirms credentials + MP3 request path. Browser microphone capture/WebM request remains to be retested.
+
+## 2026-10-25 — Claude Code: fold Rayyan's #15 and #17 into the playground console
+
+- Branch `fold-in-rayyan` from `lab-workshop-camera`; merged `feat/3d-looks` (#17, which already contains #15). Conflicts in `SandboxApp.tsx` and `SandboxScene.tsx` resolved by keeping the playground layout and applying his edits; `route()` and `selectBot()` verified identical to his branch.
+- #15: typed unaddressed lines go to the selected robot's agent; only "move this/it" asks which weight; only spoken turns can be redirected by tapping the other robot. This fixes the sandbox/real-console failures on main.
+- #17: Workshop looks (shell colour, antenna, party hat, backpack) on the 3D robots via `cosmetics/rig3d.ts`; console Workshop offers only what the robots can show.
+- Workshop dialog portals to `<body>`; the console now marks `body.gic-console` while mounted so the dialog wears GIC glass, tags and solid selection above the floating panels. Demo page unaffected.
+- Camera spec budget 120 s → 180 s: CI's software WebGL ran past 120 s at the last click on #16.
+- Checks: `pnpm check` 316 tests, typecheck, builds, API smoke. Workshop and looks checked in screenshots (Pip sky shell applied on the 3D rig).

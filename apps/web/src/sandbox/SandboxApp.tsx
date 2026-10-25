@@ -82,6 +82,12 @@ const savedWindow = (): ConsoleWindow => {
   }
 };
 
+/** What the 3D robots can show today: six shell colours, a head prop, a backpack. */
+const CONSOLE_LOOKS: ReadonlySet<string> = new Set([
+  "shell-sky", "shell-mint", "shell-slate", "shell-plum", "shell-gold", "shell-coral",
+  "none", "antenna", "partyhat", "backpack",
+]);
+
 const safeStorage = (): Storage | null => {
   try {
     return window.localStorage;
@@ -202,7 +208,7 @@ export function SandboxApp() {
           }
         });
         session.current.setRobotSound(robotSound);
-        session.current.onTranscript = (heard) => routeRef.current(heard, pressed.current ?? currentRef.current());
+        session.current.onTranscript = (heard) => routeRef.current(heard, pressed.current ?? currentRef.current(), true);
         // Dev-only handle for browser tests and debugging.
         if (import.meta.env.DEV) (window as unknown as { kestrelSim: DuckSim }).kestrelSim = s;
       })
@@ -427,7 +433,7 @@ export function SandboxApp() {
   }, [sim, skill, add]);
 
   // The session is created once; these refs always point at the latest router.
-  const routeRef = useRef<(cmd: string, ctx: AddressContext) => void>(() => {});
+  const routeRef = useRef<(cmd: string, ctx: AddressContext, spoken?: boolean) => void>(() => {});
   const currentRef = useRef<() => AddressContext>(() => ({ selected: null, thread: null }));
   useEffect(() => {
     routeRef.current = route;
@@ -436,7 +442,7 @@ export function SandboxApp() {
     if (import.meta.env.DEV)
       (window as unknown as { kestrelVoice: unknown }).kestrelVoice = {
         press: () => (pressed.current = pressStart(currentContext())),
-        transcript: (heard: string) => route(heard, pressed.current ?? currentContext()),
+        transcript: (heard: string) => route(heard, pressed.current ?? currentContext(), true),
       };
   });
 
@@ -460,7 +466,7 @@ export function SandboxApp() {
   }
 
   /** One router for typed and spoken turns: name first, then the precedence rules. */
-  function route(cmd: string, ctx: AddressContext) {
+  function route(cmd: string, ctx: AddressContext, spoken = false) {
     let r: Resolution;
     try {
       r = resolveAddressees(cmd, ctx);
@@ -471,8 +477,10 @@ export function SandboxApp() {
     const world = adapterRef.current?.snapshot();
     const fast = world ? parseFast(r.body, { focus: null, leftCm: world.leftCm, rightCm: world.rightCm, undo: [] }) : null;
     const move = fast?.kind === "move" ? { side: fast.side, cm: fast.cm } : null;
-    const crew = r.to.length > 1;
-    const bot = r.to[0]!;
+    // A crew turn needs group words or the "Both" selection; any other unaddressed
+    // line goes to the selected robot's agent, as before addressing existed.
+    const crew = r.mode === "group" || (r.mode === "crew-default" && crewSelected);
+    const bot = r.mode === "crew-default" ? selectedRef.current : r.to[0]!;
     const other = (b: BotId): BotId => (b === "pip" ? "nova" : "pip");
     const label = crew ? "to Crew" : `to ${BOT_NAMES[bot]}${r.unsure ? "?" : ""}`;
     setChip({
@@ -517,7 +525,8 @@ export function SandboxApp() {
       return;
     }
     turnBot.current = bot;
-    lastRoute.current = { text: r.body, bot, at: Date.now() };
+    // Only a spoken turn can be redirected by tapping the other robot; a typed one was chosen on purpose.
+    lastRoute.current = spoken ? { text: r.body, bot, at: Date.now() } : null;
     session.current?.setRecipient(bot, bot);
     void session.current?.submit(r.body, bot, "normal", bot);
   }
@@ -538,6 +547,11 @@ export function SandboxApp() {
     }
   }
 
+  // Teammate dialogs portal to <body>; this class lets them wear the console's glass.
+  useEffect(() => {
+    document.body.classList.add("gic-console");
+    return () => document.body.classList.remove("gic-console");
+  }, []);
   // One window open at a time; the choice is remembered on this device.
   const [win, setWin] = useState<ConsoleWindow>(savedWindow);
   useEffect(() => {
@@ -604,7 +618,7 @@ export function SandboxApp() {
         <section className={styles.stage} aria-label="3D playground">
           {sim ? (
             <>
-              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} />
+              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} looks={view.equipped} />
               <Contained label="Speech bubbles">
                 <div className={styles.overlayTokens}>
                   <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
@@ -694,7 +708,7 @@ export function SandboxApp() {
                   {coordinator.holding() && held.current && (
                     <PredictionPrompt onChoose={(choice) => void held.current?.commit(choice)} onSkip={() => void held.current?.skip()} />
                   )}
-                  <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} />
+                  <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} shows={CONSOLE_LOOKS} />
                   {demoProfile && <p>Demo profile: progress is not saved.</p>}
                 </section>
               </Contained>

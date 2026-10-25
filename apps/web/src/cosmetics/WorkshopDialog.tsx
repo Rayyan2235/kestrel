@@ -35,12 +35,22 @@ export function WorkshopDialog({
   open,
   onOpenChange,
   persisted,
+  shows,
 }: {
   store: ProgressStore;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   persisted: boolean;
+  /** Only these items appear (the 3D robots cannot draw the rest yet). */
+  shows?: ReadonlySet<string>;
 }): ReactNode {
+  const visible = (id: string) => !shows || shows.has(id);
+  const drawn = (slot: Slot) =>
+    itemsFor(slot).some((i) => i.id !== "none" && visible(i.id));
+  const tabs = TABS.map((t) => ({ ...t, slots: t.slots.filter(drawn) })).filter(
+    (t) => t.slots.length > 0,
+  );
+  const shuffleSlots = SHUFFLE_SLOTS.filter(drawn);
   const view = useProgress(store);
   const [bot, setBot] = useState<BotId>("pip");
   const [tab, setTab] = useState<Tab>("shell");
@@ -49,22 +59,35 @@ export function WorkshopDialog({
   const [note, setNote] = useState<string | null>(null);
   const look = view.equipped[bot];
   const peer = view.equipped[other(bot)];
-  const offers =
+  const pool =
     view.tokens > 0
       ? offer(
           seedFrom(`offers:${view.picks.length}`),
           view.level,
           view.unlocked,
+          (id) => id !== "none" && visible(id),
         )
       : [];
+  // On the console the antenna is always among the offers while it can be earned,
+  // so a head prop is reachable from the first reward.
+  const featured =
+    shows &&
+    view.tokens > 0 &&
+    visible("antenna") &&
+    !view.unlocked.has("antenna") &&
+    (itemById("antenna")?.minLevel ?? Infinity) <= view.level;
+  const offers =
+    featured && !pool.includes("antenna")
+      ? ["antenna", ...pool.slice(0, 2)]
+      : pool;
 
   const shuffle = () => {
     const rnd = mulberry32(seedFrom(`shuffle:${bot}:${shuffles}`));
     const kept: string[] = [];
-    for (const slot of SHUFFLE_SLOTS) {
+    for (const slot of shuffleSlots) {
       const current = store.get().equipped[bot];
       const pool = allowed(slot, current, store.get().equipped[other(bot)])
-        .filter((id) => store.get().unlocked.has(id))
+        .filter((id) => store.get().unlocked.has(id) && visible(id))
         .filter((id) => id !== current[slot]);
       if (!pool.length) {
         kept.push(slot);
@@ -140,6 +163,7 @@ export function WorkshopDialog({
             </div>
             <div className={styles.preview}>
               <div
+                className={styles.figure}
                 style={{ transform: mirror ? "scaleX(-1)" : undefined }}
                 data-testid="workshop-preview"
               >
@@ -168,7 +192,7 @@ export function WorkshopDialog({
                 aria-label="Look parts"
                 className={styles.row}
               >
-                {TABS.map((t) => (
+                {tabs.map((t) => (
                   <button
                     key={t.id}
                     role="tab"
@@ -180,73 +204,77 @@ export function WorkshopDialog({
                   </button>
                 ))}
               </div>
-              {TABS.filter((t) => t.id === tab).map((t) => (
-                <div key={t.id} role="tabpanel" className={styles.panel}>
-                  {t.slots.map((slot) => (
-                    <fieldset key={slot} className={styles.slot}>
-                      <legend>{SLOT_LABEL[slot]}</legend>
-                      <div className={styles.tiles}>
-                        {itemsFor(slot).map((item) => {
-                          const isUnlocked = view.unlocked.has(item.id);
-                          const why = isUnlocked
-                            ? whyNot(
-                                slot,
-                                item.id,
-                                look,
-                                peer,
-                                BOT_NAMES[other(bot)],
-                              )
-                            : item.minLevel > view.level
-                              ? `Reach level ${item.minLevel}`
-                              : "Pick a reward to unlock";
-                          const blocked = why !== null;
-                          const worn = look[slot] === item.id;
-                          const fresh =
-                            isUnlocked &&
-                            !item.free &&
-                            !view.seen.includes(item.id);
-                          return (
-                            <button
-                              key={item.id}
-                              className={styles.tile}
-                              data-testid={
-                                item.id === "none"
-                                  ? `item-none-${slot}`
-                                  : `item-${item.id}`
-                              }
-                              aria-disabled={
-                                blocked && !worn ? "true" : undefined
-                              }
-                              aria-pressed={worn}
-                              onClick={() => {
-                                if (blocked && !worn) return;
-                                store.equip(bot, slot, item.id);
-                              }}
-                            >
-                              {item.color && (
-                                <i
-                                  className={styles.swatch}
-                                  style={{ background: item.color }}
-                                  aria-hidden="true"
-                                />
-                              )}
-                              <span>{item.label}</span>
-                              {fresh && (
-                                <b
-                                  data-testid="new-dot"
-                                  aria-label="New"
-                                  className={styles.dot}
-                                />
-                              )}
-                              {blocked && !worn && <small>{why}</small>}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </fieldset>
-                  ))}
-                </div>
-              ))}
+              {tabs
+                .filter((t) => t.id === tab)
+                .map((t) => (
+                  <div key={t.id} role="tabpanel" className={styles.panel}>
+                    {t.slots.map((slot) => (
+                      <fieldset key={slot} className={styles.slot}>
+                        <legend>{SLOT_LABEL[slot]}</legend>
+                        <div className={styles.tiles}>
+                          {itemsFor(slot)
+                            .filter((item) => visible(item.id))
+                            .map((item) => {
+                              const isUnlocked = view.unlocked.has(item.id);
+                              const why = isUnlocked
+                                ? whyNot(
+                                    slot,
+                                    item.id,
+                                    look,
+                                    peer,
+                                    BOT_NAMES[other(bot)],
+                                  )
+                                : item.minLevel > view.level
+                                  ? `Reach level ${item.minLevel}`
+                                  : "Pick a reward to unlock";
+                              const blocked = why !== null;
+                              const worn = look[slot] === item.id;
+                              const fresh =
+                                isUnlocked &&
+                                !item.free &&
+                                !view.seen.includes(item.id);
+                              return (
+                                <button
+                                  key={item.id}
+                                  className={styles.tile}
+                                  data-testid={
+                                    item.id === "none"
+                                      ? `item-none-${slot}`
+                                      : `item-${item.id}`
+                                  }
+                                  aria-disabled={
+                                    blocked && !worn ? "true" : undefined
+                                  }
+                                  aria-pressed={worn}
+                                  onClick={() => {
+                                    if (blocked && !worn) return;
+                                    store.equip(bot, slot, item.id);
+                                  }}
+                                >
+                                  {item.color && (
+                                    <i
+                                      className={styles.swatch}
+                                      style={{ background: item.color }}
+                                      aria-hidden="true"
+                                    />
+                                  )}
+                                  <span>{item.label}</span>
+                                  {fresh && (
+                                    <b
+                                      data-testid="new-dot"
+                                      aria-label="New"
+                                      className={styles.dot}
+                                    />
+                                  )}
+                                  {blocked && !worn && <small>{why}</small>}
+                                </button>
+                              );
+                            })}
+                        </div>
+                      </fieldset>
+                    ))}
+                  </div>
+                ))}
             </div>
           </div>
           {offers.length > 0 && (
