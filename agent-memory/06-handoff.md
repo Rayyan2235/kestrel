@@ -1,5 +1,23 @@
 # Handoff
 
+_Last rewritten: 2026-10-25 (Claude Code), when the owner's stack merged with `main`._
+
+## Where everything is now
+
+- **PR #8 (glass windows, landing page) is on `main`:**
+  - `/` is the landing page.
+  - The real console is at `/console`; `/lab` and `/sandbox.html` still work.
+  - The windows use noir/amethyst glass.
+- **On `moments-floor-push` (PR #5 → `main`):**
+  - PR #6: two real Microducks, the navigator, the cooperative Moments and Pythagoras experiments, the contact ledger.
+  - PR #7: Rayyan's two-bot demo on real physics at `/?demo=two-bot&sim=mujoco`, with live Claude for Pip and Nova via `&provider=live`. It falls back to the scripted mock.
+  - The rail end-stop fix, tilt predicted from measured stiffness, and round-then-classify for tilt labels.
+  - `main` (PR #8) has been merged into it, so PR #5 brings everything to `main`.
+- **Next:** voice on the two-bot page; the owner's further UI work; Rayyan's review of the `SimAdapter` interface change (async `apply`, `actTimeoutMs`, a talk-time chain cap).
+
+The earlier handoff notes follow, unchanged.
+
+
 _Rewrite this file at the end of every session. Last rewritten: 2026-10-25 (Claude Code, real `SimAdapter` for the two-bot demo on `two-bot-real-sim`)._
 
 ## Two-bot demo on the real Microducks (branch `two-bot-real-sim`, PR into `two-duck-lab`)
@@ -40,22 +58,29 @@ Benchmarks to rerun after any change to movement are in `scripts/bench/` (see `0
 ## Moments balance branch (added 2026-10-24, Claude Code for the owner)
 
 Branch `moments-floor-push`, one commit on top of `main` (`4154acf`), with an open PR into `main`. It turns the Moments lesson into a working experiment in the sandbox: weights on rails that Pip pushes physically, a locked plank the learner or Claude releases, measured tilt results, and Claude tools plus prompt guidance. Details are in `04-status.md`. Verified with live Claude, typed and with voice off: "Can you balance the plank?" moved the 200 g weight to 10 cm and released a level plank (see `04-status.md`). **Next for this slice:** the same by voice (hold to talk, spoken replies), and "what are moments?". Pythagoras behaviour is unchanged.
+## Current task
 
-## Two-bot demo branch (added 2026-10-24, implementer session)
+Owner explicitly requested merging the landing page and actual console to main after removing the old scripted view and adding a dark purple glass tint. Changes are on `glass-windows`, PR #8. The original `welcome-preview` worktree is preserved; only its landing components/assets were copied, avoiding its older simulation ancestors.
 
 Branch `feat/two-bot-demo` holds the two-bot conversation demo (see `04-status.md` and `03-codebase-map.md`) merged with `origin/main` (PR #2). It stays behind `?demo=two-bot`. The `SimAdapter` over `duckSim` is now on `two-bot-real-sim` (above). Open for the owner: default presentation speed, and whether Pause also holds an in-flight model call (currently it does not).
+## Delivered
 
-## The goal (teammate slice, see `08-current-scope.md`)
+- `/` is the illustrated landing page; all Open console links lead to `/console`, the real MuJoCo/ONNX SandboxApp. Home returns to `/`. `/lab` and `/sandbox.html` remain usable.
+- Old App screen, preview scene and preview store removed with obsolete tests. Separate `?demo=two-bot` teammate demo preserved, lazily loaded.
+- Console runs outside StrictMode to initialize WASM once; landing does not load physics. Purple glass tint and existing pill controls use the owner palette.
+- Landing FAQ describes current AI/voice honestly, including server configuration and current single robot. Other two-robot physics branches are not included in this UI integration.
+- README, design, provenance and codebase map updated. Local installed design skill remains untracked.
 
-The learner speaks to the duck; Claude decides whether to answer, act, or both; the duck acts in the physics lab; replies appear in a bubble beside the duck and in the chat, and are spoken aloud. Pythagoras squares are the first lesson; Moments is next.
+## Verification
 
-## Where the code lives
+- `pnpm check`: passed, 139 tests, types, web/API builds and API smoke. Eight obsolete preview-store tests were removed with the store.
+- Landing/navigation/real-console Playwright: 16/16 desktop/mobile, including actual movement at `/console` and Stop/Reset at `/sandbox.html`, with mocked AI.
+- Production screenshots inspected at desktop and phone sizes: no page errors or horizontal overflow; purple glass and Open console/Home navigation confirmed.
+- Code review caught a stale root-page integration assertion; corrected to the landing contract. Follow-up integration checks and GitHub CI gate the requested merge.
 
-- Branch **`as-kestrel`** on `usmannsiddiqui/kestrel` (public). It was cut from `73a294c` and is **not** rebased on `origin/main` (`32c575d`).
-- The owner's branch **`origin/microduck-lab-windows`** also builds a Microduck lab with per-bot agent windows. It overlaps heavily; compare before merging either.
-- Local secrets live in `.env` (gitignored): ElevenLabs key, AWS IAM key (`AKIA…`, no session token), `AWS_REGION=us-east-1` and `BEDROCK_MODEL_ID=global.anthropic.claude-sonnet-4-6`. Never print or commit them.
+## Next
 
-## Works (verified live on 2026-10-24)
+Finish integration/CI checks, merge PR #8 using a merge commit as authorized, and verify origin/main includes it. Teammates pull main, install frozen dependencies, and run pnpm dev; each supplies their own .env for live AI/voice. Do not merge unrelated simulation PRs.
 
 - **Voice loop:** hold-to-talk (or Space) → MediaRecorder → ElevenLabs `scribe_v2` → Claude Sonnet 4.6 on Bedrock → duck acts → ElevenLabs `eleven_flash_v2_5` speaks. "Please walk forward 20 centimeters" made the duck move 18 cm, followed by spoken replies.
 - **All typed text goes to Claude.** The fixed parser is no longer used in the UI.
@@ -90,3 +115,4 @@ This is the short list; the full backlog with acceptance checks is in `11-remain
 - Youth data terms.
 - Microduck asset licences (vendored under the upstream Space's Apache-2.0).
 - Bedrock access: Haiku 5.5, Sonnet 5 and Sonnet 5.5 are unavailable to this account, and Haiku 4.5 needs Marketplace subscribe permissions.
+Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.

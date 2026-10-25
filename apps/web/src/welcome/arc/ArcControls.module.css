@@ -1,0 +1,93 @@
+/* Adapted from Arc UI (MIT), © 2026 Elia Kuratli. See ./LICENSE. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--welcome-purple);
+  color: var(--welcome-white);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.button:hover {
+  background: var(--welcome-purple-hover);
+}
+.button:focus-visible,
+.trigger:focus-visible {
+  outline: 3px solid var(--welcome-focus);
+  outline-offset: 5px;
+}
+.accordion {
+  display: grid;
+  gap: 8px;
+}
+.item {
+  background: var(--welcome-raised);
+  border-radius: 12px;
+  overflow: clip;
+}
+.trigger {
+  display: flex;
+  width: 100%;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 22px 26px;
+  list-style: none;
+  color: var(--welcome-white);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.trigger::-webkit-details-marker {
+  display: none;
+}
+.trigger svg {
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+  color: var(--welcome-mist);
+}
+.trigger:hover {
+  background: var(--welcome-hover);
+}
+.item[open] {
+  background: var(--welcome-purple);
+}
+.item[open] .trigger svg {
+  transform: rotate(180deg);
+  color: var(--welcome-white);
+}
+.answer {
+  padding: 0 26px 26px;
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--welcome-white);
+  max-width: 62ch;
+}
+.answer p {
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .trigger {
+    font-size: 16px;
+    padding: 20px;
+    min-height: 68px;
+    gap: 16px;
+  }
+  .answer {
+    padding: 0 20px 22px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .trigger svg {
+    transition: none;
+  }
+}

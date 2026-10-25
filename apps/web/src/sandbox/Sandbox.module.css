@@ -1,4 +1,22 @@
 .app {
+  /* Scoped to the sandbox so the original preview keeps its own theme. */
+  --ink: #f5f3f7;
+  --muted: #cfcfcf;
+  --panel: #f5f3f7;
+  --dock: #141414;
+  --on-dark: #f5f3f7;
+  --on-dark-muted: #cfcfcf;
+  --accent: #7e49b3;
+  --accent-light: #d9b7f5;
+  --glass: rgb(34 23 45 / 80%);
+  --glass-edge: rgb(207 191 223 / 28%);
+  --glass-highlight: rgb(223 199 245 / 16%);
+  --control: rgb(207 207 207 / 9%);
+  --control-hover: rgb(207 207 207 / 17%);
+  --shadow: inset 0 1px 0 var(--glass-highlight), 0 16px 40px rgb(0 0 0 / 24%);
+  color-scheme: dark;
+  color: var(--ink);
+  background: var(--dock);
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -28,14 +46,14 @@
 .pill {
   font-size: 11px;
   color: var(--muted);
-  border: 1px solid #c9d4c1;
+  border: 1px solid var(--glass-edge);
   border-radius: 999px;
   padding: 4px 10px;
 }
 .lessons {
   display: flex;
   gap: 6px;
-  background: #dde5d5;
+  background: var(--control);
   padding: 4px;
   border-radius: 14px;
 }
@@ -55,18 +73,21 @@
 }
 .lesson small,
 .lessonOn small {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--muted);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .lesson:hover {
-  background: #cfdac6;
+  background: var(--control-hover);
+}
+.lessonOn small {
+  color: #514558;
 }
 .lessonOn {
   background: var(--panel);
-  box-shadow: 0 2px 8px rgba(33, 58, 42, 0.1);
+  color: var(--dock);
 }
 .back {
   margin-left: auto;
@@ -92,7 +113,7 @@
 .stage {
   position: relative;
   min-height: 0;
-  background: #dde5d5;
+  background: var(--control);
   border-radius: 20px;
   overflow: hidden;
 }
@@ -114,7 +135,7 @@
   margin-bottom: 6px;
 }
 .error {
-  color: #a2533c;
+  color: #ffc9c3;
   max-width: 520px;
 }
 .lessonCard {
@@ -124,7 +145,7 @@
   max-width: 330px;
   max-height: calc(100% - 96px);
   overflow-y: auto;
-  background: rgba(251, 252, 247, 0.96);
+  background: var(--glass);
   border-radius: 16px;
   box-shadow: var(--shadow);
   padding: 14px 16px;
@@ -138,11 +159,9 @@
   margin: 0;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink);
 }
 .chips {
   display: flex;
@@ -156,17 +175,17 @@
   font-variant-numeric: tabular-nums;
   border-radius: 999px;
   padding: 3px 10px;
-  border: 1px solid #c3cfbc;
+  border: 1px solid var(--glass-edge);
   display: inline-flex;
   align-items: center;
   gap: 4px;
 }
 .chipOn {
   background: var(--accent);
-  border-color: #9fbf5a;
+  border-color: var(--accent-light);
 }
 .solved {
-  color: #345d47;
+  color: var(--accent-light);
 }
 .plankButton {
   font: inherit;
@@ -196,14 +215,21 @@
   color: var(--muted);
   pointer-events: none;
 }
+.keys {
+  width: fit-content;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--glass);
+  max-width: calc(100% - 36px);
+}
 .keys kbd {
   font: inherit;
   font-weight: 700;
-  color: var(--ink);
+  color: var(--dock);
   background: var(--panel);
   border-radius: 6px;
   padding: 1px 6px;
-  box-shadow: 0 1px 0 #b9c6b3;
+  box-shadow: 0 1px 0 var(--glass-edge);
 }
 .note {
   font-style: italic;
@@ -211,7 +237,7 @@
 
 .console {
   min-height: 0;
-  background: var(--dock);
+  background: var(--glass);
   color: var(--on-dark);
   border-radius: 20px;
   padding: 16px;
@@ -233,14 +259,14 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--teal);
+  background: var(--accent-light);
 }
 .mode {
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--accent);
+  color: var(--accent-light);
 }
 .telemetry {
   margin: 0;
@@ -249,12 +275,12 @@
   gap: 6px;
 }
 .telemetry div {
-  background: rgba(242, 246, 237, 0.07);
+  background: var(--control);
   border-radius: 10px;
   padding: 6px 8px;
 }
 .telemetry dt {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--on-dark-muted);
 }
 .telemetry dd {
@@ -290,10 +316,10 @@
 .fromYou {
   align-self: flex-end;
   background: var(--accent);
-  color: var(--ink);
+  color: var(--on-dark);
 }
 .fromDuck {
-  background: rgba(242, 246, 237, 0.09);
+  background: var(--control);
 }
 .warn {
   display: inline-grid;
@@ -301,9 +327,9 @@
   width: 15px;
   height: 15px;
   border-radius: 50%;
-  background: #e8957a;
+  background: #ffc9c3;
   color: var(--dock);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   margin-right: 6px;
 }
@@ -312,7 +338,7 @@
   justify-content: space-between;
   align-items: center;
   font-size: 12px;
-  background: rgba(210, 235, 136, 0.14);
+  background: rgb(126 73 179 / 24%);
   border-radius: 10px;
   padding: 6px 8px 6px 10px;
 }
@@ -338,7 +364,7 @@
   border: 0;
   border-radius: 12px;
   padding: 10px 12px;
-  background: var(--panel);
+  background: var(--control);
   color: var(--ink);
 }
 .command button {
@@ -346,7 +372,7 @@
   border-radius: 12px;
   width: 42px;
   background: var(--accent);
-  color: var(--ink);
+  color: var(--on-dark);
   display: grid;
   place-items: center;
 }
@@ -354,7 +380,7 @@
 .command button:focus-visible,
 .skills button:focus-visible,
 .running button:focus-visible {
-  outline: 3px solid var(--accent);
+  outline: 2px solid var(--accent-light);
   outline-offset: 2px;
 }
 .skills {
@@ -362,14 +388,35 @@
   flex-wrap: wrap;
   gap: 6px;
 }
-.voiceControls { display: flex; gap: 8px; }
-.voiceControls button { padding: 10px; border: 1px solid #718e80; border-radius: 10px; background: #263f3a; color: #f2f6ed; touch-action: none; }
-.voiceControls button:first-child { flex: 1; }
-.voiceControls button[aria-pressed="true"]:first-child { background: #825342; }
-.voiceControls button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-.providerNote { color: #b6c9c0; font-size: 11px; line-height: 1.5; }
+.voiceControls {
+  display: flex;
+  gap: 8px;
+}
+.voiceControls button {
+  padding: 10px 14px;
+  border: 1px solid var(--glass-edge);
+  background: var(--control);
+  color: var(--ink);
+  touch-action: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+.voiceControls button:first-child {
+  flex: 1;
+  background: var(--panel);
+  color: var(--accent);
+}
+.voiceControls button[aria-pressed="true"]:first-child {
+  background: var(--accent);
+  color: var(--on-dark);
+}
+.providerNote {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
 .skills button {
-  border: 1px solid rgba(242, 246, 237, 0.2);
+  border: 1px solid var(--glass-edge);
   background: transparent;
   color: var(--on-dark);
   border-radius: 10px;
@@ -380,7 +427,7 @@
   place-items: center;
 }
 .skills button:hover {
-  background: rgba(242, 246, 237, 0.1);
+  background: var(--control-hover);
 }
 
 @media (max-width: 900px) {
@@ -426,7 +473,8 @@
   max-width: 260px;
   padding: 10px 13px;
   border-radius: 14px 14px 14px 4px;
-  background: var(--panel);
+  background: var(--glass);
+  color: var(--ink);
   box-shadow: var(--shadow);
   font-size: 12.5px;
   line-height: 1.45;
@@ -573,4 +621,171 @@
 }
 .novaDot {
   background: #7e49b3;
+}
+
+/* Smoked glass: a dense tint protects legibility over the live experiment. */
+.lessonCard,
+.console,
+.bubble {
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
+}
+.consoleHead {
+  min-height: 36px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--glass-edge);
+}
+.consoleHead strong {
+  font-size: 15px;
+}
+.console {
+  gap: 16px;
+}
+.log {
+  padding-block: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.mode {
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.telemetry dt {
+  font-size: 11px;
+}
+.telemetry dd {
+  white-space: nowrap;
+}
+.lessonCard {
+  padding: 18px;
+  gap: 12px;
+}
+.lessons {
+  border: 1px solid var(--glass-edge);
+  border-radius: 999px;
+}
+.app button {
+  border-radius: 999px;
+  min-height: 44px;
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    background 180ms,
+    color 180ms;
+}
+.lesson,
+.lessonOn {
+  padding: 8px 18px;
+}
+.command {
+  align-items: center;
+}
+.command input {
+  min-height: 46px;
+  border: 1px solid var(--glass-edge);
+  border-radius: 999px;
+  padding-inline: 16px;
+  caret-color: var(--accent-light);
+  font-size: 13px;
+}
+.command input::placeholder {
+  color: var(--muted);
+  opacity: 1;
+}
+.command button {
+  flex: 0 0 46px;
+  width: 46px;
+  height: 46px;
+  background: var(--panel);
+  color: var(--accent);
+}
+.skills button {
+  min-width: 44px;
+  padding: 8px 12px;
+}
+.running {
+  gap: 8px;
+}
+.running button {
+  flex-shrink: 0;
+  padding-inline: 12px;
+}
+.app :is(button, a, input):focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 3px;
+}
+.app button:disabled {
+  opacity: 0.45;
+  transform: none;
+}
+.app * {
+  scrollbar-color: #8d8296 transparent;
+}
+.app ::selection {
+  background: var(--accent);
+  color: var(--on-dark);
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .app button:not(:disabled):hover {
+    transform: translateY(-2px);
+  }
+  .app button:not(:disabled):active {
+    transform: translateY(0);
+  }
+}
+@media (max-width: 600px) {
+  .header {
+    gap: 12px;
+    padding: 16px;
+  }
+  .pill {
+    font-size: 11px;
+  }
+  .lessons {
+    order: 3;
+    width: 100%;
+    border-radius: 20px;
+  }
+  .lesson,
+  .lessonOn {
+    flex: 1;
+    padding: 8px;
+    font-size: 11px;
+    align-items: center;
+    text-align: center;
+  }
+  .lesson small,
+  .lessonOn small {
+    font-size: 11px;
+  }
+  .back {
+    font-size: 12px;
+  }
+  .lessonCard {
+    top: 12px;
+    left: 12px;
+    max-width: calc(100% - 24px);
+    padding: 14px;
+  }
+  .console {
+    min-height: 520px;
+  }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  .lessonCard,
+  .console,
+  .bubble {
+    background: #241a2e;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .lessonCard,
+  .console,
+  .bubble {
+    background: #241a2e;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
 }

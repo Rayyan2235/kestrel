@@ -253,11 +253,11 @@ export function SandboxApp() {
   return (
     <div className={styles.app}>
       <header className={styles.header}>
-        <a className={styles.brand} href="/" aria-label="Back to the Kestrel preview">
+        <a className={styles.brand} href="/" aria-label="Kestrel home">
           <Bird size={24} strokeWidth={1.7} />
           <h1>Kestrel</h1>
         </a>
-        <span className={styles.pill}>Lab sandbox · Microduck physics</span>
+        <span className={styles.pill}>Console · Microduck physics</span>
         <nav className={styles.lessons} aria-label="Lesson">
           {LESSONS.map((l) => (
             <button
@@ -273,7 +273,7 @@ export function SandboxApp() {
           ))}
         </nav>
         <a className={styles.back} href="/">
-          <ArrowLeft size={16} /> Scripted preview
+          <ArrowLeft size={16} /> Home
         </a>
       </header>
 

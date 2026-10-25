@@ -103,3 +103,11 @@ Tests: `src/app.test.ts`. Compiled smoke test: `scripts/check-api.mjs`.
 ## Planned runtime components (from docs/ARCHITECTURE.md and the planning notes; not built)
 
 World/experiment state, per-bot session, crew coordinator (turn/time/token budgets, object locks), speech router (binds the recipient at capture start), model service (OpenAI Responses with strict function tools), task executor, physical bot controller (MuJoCo + ONNX Microduck policy, outside React), presentation layer and lesson content packs.
+
+## Product entry integration — 2026-10-25
+
+- `src/main.tsx`: `/` renders `welcome/WelcomePage`; `/console`, `/lab` and nested `/lab/` paths lazy-load `sandbox/SandboxApp` outside StrictMode to boot physics once. `?demo=two-bot` remains a separately lazy-loaded teammate demo.
+- `sandbox.html`: legacy console entry retained. Console Home links return to `/`.
+- `src/welcome/`: imported landing UI and Arc controls; public artwork/font assets under `public/welcome/`. Landing balance example uses shared deterministic contracts but does not load MuJoCo or ONNX.
+- Removed the old `App.tsx`, `App.module.css`, `world/LabScene.tsx`, and preview-only Zustand `state/lab.ts` plus its obsolete tests. The older map above is historical for those files. Shared contracts and teammate demo runtime remain.
+- `tests/console-entry.spec.ts` and `tests/welcome.spec.ts` cover product navigation and landing interactions; sandbox specs exercise real physics at `/console` and the legacy `/sandbox.html` route.
