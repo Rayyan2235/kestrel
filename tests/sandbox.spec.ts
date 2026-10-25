@@ -15,7 +15,7 @@ test("natural text explains, moves the real duck, and returns measured results",
   });
   await page.goto("/console");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: "Robot reply sound" }).click();
   await page.getByLabel("Task for your duck").fill("Can you demonstrate moving a little?");
   await page.getByRole("button", { name: "Send task" }).click();
   await expect(page.getByRole("log")).toContainText("I'll walk forward");
@@ -39,7 +39,7 @@ test("Stop discards a delayed Claude action and reset stays idle", async ({ page
   });
   await page.goto("/sandbox.html");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: "Robot reply sound" }).click();
   await page.getByLabel("Task for your duck").fill("Move please");
   await page.getByRole("button", { name: "Send task" }).click();
   await expect.poll(() => started).toBe(true);
@@ -70,7 +70,7 @@ test("Moments: Claude balances the plank with a real push and reads the measured
   });
   await page.goto("/sandbox.html");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: "Robot reply sound" }).click();
   await page.getByRole("button", { name: /Moments/ }).click();
   await expect(page.getByTestId("balance")).toContainText("Plank locked");
   await page.getByLabel("Task for your duck").fill("Can you balance the plank?");

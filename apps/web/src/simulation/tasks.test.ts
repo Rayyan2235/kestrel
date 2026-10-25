@@ -24,7 +24,11 @@ describe("task runner", () => {
     expect(r.step(start, 0.02)?.done).toBeUndefined();
     // Moving along the duck's own right (−x when facing +y) does not count.
     expect(r.step(world({ x: 0, y: 0, yaw: Math.PI / 2 }, { "square-3": [p[0] + 0.19, p[1]] }), 0.02)?.done).toBeUndefined();
-    expect(r.step(world({ x: 0, y: 0, yaw: 0 }, { "square-3": [p[0] + rx * 0.19, p[1] + ry * 0.19] }), 0.02)?.done?.ok).toBe(true);
+    const atTarget = world({ x: -0.8, y: 0.5, yaw: 0 }, { "square-3": [p[0] + rx * 0.19, p[1] + ry * 0.19] });
+    expect(r.step(atTarget, 0.02)?.done).toBeUndefined();
+    let result;
+    for (let i = 0; i < 40 && !result?.done; i++) result = r.step(atTarget, 0.02) ?? undefined;
+    expect(result?.done?.ok).toBe(true);
     expect(r.start({ kind: "push", target: "square-3", direction: "right", toward: "slot" }, start)).toMatch(/direction or a destination/);
   });
   it("refuses targets that are missing or fixed before moving", () => {
@@ -40,8 +44,11 @@ describe("task runner", () => {
     const first = r.step(world(), 0.02)!;
     expect(first.done).toBeUndefined();
     const slot = kit.slots.find((s) => s.forProp === "square-3")!;
-    const done = r.step(world({ x: 0, y: 0, yaw: 0 }, { "square-3": slot.pos }), 0.02)!;
-    expect(done.done?.ok).toBe(true);
+    const placed = world({ x: -0.8, y: 0.5, yaw: 0 }, { "square-3": slot.pos });
+    expect(r.step(placed, 0.02)?.done).toBeUndefined();
+    let done;
+    for (let i = 0; i < 40 && !done?.done; i++) done = r.step(placed, 0.02) ?? undefined;
+    expect(done?.done?.ok).toBe(true);
     expect(r.active).toBeNull();
   });
 
