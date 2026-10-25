@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-24 by Claude Code, on top of commit `73a294c` (uncommitted work)._
+_Last updated: 2026-10-24 by Claude Code. The Moments sections reflect branch `moments-floor-push` (on top of `4154acf`); the rest is unchanged from earlier sessions._
 
 ## Implemented
 
@@ -12,13 +12,17 @@ Isometric room, Pip and Nova placeholders, the analytic balance, the typed gramm
 
 - **Physics and policies.** Real Microduck physics: MuJoCo 3.11 WASM stepping the upstream MJCF, with 7 upstream ONNX policies at **50 Hz** (verified headless): walk, sit/stand, get-up, kick L/R, roll and peck. Fall recovery uses the get-up policy, and the duck respawns if it fails.
 - **Controls.** Keyboard: WASD or arrows, Q/E kick, R sit/stand, F peck, T roll, Esc stops the task. There are also console buttons and a reset.
-- **Lessons.** Maths · Pythagorean theorem (3×3, 4×4 and 5×5 grid tiles, a floor triangle and slots that light up), Physics · Moments (a hinged plank on a pivot plus weights), and Free play. Shared room furniture (bench, shelf, crate) is part of the physics in every lesson.
+- **Lessons.** Maths · Pythagorean theorem (3×3, 4×4 and 5×5 grid tiles, a floor triangle and slots that light up), Physics · Moments (a beam balance: a locked plank on a pivot, with a 200 g and a 100 g weight on rails that the duck pushes; see below), and Free play. Shared room furniture (bench, shelf, crate) is part of the physics in every lesson.
 - **Typed tasks.** These go through `parseDuckTask` → `DuckTaskSchema` → `TaskRunner` and report measured results in the log.
 - **Bubble.** A reply bubble sits next to the duck, and the log keeps history.
 
 ### Two-bot conversation demo (`/?demo=two-bot`, new, on `feat/two-bot-demo`)
 
-A temporary demo of two robots talking to each other and to the learner. It runs on a **stub simulation** (`simulation/fake/`) and a **scripted mock provider**; nothing calls a model, uses a key, the network or MuJoCo. Fast commands are labelled `built-in`, mock replies `mock`, fixed fallbacks `scripted`. One bubble shows in the room at a time (paced by `presentation/`), with Pause/Resume and a 0.5x speed; the side rail shows everything. Not yet connected to `duckSim`.
+A temporary demo of two robots talking to each other and to the learner. By default it runs on a **stub simulation** (`simulation/fake/`) and a **scripted mock provider**; nothing calls a model, uses a key, the network or MuJoCo. Fast commands are labelled `built-in`, mock replies `mock`, fixed fallbacks `scripted`. One bubble shows in the room at a time (paced by `presentation/`), with Pause/Resume and a 0.5x speed; the side rail shows everything.
+
+**Real sim (`/?demo=two-bot&sim=mujoco`, branch `two-bot-real-sim`, stacked on `two-duck-lab`):** the same demo drives the real MuJoCo Microducks through `simulation/real/`. Verified 2026-10-25 by `tests/two-bot-real-sim.spec.ts` (desktop, SwiftShader): "move the left weight to 10 cm" made Pip physically push the 200 g weight (paddle contact in the contact ledger, no Nova contact); the rail showed "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)." and the readout "Left 10.1 cm · Right 20 cm", equal to the sim's measured rail. Stop mid-push left Nova's weight clamped where it stood. Known limits: the 2D beam's tilt is still the analytic ideal beam from measured positions (the plank stays locked; no release step in the demo); the fast-path reply text is written before the push, so on a failed push it is followed by a correcting notice; mock replies never carry actions, so only typed commands move weights.
+
+**Live Claude (`&provider=live`, 2026-10-25):** `provider/live.ts` calls `POST /api/two-bot/respond` (Bedrock, server-side only) and returns the same `Respond`, labelled `live`; on any API or contract failure the mock answers, labelled `mock`. Used only when asked for and `/api/health` reports `liveAi`. Live check (`scripts/two-bot-live-check.mjs`, real sim): "Please ask Nova to move the right weight to 25 cm." → Pip (live) handed off to Nova → Nova (live) moved its weight → measured "Moved the 100 g weight from 20 cm to 24.9 cm (asked for 25 cm)." (110 paddle contact samples, peak 11.1 N) → Nova's live handback asked for a prediction. 15.7 s end to end. Nova's reply is worded as future tense though the push has already landed when it shows.
 
 ## Not integrated (do not claim)
 
@@ -32,7 +36,12 @@ A temporary demo of two robots talking to each other and to the learner. It runs
 - **No understanding.** Natural requests ("what is the pythagorean theorem", "show me why 9 plus 16 equals 25") returned the parser fallback. There is no speaking, no understanding and no meaningful action from natural language.
 - **Root cause.** The session prioritised the environment (physics, sandbox, puzzle artifact, model benchmark) over the voice → understand → act loop, which was the teammate's main goal. That loop is now the top priority in `06-handoff.md`.
 
-## Last verification (2026-10-24, Windows, Node 22.23.1)
+## Last verification for `moments-floor-push` (2026-10-24, macOS, Node 24.16)
+
+- `pnpm check`: pass (19 test files, **154 tests**, both page builds, API smoke).
+- `pnpm test:e2e` (run against a local dev server): **120/120** on desktop and mobile, including the new mocked-Claude Moments spec (a real push to 10 cm, then a measured level release).
+
+## Earlier verification (2026-10-24, Windows, Node 22.23.1)
 
 - `pnpm typecheck`: pass.
 - `pnpm test`: **18/18** (9 original, plus 5 lab-contract tests and 4 task-runner tests).
@@ -54,7 +63,81 @@ A temporary demo of two robots talking to each other and to the learner. It runs
 7. **`pnpm format:check` flags 42 files** on Windows (likely CRLF). New files are not Prettier-formatted yet either.
 8. **Asset licences.** The Microduck mesh and policy licences aren't stated upstream beyond Apache-2.0 for the app and code. See `apps/web/public/microduck/PROVENANCE.md`.
 
-## Moments lesson (2026-10-24)
+## Two robots and navigation (2026-10-24, branch `two-duck-lab`, uncommitted)
 
-- Physics fixed: the plank now tips realistically under the 200 g weight (−11.8°, end on the floor).
-- Not usable as an experiment yet: the duck can't place weights on the plank. Options are an authored "place weight at N cm" station action, or a ramp. The lesson isn't tested with Claude or voice, and the prompt only covers Pythagoras.
+**Measured movement contract (BEST_alpha_walking.onnx, fast-stepped MuJoCo, flat floor):**
+
+| Command | Result |
+| --- | --- |
+| Forward vx 0.10–0.20 | **0 m/s**: dead zone, the gait never starts |
+| Forward vx 0.25 / 0.30 / 0.40 / 0.50 / 0.60 | 0.108 / 0.137 / 0.171 / 0.214 / 0.272 m/s |
+| Forward vx 1.0 | falls |
+| Backward vx −0.15 to −0.30 | **0 m/s** |
+| Backward vx −0.40 | −0.19 to −0.24 m/s |
+| Lateral vy up to ±0.25 | 0 m/s (the policy ignores strafe) |
+| Pure turn wz 1.0 | stalls |
+| Pure turn wz 1.6 / 3.0 / 4.0 | 0.86 / 1.75 / 2.3 rad/s, pivot radius ≤ 1 cm |
+| Walk 0.25 while turning wz 1.0–1.6 | turn radius 0.14–0.17 m |
+| Stop from 0.25 / 0.40 | coasts 1.0 / 1.8 cm, settles in ~0.5 s |
+| 0.64 N·m torque clamp (Duckverse, `infer_policy.py`) | no change on flat walking; the peak joint torque is 0.51 N·m |
+
+**Defects found in the old controllers:**
+
+- `steerTo` turned with a 0.1 m/s creep and wz ≤ 1.0, both inside dead zones, so turns stalled until the 1.5 s kick-start fired.
+- The tile push walked at vx 0.12–0.20, which never starts the gait, so it only advanced in kick-start bursts. That is why the 5×5 push was unreliable.
+- `move` backed up at −0.2, which never moves the duck.
+- Push approaches didn't route around placed squares, so the 3×3 push knocked the 4×4 69 cm off its slot.
+
+**Navigator, before → after** (20 start/goal pairs, 4 headings; `scripts/bench/nav-bench.mjs`):
+
+| Metric | Before | After |
+| --- | --- | --- |
+| Completed | 20/20 | 20/20 |
+| Mean / max time | 10.0 / 16.4 s | 5.1 / 7.2 s |
+| Final error, mean (p90) | 6.2 (6.4) cm | 2.6 (3.0) cm |
+| Path ÷ straight line | 1.94 | 1.34 |
+| Falls | 0 | 0 |
+
+**Two robots in one world:**
+
+- Pip has ctrl 0–13 and Nova ctrl 14–27, each with its own qpos/qvel slice. `assertNoCrossTalk` throws at compile time if any address is shared.
+- Robot↔robot and robot↔apparatus contacts are live.
+
+**Cooperative Moments experiment** (`set_balance`; `scripts/bench/coop-bench.mjs`):
+
+- Sequence: lock, both robots push their own paddles (together when their lanes don't overlap, otherwise one at a time), stop, withdraw, verify clear and still for 0.5 s, release, measure.
+- Per robot: TRAVEL → ALIGN → APPROACH → CONTACT → PUSH → STOP → WITHDRAW → VERIFY → READY. The rail clamp comes off only on real MuJoCo paddle contact. Bounded retries.
+- Results over 8 runs on the final geometry (plus the UI run and the e2e run): every one completed with 0 falls and positions within 0.1 cm of the targets, in 11.7–13.8 s (1.1 s when nothing needs moving). The predicted and measured outcomes agreed every time:
+  - level: 10/20 and 15/30;
+  - left down: 20/20, 25/12, 30/15 and 11/20;
+  - right down: 10/30 and 10/22.
+- 5/8 cm is correctly refused (no room to stand between the weights).
+- Contact ledger: paddle push peaks of 4–16 N and max penetration 1.2–3.9 mm (paddle `solref` 0.005). No robot touched the pivot or the other robot.
+
+**Cooperative Pythagoras** (`build_squares`; `scripts/bench/crew-bench.mjs`): Pip 5×5 with Nova 4×4 in parallel, then Pip 3×3. It takes 63 s (one robot alone: about 117 s). All three squares land 2.5–2.9 cm from their slots, none disturbed, 0 falls, 0 robot–robot contact.
+
+**Performance** (M3 Pro, headed Chromium, during a live two-robot experiment):
+
+- Rendering: 120 fps (display-limited), with frame times of p50 8.3 ms and max 9.4 ms. Zero long tasks.
+- Control step: 0.92 ms (both inferences 0.27 ms, physics 0.48 ms, contact audit 0.11 ms) within each 20 ms tick.
+- REA 6.7.0 `inspect-web-page` reported **no workers**: physics and inference run on the main thread, so a Web Worker isn't needed at this load.
+
+**Idealisations, stated in the UI and README:**
+
+- The lock pin is a kinematic hold that levels the plank at a fixed rate.
+- Each rail clamp holds its carriage where it is and engages when the carriage reaches the requested mark. It never moves a carriage.
+- The plank's pin is 8 cm above the plank, like a beam balance's pivot above the centre of mass.
+- The tilt stops at ±0.1 rad (5.7°), so most imbalances read as "down 5.7°".
+
+## Moments lesson (2026-10-24, branch `moments-floor-push`)
+
+- **Apparatus.** The plank is a beam balance, held level by a lock pin until released. Each weight rides a slide joint on its own side of the pivot (200 g left, 100 g right, both starting at 20 cm; rails run 5–30 cm). A paddle hangs off each weight into a walking lane beside the plank.
+- **The duck really pushes the weights.** `place_weight {target, cm}` walks Pip to the lane, frees that weight's brake, pushes the paddle with its body to the mark, brakes it and steps back clear. No authored placement or teleport. It locks a released plank first, and refuses a push that would leave no room to stand between the weights ("Try N cm or more").
+- **Release and lock.** `release_plank` reports the measured tilt once the plank settles; `lock_plank` levels and locks it. The learner has a Release/Lock button and chips with each weight's measured cm.
+- **Tilt.** The hinge sits ~2 cm above the loaded centre of mass, so equal moments rest level and any imbalance tips to the ±0.1 rad stop (about 5.8°). This is smaller than the earlier −11.8° because the paddles hang low and must clear the floor.
+- **Claude.** The tool schema has the three new kinds and a `cm` field; the system prompt has Moments guidance; the world snapshot carries the measured balance (lock state, low side, tilt, each weight's side and cm). **Verified with live Claude (Bedrock, typed, voice off), 2026-10-24:** asked "Can you balance the plank?", Claude computed 200 × 20 = 4000 vs 100 × 20 = 2000 g·cm, called `place_weight` (200 g → 10 cm; measured "Moved the 200 g weight from 20 cm to 10 cm."), then `release_plank` (measured "It stayed level (0.0°)."), and closed with an explanation that matched the measurement. 3 model turns (1.3–2.2 s each), no errors. Spoken input and output are not yet checked for Moments.
+- **Measured (fast-stepped physics harness, not committed):**
+  - 24 random placements: 22 exact landings in 11–18 s, 1 correct refusal, 1 already there, **0 falls**.
+  - Release: left side down 5.8° at the start; level at 200 g × 10 cm = 100 g × 20 cm; right side down at 100 g × 30 cm vs 200 g × 10 cm; level again at 200 g × 15 cm = 100 g × 30 cm.
+  - Live in the app (real time): 20 → 10 cm push, then Release reads "It stayed level (0.0°)".
+- **Limits.** The duck can only push from the paddle side of the plank; from the far side it refuses. A single duck only.

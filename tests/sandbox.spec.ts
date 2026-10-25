@@ -50,3 +50,74 @@ test("Stop discards a delayed Claude action and reset stays idle", async ({ page
   await expect(page.getByTestId("agent-phase")).toHaveCount(0);
   await expect(page.getByRole("log")).toContainText("Lab reset.");
 });
+
+test("Moments: Claude balances the plank with a real push and reads the measured tilt", async ({ page }) => {
+  test.setTimeout(240000);
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push(e.message));
+  const requests: any[] = [];
+  const turns = [
+    [
+      { type: "text", text: "200 g at 10 cm balances 100 g at 20 cm, so I'll move the 200 g weight in." },
+      { type: "tool_use", id: "place1", name: "duck_task", input: { kind: "place_weight", target: "weight-200", cm: 10 } },
+    ],
+    [{ type: "text", text: "Now I'll let the plank go." }, { type: "tool_use", id: "release1", name: "duck_task", input: { kind: "release_plank" } }],
+    [{ type: "text", text: "The simulator measured it level." }],
+  ];
+  await page.route("**/api/agent/turn", async route => {
+    const r = route.request().postDataJSON(); requests.push(r);
+    await route.fulfill({ json: { worldVersion: r.worldVersion, content: turns[requests.length - 1] } });
+  });
+  await page.goto("/sandbox.html");
+  await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
+  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: /Moments/ }).click();
+  await expect(page.getByTestId("balance")).toContainText("Plank locked");
+  await page.getByLabel("Task for your duck").fill("Can you balance the plank?");
+  await page.getByRole("button", { name: "Send task" }).click();
+  await expect(page.getByRole("log")).toContainText("The simulator measured it level.", { timeout: 200000 });
+  expect(requests).toHaveLength(3);
+  expect(requests[0].world.balance).toMatchObject({
+    plank: "locked",
+    weights: [{ id: "weight-200", side: "left", cm: 20 }, { id: "weight-100", side: "right", cm: 20 }],
+  });
+  expect(requests[0].world.props.some((p: { id: string }) => p.id.endsWith("paddle"))).toBe(false);
+  const placed = JSON.parse(requests[1].messages.at(-1).content[0].content);
+  expect(placed.ok).toBe(true);
+  expect(placed.summary).toMatch(/^Moved the 200 g weight from 20 cm to (9\.\d|10(\.\d)?) cm \(asked for 10 cm\)\.$/);
+  const released = JSON.parse(requests[2].messages.at(-1).content[0].content);
+  expect(released.summary).toMatch(/^Released the plank\. It stayed level \(0\.\d°\)\.$/);
+  expect(released.world.balance).toMatchObject({ plank: "released", lowSide: "level" });
+  await expect(page.getByTestId("balance")).toContainText("Level");
+  expect(errors).toEqual([]);
+});
+
+test("Moments: the learner predicts, both robots push their own weights, and the result is measured", async ({ page }, info) => {
+  test.skip(info.project.name === "mobile", "One real-physics run is enough; the phone layout is covered above.");
+  test.setTimeout(240000);
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push(e.message));
+  await page.route("**/api/**", route => route.abort());
+  await page.goto("/sandbox.html");
+  await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
+  await page.getByRole("button", { name: /Moments/ }).click();
+  await expect(page.getByTestId("balance")).toContainText("Plank locked");
+  // 200 g at 15 cm against 100 g at 30 cm: equal moments.
+  for (let i = 0; i < 5; i++) await page.getByRole("button", { name: "Move the 200 g weight in" }).click();
+  for (let i = 0; i < 10; i++) await page.getByRole("button", { name: "Move the 100 g weight out" }).click();
+  await expect(page.getByLabel("200 g target")).toHaveText("15 cm");
+  await expect(page.getByLabel("100 g target")).toHaveText("30 cm");
+  await page.getByRole("radio", { name: "Stays level" }).click();
+  await page.getByRole("button", { name: "Run it with both robots" }).click();
+  const result = page.getByTestId("experiment-result");
+  await expect(result).toBeVisible({ timeout: 200000 });
+  await expect(result).toContainText("Moments say: Stays level");
+  await expect(result).toContainText("Measured: level");
+  await expect(result).toContainText("you were right");
+  // Both weights really moved, and both robots touched only their own paddles.
+  const contacts = await page.evaluate(() => Object.keys((window as any).kestrelSim.contacts()));
+  expect(contacts).toEqual(expect.arrayContaining(["pip↔weight-200-paddle", "nova↔weight-100-paddle"]));
+  expect(contacts).not.toContain("pip↔weight-100-paddle");
+  expect(contacts).not.toContain("nova↔weight-200-paddle");
+  expect(errors).toEqual([]);
+});

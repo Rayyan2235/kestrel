@@ -19,8 +19,10 @@ export type BotState =
 export type CoordinatorConfig = {
   /** Per-call timeout. */
   callTimeoutMs: number;
-  /** Chain cap, measured from call-1 dispatch. Must exceed 2 x callTimeoutMs. */
+  /** Chain cap on talk time, from call-1 dispatch; paused while a bot acts. Must exceed 2 x callTimeoutMs. */
   chainCapMs: number;
+  /** Per-action timeout: a real push takes 10-15 s and the sim reports its own failures sooner. */
+  actTimeoutMs: number;
   maxCalls: 2;
   maxHops: 1;
 };
@@ -28,6 +30,7 @@ export type CoordinatorConfig = {
 export const DEFAULT_COORDINATOR_CONFIG: CoordinatorConfig = {
   callTimeoutMs: 7000,
   chainCapMs: 16000,
+  actTimeoutMs: 60000,
   maxCalls: 2,
   maxHops: 1,
 };
@@ -48,9 +51,9 @@ export type TurnHandle = {
 /** A move waiting for the learner's prediction. Nothing has mutated yet. */
 export type HeldMove = {
   /** Logs prediction_locked, applies, then logs move_applied. Refused once voided. */
-  commit(choice: PredictionChoice): void;
+  commit(choice: PredictionChoice): Promise<void>;
   /** Applies with no prediction event. Still logs a scorable move_applied (no attempt). */
-  skip(): void;
+  skip(): Promise<void>;
   /** Releases the lock and logs prediction_voided. */
   cancel(reason: string): void;
 };
@@ -83,7 +86,7 @@ export interface Coordinator {
     context: HeldMoveContext,
   ): HeldMove;
   /** Resets (clears epoch, chat ledger and held move), then applies each setup move tagged `setup`. */
-  startChallenge(challengeId: string, setup: SetupMove[]): void;
+  startChallenge(challengeId: string, setup: SetupMove[]): Promise<void>;
   /** Leaves the active challenge: cancels any held move; later asks and moves are free play. */
   endChallenge(): void;
   /** Current epoch, for stamping lab events made outside the coordinator. */

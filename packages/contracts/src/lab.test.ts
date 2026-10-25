@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   DuckTaskSchema,
+  MOMENTS,
   UNIT,
+  momentsKit,
   parseDuckTask,
+  railAt,
   pythagorasKit,
   pythagorasSlots,
   roomProps,
@@ -77,5 +80,44 @@ describe("duck task grammar", () => {
     expect(far.ok && far.task).toEqual({ kind: "move", meters: 2 });
     expect(DuckTaskSchema.safeParse({ kind: "move", meters: 50 }).success).toBe(false);
     expect(DuckTaskSchema.safeParse({ kind: "fly" }).success).toBe(false);
+  });
+});
+
+describe("Moments balance", () => {
+  const kit = momentsKit();
+
+  it("weighs each weight and its paddle together at the labelled mass, on its own side", () => {
+    for (const w of MOMENTS.weights) {
+      const block = kit.props.find((p) => p.id === w.id)!;
+      const paddle = kit.props.find((p) => p.parent === w.id)!;
+      // An unequal paddle would tip a balanced plank.
+      expect(block.mass + paddle.mass).toBeCloseTo(w.grams / 1000, 9);
+      expect(block.parent).toBe("plank");
+      expect(block.rest).toBeCloseTo(railAt(w.side, w.cm));
+      const [lo, hi] = block.range!;
+      expect(Math.sign(lo)).toBe(w.side === "left" ? -1 : 1);
+      expect(Math.sign(hi)).toBe(Math.sign(lo));
+      expect(Math.max(Math.abs(lo), Math.abs(hi)) + w.size / 2).toBeLessThanOrEqual(MOMENTS.plank.length / 2 + 1e-9);
+      // The paddle's tip reaches past the lane the duck walks in.
+      const tip = MOMENTS.pivot[0] + paddle.pos[0] - MOMENTS.paddle.reach / 2;
+      expect(tip).toBeLessThan(MOMENTS.laneX);
+      expect(MOMENTS.transitX).toBeLessThan(tip - 0.075);
+    }
+  });
+
+  it("maps weight and plank phrases to balance tasks", () => {
+    const props = [...roomProps(), ...kit.props];
+    expect(parseDuckTask("Move the 200 g weight to 10 cm.", props)).toEqual({
+      ok: true,
+      task: { kind: "place_weight", target: "weight-200", cm: 10 },
+    });
+    expect(parseDuckTask("put the 100g weight at 30", props)).toEqual({
+      ok: true,
+      task: { kind: "place_weight", target: "weight-100", cm: 30 },
+    });
+    expect(parseDuckTask("release the plank", props)).toEqual({ ok: true, task: { kind: "release_plank" } });
+    expect(parseDuckTask("lock the beam", props)).toEqual({ ok: true, task: { kind: "lock_plank" } });
+    expect(parseDuckTask("move the 200 g weight to 40 cm", props).ok).toBe(false);
+    expect(DuckTaskSchema.safeParse({ kind: "place_weight", target: "weight-200", cm: 2 }).success).toBe(false);
   });
 });
