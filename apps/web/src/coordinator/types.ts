@@ -1,5 +1,6 @@
 import type {
   Addressee,
+  PredictionChoice,
   BotId,
   LedgerEvent,
   Respond,
@@ -44,6 +45,20 @@ export type TurnHandle = {
   done: Promise<void>;
 };
 
+/** A move waiting for the learner's prediction. Nothing has mutated yet. */
+export type HeldMove = {
+  /** Logs prediction_locked, applies, then logs move_applied. Refused once voided. */
+  commit(choice: PredictionChoice): void;
+  /** Applies with no prediction event. Still logs a scorable move_applied (no attempt). */
+  skip(): void;
+  /** Releases the lock and logs prediction_voided. */
+  cancel(reason: string): void;
+};
+
+export type HeldMoveContext = { challengeId: string; promptId: string };
+
+export type SetupMove = { side: "left" | "right"; cm: number };
+
 export interface Coordinator {
   ledger(): readonly LedgerEvent[];
   botState(bot: BotId): BotState;
@@ -57,6 +72,18 @@ export interface Coordinator {
   localTurn(recipient: BotId, text: string, reply: LocalReply): TurnHandle;
   /** Learner pulls a handoff: `from` asks `to`, `to` answers the learner. */
   askPeer(from: BotId, to: BotId): TurnHandle;
+  /**
+   * Challenge move that waits for a prediction. The bot says "Lock your
+   * prediction, then I'll move it" and the chain ends. `supersede()` cancels it.
+   */
+  heldTurn(
+    recipient: BotId,
+    text: string,
+    reply: LocalReply,
+    context: HeldMoveContext,
+  ): HeldMove;
+  /** Resets (clears epoch, chat ledger and held move), then applies each setup move tagged `setup`. */
+  startChallenge(setup: SetupMove[]): void;
   /** Aborts the chain and drops late results. */
   stop(): void;
   /** Aborts, resets the world, bumps epoch and version. */

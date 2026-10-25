@@ -9,6 +9,7 @@ import {
   type Respond,
   type Source,
 } from "@kestrel/contracts";
+import { notImplemented } from "../notImplemented.js";
 import type { Provider, ProviderRequest } from "../provider/types.js";
 import type { SimAdapter } from "../simulation/types.js";
 import {
@@ -286,6 +287,8 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       start(recipient, text, text, null, reply),
     askPeer: (from, to) =>
       start(from, `Ask ${BOT_NAMES[to]}`, `Ask ${BOT_NAMES[to]}`, to),
+    heldTurn: () => notImplemented("coordinator.heldTurn"),
+    startChallenge: () => notImplemented("coordinator.startChallenge"),
     stop: () => {
       supersede();
       emit();
