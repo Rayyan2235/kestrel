@@ -19,23 +19,23 @@ export type CapsulePlan = {
 
 const FULL = {
   handoff: [
-    ["depart", 200],
-    ["travel", 800],
-    ["arrive", 200],
+    ["depart", 150],
+    ["travel", 600],
+    ["arrive", 150],
   ],
   handback: [
-    ["depart", 200],
-    ["travel", 700],
-    ["arrive", 150],
-    ["exit", 350],
+    ["depart", 150],
+    ["travel", 450],
+    ["arrive", 100],
+    ["exit", 200],
   ],
 } as const;
 
 /** Reduced motion: no travel; the glyph holds still, then a handback leaves. */
 const STILL = {
-  handoff: [["arrive", 800]],
+  handoff: [["arrive", 600]],
   handback: [
-    ["arrive", 800],
+    ["arrive", 600],
     ["exit", 300],
   ],
 } as const;

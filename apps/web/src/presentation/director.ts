@@ -6,11 +6,12 @@ import { planCapsule, type CapsulePlan } from "../capsule/model.js";
  * shows one bubble at a time, each held long enough to read. Pure and
  * clock-free: the caller feeds it elapsed milliseconds.
  */
-export const MIN_HOLD_MS = 2500;
+export const MIN_HOLD_MS = 1800;
 export const MAX_HOLD_MS = 7000;
 export const MS_PER_CHAR = 60;
 export const FADE_MS = 250;
-export const GAP_MS = 600;
+/** Gap between bubbles. It overlaps the fade, so the next bubble starts when the fade ends. */
+export const GAP_MS = 250;
 
 export const readingMs = (text: string): number =>
   Math.min(MAX_HOLD_MS, Math.max(MIN_HOLD_MS, text.length * MS_PER_CHAR));
@@ -22,7 +23,7 @@ export type Beat = {
   capsule: CapsulePlan | null;
 };
 
-export type Phase = "idle" | "show" | "fade" | "gap";
+export type Phase = "idle" | "show" | "fade";
 export type CapsuleState = "idle" | "flying" | "landed";
 
 export type Snapshot = {
@@ -52,17 +53,13 @@ export function createDirector() {
   let t = 0;
   let collapsed = 0;
 
+  // The gap overlaps the fade, so the room never holds two bubbles and never idles longer than FADE_MS.
   const length = (): number =>
     phase === "show"
       ? beat!.holdMs
       : phase === "fade"
-        ? FADE_MS
-        : phase === "gap"
-          ? // A deep queue skips the gap; dwell is never shortened.
-            queue.length > 3
-            ? 0
-            : GAP_MS
-          : 0;
+        ? Math.max(FADE_MS, GAP_MS)
+        : 0;
 
   const startNext = (carry: number) => {
     const next = queue.shift();
@@ -83,7 +80,6 @@ export function createDirector() {
       while ((phase as Phase) !== "idle" && t >= length()) {
         t -= length();
         if (phase === "show") phase = "fade";
-        else if (phase === "fade") phase = "gap";
         else startNext(t);
       }
     },
