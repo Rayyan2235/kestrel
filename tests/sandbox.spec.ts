@@ -1,5 +1,4 @@
 import { expect, test } from "@playwright/test";
-import type { DuckSim } from "../apps/web/src/simulation/duckSim";
 
 test.use({ launchOptions: { args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] } });
 test.setTimeout(120000);
@@ -113,33 +112,8 @@ test("Moments: the learner predicts, both robots push their own weights, and the
   const result = page.getByTestId("experiment-result");
   await expect(result).toBeVisible({ timeout: 200000 });
   await expect(result).toContainText("Moments say: Stays level");
-  // Physical pushes stop near the marks, not exactly on them. CI measured
-  // 15.1/29.9 cm and 0.7° left: within the moments tolerance, but outside the
-  // tilt threshold. Check a successful experiment and truthful feedback,
-  // rather than requiring the measured result to agree with the prediction.
-  const experiment = await page.evaluate(() =>
-    (window as unknown as { kestrelSim: DuckSim }).kestrelSim.status().experiment,
-  );
-  expect(experiment?.phase).toBe("DONE");
-  expect(experiment?.result).not.toBeNull();
-  const measured = experiment!.result!;
-  expect(measured.ok, measured.summary).toBe(true); // placement succeeded and no contact spoiled the reading
-  expect(Math.abs(measured.left.cm - 15)).toBeLessThanOrEqual(0.2);
-  expect(Math.abs(measured.right.cm - 30)).toBeLessThanOrEqual(0.2);
-  expect(measured.predicted).toBe("level");
-  expect(measured.measured.tiltDeg).toBeGreaterThanOrEqual(0);
-  expect(measured.measured.tiltDeg).toBeLessThan(2); // near-balanced, not tipped to the 5.7° stop
-  const { lowSide, tiltDeg } = measured.measured;
-  if (lowSide === "level") {
-    await expect(result).toContainText(`Measured: level (${tiltDeg}°)`);
-    await expect(result).toContainText("you were right");
-  } else {
-    // Near balance the tilt direction is not set by a 0.1% moment difference:
-    // CI saw 29.44 vs 29.47 N·cm settle 1° left. Only the reporting is checked.
-    await expect(result).toContainText(`Measured: ${lowSide} side down ${tiltDeg}°`);
-    await expect(result).toContainText("not this time");
-    await expect(result).not.toContainText("you were right");
-  }
+  await expect(result).toContainText("Measured: level");
+  await expect(result).toContainText("you were right");
   // Both weights really moved, and both robots touched only their own paddles.
   const contacts = await page.evaluate(() => Object.keys((window as any).kestrelSim.contacts()));
   expect(contacts).toEqual(expect.arrayContaining(["pip↔weight-200-paddle", "nova↔weight-100-paddle"]));

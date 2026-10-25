@@ -1,15 +1,6 @@
 # Handoff
 
-_Last updated: 2026-10-25 (Codex, PR #7 Moments CI assertion fix on `two-bot-real-sim`)._
-
-## Current handoff: PR #7 CI regression
-
-- Committed after review (Claude Code removed the "tilt follows the larger moment" check; see `04-status.md`): `tests/sandbox.spec.ts` now verifies successful physical placement, a clean near-level measurement, and feedback matching the measured outcome instead of requiring exact agreement with a level prediction. Physics and classification thresholds are unchanged.
-- Root cause in CI run `40161117304`: weights reached 15.1/29.9 cm; moments matched within the 2% prediction tolerance, but measured tilt was 0.7° left (outside the separate 0.5° level threshold). Waiting longer for the frozen result would not help.
-- Added three deterministic `BalanceExperiment` cases in `tasks.test.ts`: level, left tilt and right tilt with a level moments prediction.
-- Verified on Node 24.16.0: `pnpm check` passed (186 unit tests plus typecheck/build/API smoke); the desktop learner-prediction Playwright test passed 3/3 repeats on an isolated Vite port with bundled Chromium/SwiftShader. Full browser suite and remote CI were not rerun.
-- Next: confirm GitHub CI on PR #7. Existing PR integration follow-ups below remain unchanged.
-- Local verification note: the default port hit another worktree's preview, and 5197 was occupied. A temporary config used port 35197 with server reuse disabled; it was removed after verification.
+_Rewrite this file at the end of every session. Last rewritten: 2026-10-25 (Claude Code, real `SimAdapter` for the two-bot demo on `two-bot-real-sim`)._
 
 ## Two-bot demo on the real Microducks (branch `two-bot-real-sim`, PR into `two-duck-lab`)
 

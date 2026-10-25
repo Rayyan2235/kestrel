@@ -80,9 +80,6 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 ## Two-bot demo follow-ups
 
-- [x] Fix PR #7 cooperative Moments CI assertion to validate physical results instead of assuming exact balance; add deterministic level/left/right measurement coverage. Reviewed and committed; remote CI pending.
-- [owner] Moments near balance: the 0.5° measured-level threshold is tighter than the sim's ~1° settle noise, so a correct "Stays level" prediction can be marked wrong. Physics/threshold decision.
-
 - [x] Implement `SimAdapter` over `duckSim` and wire the two-bot coordinator to it (branch `two-bot-real-sim`, `?demo=two-bot&sim=mujoco`). Unit, `two-bot-demo`, `pacing` and `integration` specs green; `tests/two-bot-real-sim.spec.ts` moves a real weight.
 - [next] Teammate review of the seam change (`apply` async with a signal, `failed` reason, optional `summary`, `actTimeoutMs`, cap paused while acting).
 - [later] Demo: a release-and-measure step so the room shows the measured plank tilt, not the ideal beam; a "moving…" cue during the 5–15 s push; reply text written after the measured result.
