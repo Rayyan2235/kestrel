@@ -1,15 +1,16 @@
 import {
   BOT_NAMES,
   RespondSchema,
+  balance,
   eventId,
   type Addressee,
   type BotId,
   type LedgerEvent,
   type LedgerKind,
   type Respond,
+  type PredictionChoice,
   type Source,
 } from "@kestrel/contracts";
-import { notImplemented } from "../notImplemented.js";
 import type { LabEventLog } from "../progress/events.js";
 import type { Provider, ProviderRequest } from "../provider/types.js";
 import type { SimAdapter } from "../simulation/types.js";
@@ -18,6 +19,9 @@ import {
   type BotState,
   type Budget,
   type Coordinator,
+  type HeldMove,
+  type HeldMoveContext,
+  type SetupMove,
   type CoordinatorConfig,
   type LocalReply,
   type TurnHandle,
@@ -32,6 +36,9 @@ export type CoordinatorDeps = {
 };
 
 export * from "./types.js";
+
+/** A held move not committed within this long is voided. */
+const HELD_IDLE_MS = 60_000;
 
 const other = (bot: BotId): BotId => (bot === "pip" ? "nova" : "pip");
 const fit = (text: string): string => text.trim().slice(0, 500) || "...";
@@ -57,8 +64,18 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     emit();
   };
 
+  let challenge: string | null = null;
+  /** Void the current held move, if any (set by heldTurn). */
+  let voidHeld: ((reason: string) => void) | null = null;
+  /** Resolved attempts per prompt: labels events only, scoring never reads it. */
+  const resolved = new Map<string, number>();
+  const objectOf = (side: "left" | "right") =>
+    side === "left" ? ("left-weight" as const) : ("right-weight" as const);
+  const stamp = () => ({ epoch, worldVersion: sim.snapshot().version });
+
   /** Aborts whatever is running and invalidates its late results. */
   const supersede = () => {
+    voidHeld?.("superseded");
     chain?.abort(new Error("superseded"));
     chain = null;
     epoch += 1;
@@ -276,6 +293,146 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     return { rootTurnId: `t${token}`, recipient: bot, done };
   };
 
+  /** Challenge move that waits for a prediction; nothing mutates until commit or skip. */
+  const heldTurn = (
+    recipient: BotId,
+    text: string,
+    reply: LocalReply,
+    context: HeldMoveContext,
+  ): HeldMove => {
+    supersede();
+    const token = epoch;
+    const inert: HeldMove = {
+      commit: () => {},
+      skip: () => {},
+      cancel: () => {},
+    };
+    const say = (
+      from: Addressee,
+      to: Addressee,
+      kind: LedgerKind,
+      body: string,
+    ) => {
+      const seq = ledger.length;
+      ledger = [
+        ...ledger,
+        {
+          id: eventId(token, seq),
+          seq,
+          rootTurnId: `t${token}`,
+          causedBy: ledger.at(-1)?.id ?? null,
+          epoch: token,
+          worldVersion: sim.snapshot().version,
+          source: "built-in" as const,
+          kind,
+          hop: 0,
+          from,
+          to,
+          text: fit(body),
+        },
+      ];
+    };
+    const { action } = reply;
+    if (!action) return inert;
+    const task = {
+      id: `held-${token}`,
+      object: objectOf(action.side),
+      owner: recipient,
+      cm: action.cm,
+    };
+    const proposed = sim.propose(task);
+    if (!proposed.ok) return inert;
+    const baseVersion = proposed.baseVersion;
+    const key = `${context.challengeId}|${context.promptId}`;
+    let open = true;
+    let idle: ReturnType<typeof setTimeout> | null = null;
+    const close = () => {
+      open = false;
+      if (idle) clearTimeout(idle);
+      if (voidHeld === cancel) voidHeld = null;
+    };
+    const cancel = (reason: string) => {
+      if (!open) return;
+      sim.release(task);
+      close();
+      deps.log?.append({
+        type: "prediction_voided",
+        ...context,
+        attempt: (resolved.get(key) ?? 0) + 1,
+        reason,
+        ...stamp(),
+      });
+    };
+    const finish = (attempt: number | undefined): boolean => {
+      const applied = sim.apply(task, baseVersion);
+      if (!applied.ok) return false;
+      deps.log?.append({
+        type: "move_applied",
+        ...context,
+        ...(attempt !== undefined ? { attempt } : {}),
+        bot: recipient,
+        outcome: balance(applied.world),
+        epoch: token,
+        worldVersion: applied.world.version,
+      });
+      say(
+        recipient,
+        "you",
+        "say",
+        `The ${action.side} weight is now ${action.cm} cm from the pivot.`,
+      );
+      emit();
+      return true;
+    };
+    voidHeld = cancel;
+    idle = setTimeout(() => cancel("idle timeout"), HELD_IDLE_MS);
+
+    say("you", recipient, "learner", text);
+    say(recipient, "you", "say", reply.say);
+    emit();
+
+    return {
+      commit(choice: PredictionChoice) {
+        if (!open) return;
+        close();
+        const attempt = (resolved.get(key) ?? 0) + 1;
+        deps.log?.append({
+          type: "prediction_locked",
+          ...context,
+          attempt,
+          choice,
+          epoch: token,
+          worldVersion: sim.snapshot().version,
+        });
+        if (finish(attempt)) resolved.set(key, attempt);
+        else {
+          sim.release(task);
+          deps.log?.append({
+            type: "prediction_voided",
+            ...context,
+            attempt,
+            reason: "stale",
+            ...stamp(),
+          });
+        }
+      },
+      skip() {
+        if (!open) return;
+        close();
+        if (!finish(undefined)) sim.release(task);
+      },
+      cancel,
+    };
+  };
+
+  const resetAll = () => {
+    supersede();
+    ledger = [];
+    budget = { callsUsed: 0, hopsUsed: 0, capMs: cfg.chainCapMs };
+    sim.reset();
+    challenge = null;
+  };
+
   return {
     ledger: () => ledger,
     botState: (bot) => states[bot],
@@ -288,21 +445,63 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     learnerTurn: (text, recipient) => start(recipient, text, text, null),
     localTurn: (recipient, text, reply) =>
       start(recipient, text, text, null, reply),
-    askPeer: (from, to) =>
-      start(from, `Ask ${BOT_NAMES[to]}`, `Ask ${BOT_NAMES[to]}`, to),
-    heldTurn: () => notImplemented("coordinator.heldTurn"),
-    startChallenge: () => notImplemented("coordinator.startChallenge"),
-    endChallenge: () => notImplemented("coordinator.endChallenge"),
-    challengeId: () => notImplemented("coordinator.challengeId"),
+    askPeer: (from, to) => {
+      const handle = start(
+        from,
+        `Ask ${BOT_NAMES[to]}`,
+        `Ask ${BOT_NAMES[to]}`,
+        to,
+      );
+      if (challenge)
+        deps.log?.append({
+          type: "ask_peer_used",
+          challengeId: challenge,
+          ...stamp(),
+        });
+      return handle;
+    },
+    heldTurn,
+    startChallenge: (challengeId: string, setup: SetupMove[]) => {
+      resetAll();
+      for (const [n, move] of setup.entries()) {
+        const task = {
+          id: `setup-${epoch}-${n}`,
+          object: objectOf(move.side),
+          owner: "pip" as const,
+          cm: move.cm,
+        };
+        const proposed = sim.propose(task);
+        if (!proposed.ok) continue;
+        const applied = sim.apply(task, proposed.baseVersion);
+        if (!applied.ok) {
+          sim.release(task);
+          continue;
+        }
+        deps.log?.append({
+          type: "move_applied",
+          challengeId,
+          bot: "pip",
+          outcome: balance(applied.world),
+          setup: true,
+          epoch,
+          worldVersion: applied.world.version,
+        });
+      }
+      challenge = challengeId;
+      emit();
+    },
+    endChallenge: () => {
+      voidHeld?.("left the challenge");
+      challenge = null;
+      emit();
+    },
+    challengeId: () => challenge,
     stop: () => {
       supersede();
       emit();
     },
     reset: () => {
-      supersede();
-      ledger = [];
-      budget = { callsUsed: 0, hopsUsed: 0, capMs: cfg.chainCapMs };
-      sim.reset();
+      resetAll();
       emit();
     },
   };

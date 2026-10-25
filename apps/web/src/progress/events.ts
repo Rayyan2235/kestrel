@@ -1,5 +1,4 @@
 import type { LabEvent } from "@kestrel/contracts";
-import { notImplemented } from "../notImplemented.js";
 
 type DistributiveOmit<T, K extends keyof T> = T extends unknown
   ? Omit<T, K>
@@ -12,5 +11,26 @@ export interface LabEventLog {
   subscribe(listener: (event: LabEvent) => void): () => void;
   clear(): void;
 }
-export const createLabEventLog = (): LabEventLog =>
-  notImplemented("events.createLabEventLog");
+
+export const createLabEventLog = (): LabEventLog => {
+  let events: LabEvent[] = [];
+  let seq = 0;
+  const listeners = new Set<(event: LabEvent) => void>();
+  return {
+    append(input) {
+      const event = { ...input, seq: seq++ } as LabEvent;
+      events = [...events, event];
+      listeners.forEach((fn) => fn(event));
+      return event;
+    },
+    events: () => events,
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    clear() {
+      events = [];
+      seq = 0;
+    },
+  };
+};
