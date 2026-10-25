@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Bird, Check, ChevronDown, Keyboard, RotateCcw, Square, Volume2, VolumeX, Zap } from "lucide-react";
+import { Check, ChevronDown, Keyboard, RotateCcw, Square, Volume2, VolumeX, Zap } from "lucide-react";
 import { KITS, type DuckTask, type KitId, type LabKit, type RescueRoute } from "@kestrel/contracts";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD, VEL_STEER, VEL_TURN_WALK } from "../simulation/constants";
@@ -9,6 +9,7 @@ import { RescuePanel, type RescueOutcome } from "./RescuePanel";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { ObjectivesBoard } from "./ObjectivesBoard";
 import { ConsolePane } from "./ConsolePane";
+import { KestrelLogo } from "./KestrelLogo";
 import { Confetti } from "./Confetti";
 import { BLAST_LIFE } from "./Explosion";
 import { CLASH, FIGHT, RECOIL, aimError, chargeTwist, distance, faceTwist, isClash, type FightPhase, type Pose } from "./fight";
@@ -535,8 +536,7 @@ export function SandboxApp() {
         <header className={styles.header}>
           <nav className={`gic-nav ${styles.nav}`} aria-label="Lesson">
             <a className={styles.brand} href="/" aria-label="Kestrel home">
-              <Bird size={22} strokeWidth={1.8} aria-hidden="true" />
-              <h1>Kestrel</h1>
+              <KestrelLogo />
             </a>
             <div className={styles.lessons}>
               {LESSONS.map((l) => (

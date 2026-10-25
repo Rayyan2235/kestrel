@@ -914,3 +914,34 @@
 .lessonHead[aria-expanded="true"] .chevron {
   transform: rotate(180deg);
 }
+
+/* The landing page's mark: eyes and the Grandstander wordmark (same self-hosted file). */
+@font-face {
+  font-family: "Grandstander";
+  src: url("/welcome/fonts/grandstander-latin-900.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+}
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo svg {
+  width: 34px;
+  height: 18px;
+  flex: none;
+}
+.brand .logo h1 {
+  margin: 0;
+  font-family: "Grandstander", var(--font-sans);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.logoPeriod {
+  color: #c5a3e8;
+}
