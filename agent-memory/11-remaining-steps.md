@@ -6,12 +6,12 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 ## A. Finish the slice (voice + lessons)
 
-1. **[next] Moments: let the duck load the plank.**
+1. **[done on `moments-floor-push`; live Claude verified by typing, spoken check pending] Moments: let the duck load the plank.** Built as a *physical* push instead of an authored placement: each weight rides a rail with a paddle in the duck's lane, so the schema is `place_weight {target, cm}` (the side is the weight's rail). Rails run 5–30 cm, so the balance is 200 g × 10 cm = 100 g × 20 cm. Measured results and the remaining voice check are in `04-status.md`. The original plan, for reference:
    - Add a bounded task `place_weight { weight: "weight-100" | "weight-200", side: "left" | "right", cm: 5–30 }` to `DuckTaskSchema`, the runner and the agent tool schema.
    - Implement it as an *authored station action*: the duck walks to the plank, then the weight is set onto the plank at that distance. Label it honestly in the UI and docs; it is not a physical lift.
    - The result must report the measured plank tilt, e.g. "placed 100 g at 40 cm right; plank now level (±1°)".
    - Acceptance: say "balance the plank" and the duck places 100 g at 40 cm opposite 200 g at 20 cm; the plank ends within ±2° of level, measured.
-2. **[next] Moments guidance for Claude.** Add a Moments section to the system prompt in `apps/api/src/agent.ts`: moment = mass × distance, ask for a prediction first, place, observe the tilt, explain (200 g × 20 cm = 100 g × 40 cm). It should also offer "what happens if…" variations.
+2. **[done on `moments-floor-push`; live Claude verified by typing, spoken check pending] Moments guidance for Claude.** Add a Moments section to the system prompt in `apps/api/src/agent.ts`: moment = mass × distance, ask for a prediction first, place, observe the tilt, explain (200 g × 20 cm = 100 g × 40 cm). It should also offer "what happens if…" variations.
    - Acceptance: "What are moments?" gives a 1–3 sentence spoken explanation plus a placement demo in the same turn.
 3. **[next] Make the 3-square Pythagoras demo reliable.**
    - Apply the largest-first order (5 → 4 → 3) in the prompt, and raise the push budget from 120 to 150 s (update `tasks.test.ts` to match).
@@ -34,9 +34,8 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 ## B. Multiple bots
 
-8. **[later] A second duck in the same MuJoCo model.**
-   - Prefix the robot bodies, joints and actuators per bot when building the MJCF; run one policy session per bot; tint per bot.
-   - Benchmark the frame rate with two bots before adding a third.
+8. **[done on `two-duck-lab`, not merged] A second duck in the same MuJoCo model.** Pip and Nova are namespaced copies in one MjModel/MjData, each with its own observation, previous action and task runner; a compile-time check refuses shared addresses. Measured on an M3 Pro: 120 fps with both robots, a 0.92 ms control step, no long tasks.
+   - Still open: avoiding each other while both walk the same lane (lanes are scheduled one at a time instead), and a third bot.
 9. **[later] Bot-to-bot exchange.** Per the owner's rules: user-triggered, bounded turns (proposed 2), with stop and reset, explicit sender and recipient, and object ownership so two bots can't push the same tile.
 10. **[later] Good-teacher / bad-teacher mode.** One bot demonstrates a plausible mistake (3 + 4 = 7) and the learner judges from the measured evidence. It must be labelled as a deliberate mistake.
 
@@ -81,7 +80,13 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 ## Two-bot demo follow-ups
 
-- [next] Implement `SimAdapter` over `duckSim` and wire the two-bot coordinator to it. Acceptance: L2 to L8 unchanged; unit and `tests/two-bot-demo.spec.ts` still green.
+- [x] Implement `SimAdapter` over `duckSim` and wire the two-bot coordinator to it (branch `two-bot-real-sim`, `?demo=two-bot&sim=mujoco`). Unit, `two-bot-demo`, `pacing` and `integration` specs green; `tests/two-bot-real-sim.spec.ts` moves a real weight.
+- [next] Teammate review of the seam change (`apply` async with a signal, `failed` reason, optional `summary`, `actTimeoutMs`, cap paused while acting).
+- [later] Demo: a release-and-measure step so the room shows the measured plank tilt, not the ideal beam; a "moving…" cue during the 5–15 s push; reply text written after the measured result.
+- [later] Decide whether `?sim=mujoco` becomes the default once the 3D room replaces the 2D placeholder stage.
+- [x] Live Claude provider for Pip and Nova (`&provider=live`, mock fallback labelled).
+- [owner] Retarget PR #7's base from `two-duck-lab` to `moments-floor-push` (#6 merged there).
+- [later] Live replies: word the reply after the measured result (today Nova says "moving now" after the push has landed).
 - [owner] Default presentation speed (1x vs 0.75x); whether Pause holds the in-flight model call.
 
 ## UI pass — 2026-10-25

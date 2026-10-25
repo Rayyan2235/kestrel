@@ -27,11 +27,27 @@ pnpm dev
 **Lab sandbox:** http://127.0.0.1:5180/sandbox.html. The first load fetches the MuJoCo WASM, ~5.5 MB of ONNX policies and the robot assets, then shows "walk" in the console header when ready.
 
 - Keyboard: W/S or ↑/↓ to walk, A/D or ←/→ to turn, Q/E to kick, R to sit/stand, F to peck, T to roll, Esc to stop the task. Click the canvas area first if keys don't respond (focus must not be in the text box).
-- Typed tasks: `push the 3 square to its slot`, `go to the 5 square`, `turn left 90`, `walk forward 30 cm`, `kick left`, `sit`, `stand`.
+- Typed tasks: `push the 3 square to its slot`, `go to the 5 square`, `turn left 90`, `walk forward 30 cm`, `kick left`, `sit`, `stand`. Moments: `move the 200 g weight to 10 cm`, `release the plank`, `lock the plank` (the text box sends everything to Claude; these phrases also parse with `parseDuckTask`).
+- Moments without Claude: press **Release plank** / **Lock plank** in the lesson card, or run `kestrelSim.runTask({kind: "place_weight", target: "weight-200", cm: 10})` in the dev console.
 - Dev-only console handle: `window.kestrelSim`. For example, `kestrelSim.manual = {vx: 0.2, wz: 0}`, `kestrelSim.status()`, `kestrelSim.propPositions()`.
 - Headless probing works with SwiftShader: `chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] })`.
 
+**Two-bot demo:** http://127.0.0.1:5180/?demo=two-bot runs on the stub. Add `&sim=mujoco` to drive the real Microducks (loads MuJoCo and the policies first, then "Real MuJoCo" shows in the banner; `window.kestrelSim` is the dev handle). Typed commands such as `move the left weight to 10 cm` make the owning robot push its weight (rails 5–30 cm). Add `&provider=live` for live Claude replies (needs Bedrock credentials in the server `.env`; `/api/health` must show `liveAi: true`). Paid check: `node scripts/two-bot-live-check.mjs` with `pnpm dev` running (Pip asks Nova to move the right weight; prints the transcript and measured push). Its e2e is `tests/two-bot-real-sim.spec.ts` (desktop only, ~35 s). If 5191 is taken by another worktree's server, copy `playwright.chrome.config.ts` to an untracked config with a free port and the bundled Chromium.
+
 Things to try in the preview UI: "right weight to 40 cm" (balances the beam), "left weight to 10 cm", "hint", **Ask the crew** (two-turn scripted exchange), Stop, Reset.
+
+## Movement and experiment benchmarks
+
+With the dev server running, these drive the sandbox headlessly and fast-step the physics, so results are deterministic:
+
+```sh
+node scripts/bench/motion-bench.mjs   # commanded vs achieved velocity, dead zones, stopping
+node scripts/bench/nav-bench.mjs      # old vs new navigator over 20 start/goal pairs
+CASES='[[10,20],[15,30]]' node scripts/bench/coop-bench.mjs   # the two-robot balance experiment
+node scripts/bench/crew-bench.mjs     # the two-robot Pythagoras build
+```
+
+They default to `http://127.0.0.1:5180`; set `URL` to point elsewhere. On this Mac they need Playwright's Chromium.
 
 ## Checks
 

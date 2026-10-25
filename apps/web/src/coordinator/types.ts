@@ -18,8 +18,10 @@ export type BotState =
 export type CoordinatorConfig = {
   /** Per-call timeout. */
   callTimeoutMs: number;
-  /** Chain cap, measured from call-1 dispatch. Must exceed 2 x callTimeoutMs. */
+  /** Chain cap on talk time, from call-1 dispatch; paused while a bot acts. Must exceed 2 x callTimeoutMs. */
   chainCapMs: number;
+  /** Per-action timeout: a real push takes 10-15 s and the sim reports its own failures sooner. */
+  actTimeoutMs: number;
   maxCalls: 2;
   maxHops: 1;
 };
@@ -27,6 +29,7 @@ export type CoordinatorConfig = {
 export const DEFAULT_COORDINATOR_CONFIG: CoordinatorConfig = {
   callTimeoutMs: 7000,
   chainCapMs: 16000,
+  actTimeoutMs: 60000,
   maxCalls: 2,
   maxHops: 1,
 };

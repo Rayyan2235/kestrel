@@ -39,7 +39,7 @@ export const createFakeSim = (): SimAdapter => {
       locks.set(task.object, task.id);
       return { ok: true, task, baseVersion: world.version };
     },
-    apply(task: SimTask, version: number): ApplyResult {
+    async apply(task: SimTask, version: number): Promise<ApplyResult> {
       // Version first: a reset frees locks, and the caller must still see "stale".
       if (version !== world.version) return { ok: false, reason: "stale" };
       if (locks.get(task.object) !== task.id)

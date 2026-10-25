@@ -1,4 +1,4 @@
-import { AgentResponseSchema, DuckTaskSchema, slotFilled, type AgentMessage, type AgentRequest, type DuckTask } from "@kestrel/contracts";
+import { AgentResponseSchema, DuckTaskSchema, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type DuckTask } from "@kestrel/contracts";
 import type { DuckSim, SimEvent } from "../simulation/duckSim";
 
 export type AgentPhase = "Ready" | "Listening" | "Microphone permission" | "Transcribing" | "Thinking" | "Acting" | "Speaking";
@@ -10,6 +10,23 @@ async function checked(response: Response) {
     throw new Error(body.message || `Request failed (${response.status}).`);
   }
   return response;
+}
+
+/** The balance as measured, in the learner's terms: grams, sides and centimetres. */
+export function balanceSnapshot(b: NonNullable<ReturnType<DuckSim["status"]>["balance"]>): NonNullable<AgentRequest["world"]["balance"]> {
+  // Round first, then classify, so the label agrees with the number shown.
+  const deg = Math.round(Math.abs((b.angle * 180) / Math.PI) * 10) / 10;
+  return {
+    plank: b.pin === "free" ? "released" : b.pin,
+    lowSide: deg < 0.5 ? "level" : b.angle > 0 ? "left" : "right",
+    tiltDeg: deg,
+    weights: [...b.rails].map(([id, at]) => ({
+      id,
+      grams: MOMENTS.weights.find(w => w.id === id)?.grams ?? 0,
+      side: at < 0 ? "left" as const : "right" as const,
+      cm: Math.round(Math.abs(at) * 1000) / 10,
+    })),
+  };
 }
 
 /** One owner for capture, requests, physical actions and playback cancellation. */
@@ -48,6 +65,7 @@ export class AgentSession {
     this.version++;
     this.pending?.resolve({ ok: false, summary: "Interrupted by the learner." });
     this.pending = null;
+    this.sim.stopAll?.();
     this.sim.tasks.cancel();
     this.sim.manual = { vx: 0, wz: 0 };
     this.silence();
@@ -72,8 +90,10 @@ export class AgentSession {
     return {
       lesson: this.sim.kit.id,
       duck: { ...status.pose, mode: status.mode },
-      props: this.sim.kit.props.map(p => ({ id: p.id, label: p.label, movable: p.joint === "free", position: positions.get(p.id) ?? [p.pos[0], p.pos[1]], ...(p.units ? { units: p.units } : {}) })),
+      // Paddles are part of their weights, not things to talk about.
+      props: this.sim.kit.props.filter(p => p.role !== "paddle").map(p => ({ id: p.id, label: p.label, movable: p.joint === "free", position: positions.get(p.id) ?? [p.pos[0], p.pos[1]], ...(p.units ? { units: p.units } : {}) })),
       slots: this.sim.kit.slots.map(s => ({ forProp: s.forProp, position: s.pos, filled: slotFilled(positions.get(s.forProp) ?? [99, 99], s) })),
+      ...(status.balance ? { balance: balanceSnapshot(status.balance) } : {}),
     };
   }
   private async say(text: string, signal: AbortSignal) {
