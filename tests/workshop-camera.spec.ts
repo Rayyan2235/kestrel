@@ -1,8 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-// These boot the full MuJoCo lab, like sandbox.spec.ts; the 30 s default
-// cannot even hold the 60 s boot wait below.
-test.setTimeout(120000);
+// These boot the full MuJoCo lab and then drive the camera through several
+// modes. A CI trace showed every action taking 3–20 s on the runner's software
+// WebGL (the sequence reached its last click at 172 s), so the budget is 300 s.
+test.setTimeout(300000);
 
 test("explore camera persists, controls frame and reset, and keyboard stays out of robot input", async ({
   page,
