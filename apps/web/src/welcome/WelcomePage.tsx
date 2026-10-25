@@ -15,9 +15,9 @@ export const LANDING = {
   plateSmall: "/landing/hero.jpg",
   video: null as string | null,
   cards: [
-    { title: "Balance the beam", subject: "Physics · Moments", art: "/welcome/lab-pixel.png" },
-    { title: "Build the right triangle", subject: "Maths · Pythagoras", art: "/welcome/companions.jpg" },
-    { title: "Rescue Pip", subject: "Mission · Navigation", art: "/welcome/pip-pixel.png" },
+    { title: "Balance the beam", subject: "Physics · Moments", art: "/landing/card-beam.jpg" },
+    { title: "Build the right triangle", subject: "Maths · Pythagoras", art: "/landing/card-triangle.jpg" },
+    { title: "Rescue Pip", subject: "Mission · Navigation", art: "/landing/card-rescue.jpg" },
   ],
 };
 
