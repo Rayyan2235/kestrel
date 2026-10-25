@@ -1,4 +1,16 @@
-# Current handoff — tiger-data-progress
+# Current handoff — judges-deck
+
+Branch `judges-deck` (from `tiger-data-progress`, so it carries PRs #21–#23 until they merge). Not pushed.
+
+Done: `docs/judges/` holds the judges' deck (`kestrel-judges.pptx`) and the table loop (`loop.html`); see `docs/judges/README.md` and `07-changelog.md`.
+
+Next:
+1. Owner review of the deck and loop; push and open a PR only when asked.
+2. Install Inter on the presenting laptop (`brew install --cask font-inter`) so PowerPoint does not substitute it.
+
+---
+
+# Previous handoff — tiger-data-progress
 
 Branch `tiger-data-progress` (from `rescue-main`), PR to `main`. Do not merge; do not touch PR #21.
 

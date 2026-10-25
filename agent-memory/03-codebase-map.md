@@ -148,3 +148,7 @@ Zigzag rescue: contracts/rescue.ts exports a three-color RescueRoute tuple, shar
 ## 2026-10-25 — Four-path network
 
 RESCUE_EDGES now defines a directed branching graph (A/B/C/D/E/F/H). isRescueRoute validates actual adjacency; rescuePoints maps exactly the submitted route. RescueCourse shows all links/arrows. RescuePanel includes SVG map with physical segment distances. Supersedes the old reversible zigzag corridor chain.
+
+## docs/judges — 2026-10-25
+
+Judge-facing material, not app code: `kestrel-judges.pptx` built by `build/build-deck.cjs` from `build/render-art.mjs` output, and `loop.html`, a static auto-advancing page that reads `assets/` relative to itself. Rebuild steps are in `docs/judges/README.md`.
