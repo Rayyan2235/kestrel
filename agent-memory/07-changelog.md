@@ -133,3 +133,7 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - The Moments card text now describes the real state and says placing weights comes next.
 - **Verified:** the screenshot shows the duck, pivot, tipped plank with the 200 g weight, and the floor weight. Tilt is −11.8°, no page errors, `tsc` clean, 27/27 tests.
 - **Minor:** the duck's bubble can overlap the lesson card when the duck is top-left.
+
+## 2026-10-24 · Claude Code · Remaining-steps backlog
+
+- Added `11-remaining-steps.md`: 26 items in six groups (finish the slice, multiple bots, quality and tests, merge into the product, safety/cost/deployment, longer term), each tagged with acceptance checks where relevant. It's linked from `README.md` (with an update-protocol line) and from `06-handoff.md`.

@@ -14,6 +14,7 @@ Operational memory for every coding agent on Kestrel (Claude Code, Codex, teamma
 8. `08-current-scope.md`: **read this first if you are continuing the teammate prototype.** It covers Pythagoras squares plus voice, and what is and isn't in scope.
 9. `09-pythagoras-gamification.md`: the puzzle mechanic, levels and bot roles.
 10. `10-voice-agent-design.md`: STT → LLM → tasks → policies → TTS, with the providers.
+11. `11-remaining-steps.md`: the full backlog, ordered and tagged [next], [later], [owner] or [blocked], with acceptance checks.
 
 ## Source-of-truth order
 
@@ -31,6 +32,7 @@ After any change, update, development work or verification run:
 - Rewrite `06-handoff.md` so the next agent can continue cold: current goal, what is done, what is next, what is blocked.
 - Edit `02-runbook.md` if any command, port, env var or setup step changed.
 - Edit `03-codebase-map.md` if you added, moved or removed modules or invariants.
+- Tick off or add items in `11-remaining-steps.md` when work finishes or new work appears.
 - Edit `05-decisions.md` only when the owner settles or reopens something. Never record your own recommendation as a decision.
 
 Keep entries short and factual. Report failures as failures, with output.

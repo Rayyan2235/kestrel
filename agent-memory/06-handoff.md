@@ -36,6 +36,8 @@ The learner speaks to the duck; Claude decides whether to answer, act, or both; 
 
 ## Next steps, in order
 
+This is the short list; the full backlog with acceptance checks is in `11-remaining-steps.md`.
+
 1. **Moments as a real lesson:**
    - Add a bounded `place_weight` task: `{ weight, side: left|right, cm: 5–30 }`. It sets the weight onto the plank at that distance (an authored station action, honestly labelled; not a physical lift), and its result reports the measured tilt.
    - Add Moments guidance to the agent prompt: explain moment = mass × distance, predict, place, observe the tilt, balance (200 g × 20 cm = 100 g × 40 cm).
