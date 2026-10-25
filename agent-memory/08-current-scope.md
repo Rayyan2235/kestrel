@@ -61,5 +61,5 @@ Lesson for the next agent: build and demonstrate the voice/agent loop first, wit
 | Bot explains the theorem, then demonstrates by pushing squares, in one turn | Works; the full 3-square demo is unreliable (see `06-handoff.md`) |
 | "Move the box to the right" | Works (screen-relative), with an accurate measured report |
 | Moments physics | Works (the plank tips correctly) |
-| Moments experiment (place weights, balance) | Works on `moments-floor-push`: the duck physically pushes weights along rails, and the learner or Claude releases the plank; live voice check pending |
+| Moments experiment (place weights, balance) | Works on `moments-floor-push`: the duck physically pushes weights along rails, and the learner or Claude releases the plank; verified with live Claude by typing, spoken check pending |
 | Code on GitHub | Branch `as-kestrel` (public repo) |
