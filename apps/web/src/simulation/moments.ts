@@ -480,10 +480,11 @@ export class BalanceExperiment {
     const b = ports.world("pip").balance!;
     const m = momentsFor(b.rails, ports.stiffness());
     const angleDeg = (b.angle * 180) / Math.PI;
-    const deg = Math.abs(angleDeg);
+    // Round first, then classify: the label always agrees with the number shown.
+    const deg = Math.round(Math.abs(angleDeg) * 10) / 10;
     const measured = {
       lowSide: (deg < LEVEL_DEG ? "level" : b.angle > 0 ? "left" : "right") as BalanceResult["measured"]["lowSide"],
-      tiltDeg: Math.round(deg * 10) / 10,
+      tiltDeg: deg,
       angleDeg: Math.round(angleDeg * 10) / 10,
     };
     const tilt = Math.abs(m.predictedTiltDeg);

@@ -304,7 +304,8 @@ export class TaskRunner {
     run.stillFor = Math.abs(angle - run.lastAngle!) < 0.00002 ? (run.stillFor ?? 0) + 0.02 : 0;
     run.lastAngle = angle;
     if ((run.stillFor < 0.5 || run.t < 0.6) && run.t < 6) return { vx: 0, wz: 0 };
-    const deg = Math.abs((angle * 180) / Math.PI);
+    // Round first, then classify, so "stayed level (0.5°)" can never be printed.
+    const deg = Math.round(Math.abs((angle * 180) / Math.PI) * 10) / 10;
     const summary =
       deg < 0.5
         ? `Released the plank. It stayed level (${deg.toFixed(1)}°).`
