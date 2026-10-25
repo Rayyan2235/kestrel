@@ -1,6 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, RotateCcw, Square } from "lucide-react";
-import { KITS, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useReducedMotion } from "motion/react";
+import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { BOT_NAMES, KITS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
+import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
+import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
+import { createCoordinator } from "../coordinator/index.js";
+import { ChannelPanel } from "../handoff/ChannelPanel.js";
+import { deriveChannel } from "../handoff/model.js";
+import { usePresentation } from "../presentation/usePresentation.js";
+import { createMockProvider } from "../provider/mock.js";
+import { consoleSim, createConversation, threadOf } from "./conversation";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
@@ -10,6 +19,9 @@ import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 
 type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
+
+/** Bubble anchors near each duck, as a percentage of the 3D stage. */
+const ANCHORS: Anchors = { pip: { x: 30, y: 60 }, nova: { x: 70, y: 60 } };
 
 const LESSONS: { id: KitId; subject: string; topic: string }[] = [
   { id: "pythagoras", subject: "Maths", topic: "Pythagorean theorem" },
@@ -75,31 +87,35 @@ export function SandboxApp() {
   const [text, setText] = useState("");
   const [filled, setFilled] = useState<string[]>([]);
   const nextId = useRef(0);
-  const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const session = useRef<AgentSession | null>(null);
   const [phase, setPhase] = useState<AgentPhase>("Ready");
   const [voice, setVoice] = useState(true);
+  const conv = useMemo(createConversation, []);
+  const events = useSyncExternalStore(conv.subscribe, conv.events);
+  const selected = useSyncExternalStore(conv.subscribe, conv.selected);
+  const selectedRef = useRef<BotId>("pip");
+  selectedRef.current = selected;
+  const reducedMotion = Boolean(useReducedMotion());
+  const [paused, setPaused] = useState(false);
+  const [, rerender] = useReducer((n: number) => n + 1, 0);
 
-  const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => {
+  const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean, bot?: BotId, source: "built-in" | "live" = "built-in") => {
     const id = nextId.current++;
     setLog((l) => [...l, { id, who, text: line, ok }].slice(-40));
-    // The duck's replies also appear as a bubble beside it in the room.
-    if (who === "duck") setBubble({ id, text: line });
-  }, []);
-
-  useEffect(() => {
-    if (!bubble) return;
-    const t = window.setTimeout(() => setBubble(null), Math.max(12000, bubble.text.length * 70));
-    return () => window.clearTimeout(t);
-  }, [bubble]);
+    // Every line also enters the conversation: the learner to the selected robot, a reply from a robot to the learner.
+    if (who === "you") conv.record("you", selectedRef.current, "learner", line, "built-in");
+    else conv.record(bot ?? selectedRef.current, "you", "say", line, source);
+  }, [conv]);
+  /** The agent's own lines are the Claude agent's (live); the rest are built in. */
+  const agentAdd = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => add(who, line, ok, undefined, who === "duck" && ok !== false ? "live" : "built-in"), [add]);
 
   const onEvent = useCallback(
     (e: SimEvent) => {
       session.current?.event(e);
-      if (e.type === "task-done") add("duck", e.summary, e.ok);
-      else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false);
-      else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true);
+      if (e.type === "task-done") add("duck", e.summary, e.ok, e.duck === "lab" ? undefined : e.duck);
+      else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false, e.duck);
+      else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true, e.duck);
       else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset") add("duck", e.reason, false);
     },
     [add],
@@ -114,7 +130,7 @@ export function SandboxApp() {
         if (!live) return;
         s.start();
         setSim(s);
-        session.current = new AgentSession(s, add, setPhase);
+        session.current = new AgentSession(s, agentAdd, setPhase);
         // Dev-only handle for browser tests and debugging.
         if (import.meta.env.DEV) (window as unknown as { kestrelSim: DuckSim }).kestrelSim = s;
       })
@@ -124,7 +140,29 @@ export function SandboxApp() {
       session.current?.cancel();
       created?.stop();
     };
-  }, [onEvent]);
+  }, [onEvent, agentAdd]);
+
+  // Ask Pip / Ask Nova: the labelled mock hands off between the robots and back to the learner.
+  const coordinator = useMemo(
+    () =>
+      createCoordinator({
+        sim: consoleSim(() => ({ balance: sim?.status().balance ?? null })),
+        provider: createMockProvider({ delayMs: 1000 }),
+      }),
+    [sim],
+  );
+  useEffect(
+    () =>
+      coordinator.subscribe(() => {
+        conv.mirror(coordinator.ledger());
+        rerender();
+      }),
+    [coordinator, conv],
+  );
+  const pres = usePresentation(events, { paused, speed: 1, reducedMotion });
+  const botStatus = { pip: coordinator.botState("pip"), nova: coordinator.botState("nova") };
+  const asking = (["pip", "nova"] as const).some((b) => ["thinking", "waiting", "acting"].includes(botStatus[b]));
+  const channel = { ...deriveChannel(events, botStatus, coordinator.budget()), youThread: threadOf(events, selected) };
 
   useEffect(() => {
     if (!sim) return;
@@ -280,7 +318,11 @@ export function SandboxApp() {
       <main className={styles.workspace}>
         <section className={styles.stage} aria-label="3D lab">
           {sim ? (
-            <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={bubble} />
+            <>
+              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} />
+              <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
+              <CapsuleOverlay beat={pres.beat} state={pres.capsuleState} anchors={ANCHORS} reducedMotion={reducedMotion} paused={paused} speed={1} />
+            </>
           ) : (
             <div className={styles.boot} role="status">
               <strong>{error ? "The lab could not start" : "Opening the lab…"}</strong>
@@ -416,6 +458,16 @@ export function SandboxApp() {
               </button>
             </div>
           )}
+          <div className={styles.picker} role="group" aria-label="Who are you talking to">
+            {(["pip", "nova"] as const).map((b) => (
+              <button key={b} aria-pressed={selected === b} aria-label={`Select ${BOT_NAMES[b]}`} onClick={() => conv.select(b)}>
+                {BOT_NAMES[b]}
+              </button>
+            ))}
+            <button data-testid="pause" aria-pressed={paused} onClick={() => setPaused((p) => !p)}>
+              {paused ? <Play size={13} aria-hidden="true" /> : <Pause size={13} aria-hidden="true" />} {paused ? "Resume" : "Pause"}
+            </button>
+          </div>
           <form className={styles.command} onSubmit={send}>
             <input
               aria-label="Task for your duck"
@@ -477,6 +529,7 @@ export function SandboxApp() {
             </button>
           </div>
         </aside>
+        <ChannelPanel embedded view={channel} threadBot={selected} running={asking} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
       </main>
     </div>
   );
