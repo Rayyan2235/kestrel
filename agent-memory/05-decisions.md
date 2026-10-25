@@ -36,3 +36,7 @@ Owner requested a separate UI branch from main, to merge later: `glass-windows`.
 ## 2026-10-25 — Main product entry and merge authorization
 
 Owner directs deletion of the original scripted view, landing Open console navigation to the existing real voice/physics lab, dark-purple glass windows, and merging landing plus console to main for teammates. Canonical console URL is `/console`; `/lab` and `/sandbox.html` retain compatibility. The separate teammate demo and unrelated two-robot integration branches are outside this merge. This supersedes the earlier freeze on main for this specific integration.
+
+## 2026-10-25 — console palette
+
+Owner explicitly selected Botanical Studio: warm stone, forest green, sage, brass and clay, after rejecting the blocky noir/amethyst environment. Applies to the console and room; landing remains unchanged. The My Room in 3D reference directs richer materials, furnishing detail, and lighting rather than recoloring primitive geometry alone.

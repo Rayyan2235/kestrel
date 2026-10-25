@@ -157,3 +157,7 @@ Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/cons
 ## Workshop/camera branch — 2026-10-25
 
 On `lab-workshop-camera`: palette-aligned workshop, independent pan/pinch/wheel camera, follow/frame/reset and keyboard controls, reduced-motion behavior and mobile layout. Physics unchanged. `pnpm check`: 185 passing tests and successful builds/API smoke. Browser: 7 passed; 1 intentional desktop skip of mobile pinch test. Independent review finding (Space keyup interception) fixed with a failing-then-passing browser regression. Not merged.
+
+## Botanical Studio — 2026-10-25
+
+On `lab-workshop-camera`, console and room now use the owner-selected warm stone/forest/sage/brass palette. Richer original materials, furniture detail, fixed-surface AO, dynamic shadows and live wall display replace the initial dark room. Landing, camera behavior and MuJoCo actions unchanged. pnpm check: 185 tests/builds/API smoke pass. Browser: 7 pass, 1 intentional skip. Independent review: no significant findings. Final desktop/mobile screenshots inspected. Not merged.

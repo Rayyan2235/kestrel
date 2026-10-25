@@ -1,6 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import {
   MOMENTS,
   roomProps,
@@ -11,6 +12,7 @@ import {
 } from "@kestrel/contracts";
 import { LabCamera } from "./LabCamera";
 import { Workshop } from "./Workshop";
+import { StudioLighting } from "./StudioLighting";
 import type { CameraCommand, CameraMode } from "./camera";
 import { Focus, Minus, Plus, RotateCcw, ScanEye } from "lucide-react";
 import type { BotId } from "@kestrel/contracts";
@@ -54,6 +56,10 @@ function gridTexture(units: number, color: string) {
   const g = c.getContext("2d")!;
   g.fillStyle = color;
   g.fillRect(0, 0, px, px);
+  for (let i = 0; i < units * units * 90; i++) {
+    g.fillStyle = i % 2 ? "rgba(255,255,240,.08)" : "rgba(30,45,30,.035)";
+    g.fillRect((i * 73.17) % px, (i * 41.31) % px, 1, 1);
+  }
   g.strokeStyle = "rgba(24, 53, 44, 0.55)";
   g.lineWidth = 3;
   for (let i = 0; i <= units; i++) {
@@ -126,9 +132,9 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
   const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const { geometry, material } = useMemo(() => {
     const s = spec.shape;
-    const base = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.75 });
+    const base = new THREE.MeshStandardMaterial({ color: spec.color, roughness: spec.role === "plank" ? 0.42 : 0.55, metalness: spec.role === "paddle" ? 0.25 : 0.05 });
     if (s.type === "box") {
-      const geometry = new THREE.BoxGeometry(...s.size);
+      const geometry = new RoundedBoxGeometry(...s.size, 3, Math.min(...s.size) * 0.09);
       if (spec.units) {
         const top = new THREE.MeshStandardMaterial({ map: gridTexture(spec.units, spec.color), roughness: 0.8 });
         return { geometry, material: [base, base, base, base, top, base] };
@@ -146,6 +152,11 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
     const w = s.width / 2, l = s.length / 2, h = s.height;
     return { geometry: prismGeometry([-w, -l, 0, w, -l, 0, 0, -l, h, -w, l, 0, w, l, 0, 0, l, h]), material: base };
   }, [spec]);
+  useEffect(() => () => {
+    geometry.dispose();
+    const materials = new Set(Array.isArray(material) ? material : [material]);
+    for (const m of materials) { m.map?.dispose(); m.dispose(); }
+  }, [geometry, material]);
   useFrame(() => {
     const m = ref.current;
     if (!m || !sim.readProp(spec.id, pose)) return;
@@ -154,7 +165,7 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
     // A push face glows only while MuJoCo reports a robot touching it.
     if (spec.role === "paddle" && !Array.isArray(material)) {
       const f = sim.touchForce(spec.id);
-      (material as THREE.MeshStandardMaterial).emissive.set(f > 0.05 ? "#7e49b3" : "#000000");
+      (material as THREE.MeshStandardMaterial).emissive.set(f > 0.05 ? "#b99250" : "#000000");
       (material as THREE.MeshStandardMaterial).emissiveIntensity = Math.min(0.9, f / 6);
     }
   });
@@ -367,7 +378,7 @@ export function SandboxScene({
       live = false;
     };
   }, [tint]);
-  const furniture = useMemo(() => roomProps().map(p => ({ ...p, color: p.id === "bench" ? "#bcb7c4" : p.id === "shelf" ? "#29262e" : "#7e49b3" })), []);
+  const furniture = useMemo(() => roomProps().map(p => ({ ...p, color: p.id === "bench" ? "#899d7d" : p.id === "shelf" ? "#9bae97" : "#bc816b" })), []);
   if (error) return <div className="scene-fallback">The robot model could not load: {error}</div>;
   return (
     <div className={styles.sceneWrap}>
@@ -378,13 +389,14 @@ export function SandboxScene({
       dpr={[1, 1.5]}
       fallback={<div className="scene-fallback">This browser cannot show the 3D lab.</div>}
     >
-      <color attach="background" args={["#19161e"]} />
-      <hemisphereLight args={["#f5f3f7", "#685477", 1.6]} />
-      <ambientLight intensity={0.65} />
-      <directionalLight position={[-3, 2, -2]} color="#d9c8e8" intensity={1.1} />
+      <color attach="background" args={["#d9d2bf"]} />
+      <StudioLighting />
+      <hemisphereLight args={["#fff8e8", "#6b7654", 1.3]} />
+      <ambientLight intensity={0.3} />
+      <directionalLight position={[-3, 2, -2]} color="#d8e4cf" intensity={0.8} />
       <directionalLight
-        position={[2.5, 5, 3]}
-        intensity={2.8}
+        position={[-1, 4, 3]}
+        intensity={2.3}
         color="#fff5e9"
         castShadow
         shadow-mapSize={[2048, 2048]}
@@ -392,9 +404,11 @@ export function SandboxScene({
         shadow-camera-right={2.5}
         shadow-camera-top={2.5}
         shadow-camera-bottom={-2.5}
-        shadow-normalBias={0.02}
+        shadow-normalBias={0.003}
+        shadow-bias={-0.0002}
+        shadow-radius={3}
       />
-      <Workshop kit={kit} reducedMotion={reducedMotion} onFocus={() => sendCamera("experiment")} />
+      <Workshop sim={sim} kit={kit} reducedMotion={reducedMotion} onFocus={() => sendCamera("experiment")} />
       <LabCamera sim={sim} focus={kit.focus} command={command} onMode={setMode} reducedMotion={reducedMotion} />
       <Slots kit={kit} sim={sim} onProgress={onProgress} />
       {kit.id === "moments" && <MomentsDressing sim={sim} />}

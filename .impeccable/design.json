@@ -11,8 +11,34 @@
     "accent": "#d2eb88",
     "coral": "#dc8060",
     "teal": "#5caca4",
-    "spacing": [4, 8, 12, 16, 24, 32, 48]
+    "spacing": [
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48
+    ]
   },
   "reference": "https://github.com/Fantomiald/open-space",
-  "status": "initial scaffold direction; final asset integration pending"
+  "status": "initial scaffold direction; final asset integration pending",
+  "surfaces": {
+    "console": {
+      "mode": "experience",
+      "direction": "Botanical Studio",
+      "tokens": {
+        "stone": "#E8E2D6",
+        "forest": "#293D35",
+        "sage": "#9BAE97",
+        "brass": "#B99250",
+        "clay": "#BC816B",
+        "text": "#F3EEE3",
+        "muted": "#CED6C7",
+        "glass": "rgb(35 55 45 / 92%)"
+      },
+      "reference": "https://github.com/brunosimon/my-room-in-3d",
+      "scope": "Console and room only; preserve landing and robot identities"
+    }
+  }
 }

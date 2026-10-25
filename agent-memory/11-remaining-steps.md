@@ -101,3 +101,5 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 - [later] Two-robot physics and cooperative experiments still require their separate integration; not implied by the landing artwork.
 
 - [x] Owner environment/camera pass: noir/amethyst/silver workshop, pan and pinch/wheel zoom, explicit follow/frame/reset, reduced-motion support.
+
+- [x] Replace the initial dark workshop with the owner-selected Botanical Studio material/detail pass; original maps and detailed furniture, static AO, dynamic shadows, live wall display.

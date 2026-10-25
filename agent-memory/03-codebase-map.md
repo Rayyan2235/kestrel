@@ -115,3 +115,7 @@ World/experiment state, per-bot session, crew coordinator (turn/time/token budge
 ## Workshop and camera — 2026-10-25
 
 `SandboxScene` delegates view control to `LabCamera.tsx`, pure framing/pan math to `camera.ts`, and visual-only environment dressing to `Workshop.tsx`. Camera orientation remains fixed to `CAMERA_OFFSET`, preserving screen-relative robot commands. Bubble projection is independent. Workshop dressing preserves furniture collider dimensions; dock markings do not implement charging.
+
+## Botanical Studio materials
+
+`studioMaterials.ts` generates deterministic original oak/floor/stone/plaster and contact-shade canvas maps. `StudioLighting.tsx` owns a filtered Three.js RoomEnvironment and restores/disposes it on unmount. `Workshop.tsx` renders the original room dressing and a live position monitor reading DuckSim; fixed surface AO comes from `scripts/bake-workshop.mjs`. `public/workshop/PROVENANCE.md` records sources and limits. Dynamic `PropMesh` now bevels boxes without changing their bounding dimensions and disposes geometry/material maps on replacement.

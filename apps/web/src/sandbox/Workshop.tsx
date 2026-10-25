@@ -3,225 +3,595 @@ import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { LabKit } from "@kestrel/contracts";
-import { ROOM_HALF, WALL_T, WALL_H } from "../simulation/constants";
+import type { DuckSim } from "../simulation/duckSim";
+import { surfaceTexture, softShadeTexture } from "./studioMaterials";
 
+type V3 = [number, number, number];
+const LEFT = new THREE.Quaternion().setFromRotationMatrix(
+  new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(0, 1, 0),
+    new THREE.Vector3(0, 0, 1),
+    new THREE.Vector3(1, 0, 0),
+  ),
+);
 function Box({
   at,
   size,
-  color = "#29262e",
-  glow = false,
+  color = "#9bae97",
+  material,
+  metal = false,
 }: {
-  at: [number, number, number];
-  size: [number, number, number];
+  at: V3;
+  size: V3;
   color?: string;
-  glow?: boolean;
+  material?: THREE.Material;
+  metal?: boolean;
 }) {
   const geometry = useMemo(
-    () => new RoundedBoxGeometry(...size, 2, Math.min(...size) * 0.12),
-    [size[0], size[1], size[2]],
+    () => new RoundedBoxGeometry(...size, 3, Math.min(...size) * 0.18),
+    [...size],
   );
   useEffect(() => () => geometry.dispose(), [geometry]);
   return (
-    <mesh position={at} geometry={geometry} castShadow={!glow} receiveShadow>
-      <meshStandardMaterial
-        color={color}
-        roughness={0.65}
-        metalness={0.15}
-        emissive={glow ? color : "#000000"}
-        emissiveIntensity={glow ? 0.7 : 0}
-      />
+    <mesh
+      position={at}
+      geometry={geometry}
+      material={material}
+      castShadow
+      receiveShadow
+    >
+      {!material && (
+        <meshStandardMaterial
+          color={color}
+          metalness={metal ? 0.65 : 0}
+          roughness={metal ? 0.32 : 0.72}
+        />
+      )}
     </mesh>
   );
 }
-function Sign({
+function Cylinder({
+  at,
+  radius,
+  height,
+  color = "#b99250",
+  rotation = [Math.PI / 2, 0, 0],
+}: {
+  at: V3;
+  radius: number;
+  height: number;
+  color?: string;
+  rotation?: V3;
+}) {
+  return (
+    <mesh position={at} rotation={rotation} castShadow receiveShadow>
+      <cylinderGeometry args={[radius, radius, height, 32]} />
+      <meshStandardMaterial color={color} metalness={0.55} roughness={0.3} />
+    </mesh>
+  );
+}
+function Surface({
+  at,
+  size,
+  material,
+  left = false,
+  back = false,
+}: {
+  at: V3;
+  size: [number, number];
+  material: THREE.Material;
+  left?: boolean;
+  back?: boolean;
+}) {
+  const geometry = useMemo(() => {
+    const g = new THREE.PlaneGeometry(...size);
+    g.setAttribute("uv1", g.attributes.uv!.clone());
+    return g;
+  }, [...size]);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  return (
+    <mesh
+      position={at}
+      geometry={geometry}
+      material={material}
+      quaternion={left ? LEFT : undefined}
+      rotation={back ? [Math.PI / 2, 0, 0] : undefined}
+      receiveShadow
+    />
+  );
+}
+function Label({
   text,
   at,
-  width = 1,
-  height = 0.2,
-  wall = false,
+  width = 0.5,
+  height = 0.1,
+  back = false,
+  left = false,
+  dark = true,
 }: {
   text: string;
-  at: [number, number, number];
+  at: V3;
   width?: number;
   height?: number;
-  wall?: boolean;
+  back?: boolean;
+  left?: boolean;
+  dark?: boolean;
 }) {
   const texture = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 1024;
     c.height = Math.round((1024 * height) / width);
     const g = c.getContext("2d")!;
-    g.fillStyle = "#242129";
+    g.fillStyle = dark ? "#293d35" : "#ddd4bd";
     g.fillRect(0, 0, c.width, c.height);
-    g.fillStyle = "#f5f3f7";
-    g.font = `600 ${Math.min(72, c.height * 0.46)}px sans-serif`;
+    g.fillStyle = dark ? "#e8e2d6" : "#293d35";
+    g.font = `500 ${c.height * 0.42}px sans-serif`;
     g.textAlign = "center";
     g.textBaseline = "middle";
-    g.fillText(text, 512, c.height / 2);
+    g.fillText(text, 512, c.height / 2, 950);
     const t = new THREE.CanvasTexture(c);
     t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
     return t;
-  }, [text, width, height]);
+  }, [text, width, height, dark]);
   useEffect(() => () => texture.dispose(), [texture]);
   return (
-    <mesh position={at} rotation={wall ? [Math.PI / 2, 0, 0] : [0, 0, 0]}>
+    <mesh
+      position={at}
+      quaternion={left ? LEFT : undefined}
+      rotation={back ? [Math.PI / 2, 0, 0] : undefined}
+    >
       <planeGeometry args={[width, height]} />
       <meshBasicMaterial map={texture} />
     </mesh>
   );
 }
-function Fan({ reducedMotion }: { reducedMotion: boolean }) {
-  const rotor = useRef<THREE.Group>(null);
+function Plant({ at, scale = 1 }: { at: V3; scale?: number }) {
+  const leaf = useMemo(() => {
+    const s = new THREE.Shape();
+    s.moveTo(0, 0);
+    s.bezierCurveTo(0.06, 0.02, 0.065, 0.15, 0, 0.22);
+    s.bezierCurveTo(-0.045, 0.13, -0.05, 0.03, 0, 0);
+    const g = new THREE.ShapeGeometry(s, 12);
+    const p = g.attributes.position!;
+    for (let i = 0; i < p.count; i++)
+      p.setZ(i, Math.sin((p.getY(i) / 0.22) * Math.PI) * 0.032);
+    g.computeVertexNormals();
+    return g;
+  }, []);
+  useEffect(() => () => leaf.dispose(), [leaf]);
+  return (
+    <group position={at} scale={scale}>
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0, 0.065]} castShadow>
+        <cylinderGeometry args={[0.075, 0.05, 0.13, 32]} />
+        <meshStandardMaterial color="#bc816b" roughness={0.86} />
+      </mesh>
+      <mesh position={[0, 0, 0.132]}>
+        <circleGeometry args={[0.067, 32]} />
+        <meshStandardMaterial color="#40372b" />
+      </mesh>
+      {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+        <group
+          key={i}
+          position={[0, 0, 0.13]}
+          rotation={[0.35 + (i % 3) * 0.24, 0, i * 2.4]}
+        >
+          <mesh
+            geometry={leaf}
+            rotation={[0.65, 0, 0]}
+            scale={0.65 + (i % 4) * 0.12}
+            castShadow
+          >
+            <meshStandardMaterial
+              color={i % 2 ? "#6f8e59" : "#48634a"}
+              roughness={0.75}
+              side={THREE.DoubleSide}
+            />
+          </mesh>
+        </group>
+      ))}
+    </group>
+  );
+}
+function LiveDisplay({ sim }: { sim: DuckSim }) {
+  const canvas = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 768;
+    c.height = 384;
+    return c;
+  }, []);
+  const texture = useMemo(() => {
+    const t = new THREE.CanvasTexture(canvas);
+    t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }, [canvas]);
+  const elapsed = useRef(1);
+  const pose = useMemo(
+    () => ({
+      pos: [0, 0, 0] as V3,
+      quat: [1, 0, 0, 0] as [number, number, number, number],
+    }),
+    [],
+  );
+  useEffect(() => () => texture.dispose(), [texture]);
   useFrame((_, dt) => {
-    if (rotor.current && !reducedMotion) rotor.current.rotation.z += dt * 0.55;
+    elapsed.current += dt;
+    if (elapsed.current < 0.5) return;
+    elapsed.current = 0;
+    const g = canvas.getContext("2d")!;
+    g.fillStyle = "#1b3028";
+    g.fillRect(0, 0, 768, 384);
+    g.fillStyle = "#d0dcb8";
+    g.font = "26px sans-serif";
+    g.fillText("CREW / LIVE POSITION", 40, 60);
+    for (const [i, id] of (["pip", "nova"] as const).entries()) {
+      sim.readTrunk(pose, id);
+      g.fillStyle = i ? "#d4b470" : "#c4d4bc";
+      g.font = "32px monospace";
+      g.fillText(
+        `${id.toUpperCase()}   ${pose.pos[0].toFixed(2)} / ${pose.pos[1].toFixed(2)} m`,
+        40,
+        155 + i * 76,
+      );
+    }
+    g.fillStyle = "#8ea895";
+    g.font = "22px sans-serif";
+    g.fillText("Measured in the shared lab", 40, 335);
+    texture.needsUpdate = true;
   });
   return (
-    <group position={[1.02, 1.468, 0.86]} rotation={[Math.PI / 2, 0, 0]}>
-      <mesh>
-        <ringGeometry args={[0.13, 0.155, 32]} />
-        <meshStandardMaterial color="#8e8796" metalness={0.6} roughness={0.4} />
-      </mesh>
-      <group ref={rotor}>
-        {[0, 1, 2, 3].map((i) => (
-          <group key={i} rotation={[0, 0, (i * Math.PI) / 2]}>
-            <Box at={[0.06, 0, 0]} size={[0.1, 0.035, 0.012]} color="#6d6676" />
-          </group>
-        ))}
-      </group>
-      <mesh position={[0, 0, 0.012]}>
-        <circleGeometry args={[0.025, 16]} />
-        <meshStandardMaterial color="#cfcfcf" />
+    <group>
+      <Box
+        at={[0.82, 1.477, 0.58]}
+        size={[0.62, 0.036, 0.33]}
+        color="#263d32"
+      />
+      <mesh position={[0.82, 1.455, 0.58]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[0.57, 0.285]} />
+        <meshBasicMaterial map={texture} />
       </mesh>
     </group>
   );
 }
-function Dust({ reducedMotion }: { reducedMotion: boolean }) {
-  const ref = useRef<THREE.Points>(null);
-  const positions = useMemo(() => {
-    const values = new Float32Array(24 * 3);
-    for (let i = 0; i < 24; i++) {
-      values[i * 3] = -1.35 + (i % 4) * 0.08;
-      values[i * 3 + 1] = -0.4 + ((i * 7) % 24) * 0.055;
-      values[i * 3 + 2] = 0.4 + ((i * 11) % 24) * 0.025;
-    }
-    return values;
-  }, []);
-  useFrame(({ clock }) => {
-    if (ref.current)
-      ref.current.position.z = reducedMotion
-        ? 0
-        : Math.sin(clock.elapsedTime * 0.3) * 0.018;
-  });
-  return (
-    <points ref={ref}>
-      <bufferGeometry>
-        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
-      </bufferGeometry>
-      <pointsMaterial
-        color="#e2cdef"
-        size={0.006}
-        transparent
-        opacity={0.28}
-        depthWrite={false}
-      />
-    </points>
+function Atmosphere({ reducedMotion }: { reducedMotion: boolean }) {
+  const dust = useRef<THREE.Points>(null),
+    fan = useRef<THREE.Group>(null);
+  const positions = useMemo(
+    () =>
+      new Float32Array(
+        Array.from({ length: 90 }, (_, i) =>
+          i % 3 === 0
+            ? -1.2 + ((i * 17) % 10) * 0.03
+            : i % 3 === 1
+              ? -0.2 + ((i * 13) % 30) * 0.04
+              : 0.45 + ((i * 7) % 20) * 0.025,
+        ),
+      ),
+    [],
   );
-}
-function Reveal({ reducedMotion }: { reducedMotion: boolean }) {
-  const ring = useRef<THREE.Mesh>(null);
-  const elapsed = useRef(0);
-  useFrame((_, dt) => {
-    elapsed.current += dt;
-    if (!ring.current) return;
-    const p = Math.min(1, elapsed.current / 1.4);
-    ring.current.visible = !reducedMotion && p < 1;
-    ring.current.scale.setScalar(0.05 + p * 2.1);
-    (ring.current.material as THREE.MeshBasicMaterial).opacity = (1 - p) * 0.65;
+  useFrame(({ clock }, dt) => {
+    if (!reducedMotion) {
+      if (dust.current)
+        dust.current.position.z = Math.sin(clock.elapsedTime * 0.3) * 0.018;
+      if (fan.current) fan.current.rotation.z += dt * 0.5;
+    }
   });
   return (
-    <mesh ref={ring} position={[0, 0, 0.003]}>
-      <ringGeometry args={[0.98, 1, 80]} />
-      <meshBasicMaterial color="#b78ae2" transparent depthWrite={false} />
-    </mesh>
+    <>
+      <points ref={dust}>
+        <bufferGeometry>
+          <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        </bufferGeometry>
+        <pointsMaterial
+          size={0.004}
+          color="#f5e6bb"
+          transparent
+          opacity={0.28}
+          depthWrite={false}
+        />
+      </points>
+      <group position={[1.27, 1.468, 0.96]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh>
+          <ringGeometry args={[0.075, 0.09, 40]} />
+          <meshStandardMaterial
+            color="#b99250"
+            metalness={0.7}
+            roughness={0.3}
+          />
+        </mesh>
+        <group ref={fan}>
+          {[0, 1, 2, 3].map((i) => (
+            <group key={i} rotation={[0, 0, (i * Math.PI) / 2]}>
+              <Box
+                at={[0.033, 0, 0]}
+                size={[0.065, 0.018, 0.008]}
+                color="#7c8977"
+              />
+            </group>
+          ))}
+        </group>
+      </group>
+    </>
   );
 }
 export function Workshop({
   kit,
+  sim,
   reducedMotion,
   onFocus,
 }: {
   kit: LabKit;
+  sim: DuckSim;
   reducedMotion: boolean;
   onFocus: () => void;
 }) {
-  const r = ROOM_HALF;
   const [hover, setHover] = useState(false);
+  const materials = useMemo(() => {
+    const loader = new THREE.TextureLoader();
+    const oak = surfaceTexture("oak"),
+      floor = surfaceTexture("floor"),
+      stone = surfaceTexture("stone"),
+      plaster = surfaceTexture("plaster");
+    const ao = (name: string) => {
+      const t = loader.load(`/workshop/${name}-ao.png`);
+      t.channel = 1;
+      return t;
+    };
+    return {
+      oak: new THREE.MeshStandardMaterial({
+        map: oak,
+        bumpMap: oak,
+        bumpScale: 0.001,
+        roughness: 0.48,
+      }),
+      floor: new THREE.MeshStandardMaterial({
+        map: floor,
+        bumpMap: floor,
+        bumpScale: 0.0015,
+        roughness: 0.6,
+        aoMap: ao("floor"),
+        aoMapIntensity: 1,
+      }),
+      stone: new THREE.MeshStandardMaterial({
+        map: stone,
+        bumpMap: stone,
+        bumpScale: 0.0005,
+        roughness: 0.7,
+      }),
+      left: new THREE.MeshStandardMaterial({
+        map: plaster,
+        aoMap: ao("left"),
+        aoMapIntensity: 1,
+        roughness: 0.9,
+      }),
+      back: new THREE.MeshStandardMaterial({
+        map: plaster,
+        aoMap: ao("back"),
+        aoMapIntensity: 1,
+        color: "#c6d0bd",
+        roughness: 0.9,
+      }),
+      shade: new THREE.MeshBasicMaterial({
+        map: softShadeTexture(),
+        transparent: true,
+        depthWrite: false,
+      }),
+    };
+  }, []);
+  useEffect(
+    () => () => {
+      const maps = new Set<THREE.Texture>();
+      for (const m of Object.values(materials)) {
+        if (m.map) maps.add(m.map);
+        if (m instanceof THREE.MeshStandardMaterial && m.aoMap)
+          maps.add(m.aoMap);
+        m.dispose();
+      }
+      maps.forEach((t) => t.dispose());
+    },
+    [materials],
+  );
   return (
     <group rotation={[-Math.PI / 2, 0, 0]}>
-      <Box at={[0, 0, -0.095]} size={[3.22, 3.22, 0.18]} color="#141414" />
-      <Box at={[0, 0, -0.012]} size={[3, 3, 0.024]} color="#cfcfcf" />
-      {/* Inlaid lines are flush graphics, never physical obstacles. */}
-      {[-1, -0.5, 0, 0.5, 1].map((v) => (
-        <group key={v}>
-          <Box at={[v, 0, 0.0008]} size={[0.002, 3, 0.001]} color="#b7b3bd" />
-          <Box at={[0, v, 0.0008]} size={[3, 0.002, 0.001]} color="#b7b3bd" />
+      <Box
+        at={[0, 0, -0.1]}
+        size={[3.14, 3.14, 0.2]}
+        material={materials.oak}
+      />
+      <Surface at={[0, 0, 0.0005]} size={[3, 3]} material={materials.floor} />
+      <Box at={[-1.525, 0, 0.6]} size={[0.05, 3.1, 1.2]} color="#c5c1ad" />
+      <Box at={[0, 1.525, 0.6]} size={[3, 0.05, 1.2]} color="#b4bca6" />
+      <Surface
+        at={[-1.498, 0, 0.6]}
+        size={[3, 1.2]}
+        material={materials.left}
+        left
+      />
+      <Surface
+        at={[0, 1.498, 0.6]}
+        size={[3, 1.2]}
+        material={materials.back}
+        back
+      />
+      {/* Oak skirting and a cutaway brass edge expose the experiment clearly. */}
+      <Box
+        at={[-1.485, 0, 0.045]}
+        size={[0.028, 3, 0.09]}
+        material={materials.oak}
+      />
+      <Box
+        at={[0, 1.485, 0.045]}
+        size={[3, 0.028, 0.09]}
+        material={materials.oak}
+      />
+      <Box at={[1.52, 0, 0.12]} size={[0.05, 3.1, 0.25]} color="#9bae97" />
+      <Box at={[0, -1.52, 0.12]} size={[3, 0.05, 0.25]} color="#9bae97" />
+      <Box
+        at={[1.52, 0, 0.25]}
+        size={[0.054, 3.1, 0.013]}
+        material={materials.oak}
+      />
+      <Box
+        at={[0, -1.52, 0.25]}
+        size={[3, 0.054, 0.013]}
+        material={materials.oak}
+      />
+      {/* A flush stone experiment inlay keeps the physical floor at z=0. */}
+      <Surface
+        at={[kit.focus[0], kit.focus[1], 0.001]}
+        size={[1.55, 1.5]}
+        material={materials.stone}
+      />
+      {[-0.5, 0, 0.5].map((v) => (
+        <group key={v} position={[kit.focus[0], kit.focus[1], 0.0014]}>
+          <Box at={[v, 0, 0]} size={[0.0015, 1.5, 0.0003]} color="#b6ad98" />
+          <Box at={[0, v, 0]} size={[1.55, 0.0015, 0.0003]} color="#b6ad98" />
+        </group>
+      ))}
+      {/* Deep window reveal, oak mullions and a broad daylight surface. */}
+      <Box
+        at={[-1.47, 0.12, 0.79]}
+        size={[0.055, 1.45, 0.64]}
+        material={materials.oak}
+      />
+      <Box
+        at={[-1.438, 0.12, 0.79]}
+        size={[0.01, 1.37, 0.56]}
+        color="#eff0d8"
+      />
+      {[-0.32, 0.12, 0.56].map((y) => (
+        <group key={y}>
+          <Box
+            at={[-1.428, y, 0.79]}
+            size={[0.012, 0.415, 0.53]}
+            color="#c7d6bf"
+          />
+          <Box
+            at={[-1.414, y, 0.79]}
+            size={[0.025, 0.013, 0.55]}
+            material={materials.oak}
+          />
         </group>
       ))}
       <Box
-        at={[-r - WALL_T / 2, 0, 0.6]}
-        size={[WALL_T, 3.1, 1.2]}
-        color="#302b36"
+        at={[-1.4, 0.12, 0.79]}
+        size={[0.035, 1.4, 0.014]}
+        material={materials.oak}
       />
       <Box
-        at={[0, r + WALL_T / 2, 0.6]}
-        size={[3, WALL_T, 1.2]}
-        color="#252229"
+        at={[-1.385, 0.12, 0.47]}
+        size={[0.22, 1.55, 0.04]}
+        material={materials.oak}
+      />
+      <Plant at={[-1.36, 0.63, 0.49]} scale={0.65} />
+      {/* Fitted cabinet front: dimensions match the fixed shelf collision envelope. */}
+      <Box
+        at={[-1.3, -0.75, 0.304]}
+        size={[0.22, 0.7, 0.016]}
+        material={materials.oak}
+      />
+      {[-0.52, -0.75, -0.98].map((y) => (
+        <group key={y}>
+          <Box
+            at={[-1.187, y, 0.16]}
+            size={[0.008, 0.212, 0.25]}
+            color="#8fa183"
+          />
+          <Cylinder
+            at={[-1.178, y, 0.24]}
+            radius={0.009}
+            height={0.008}
+            rotation={[0, 0, Math.PI / 2]}
+          />
+        </group>
+      ))}
+      <Plant at={[-1.28, -0.96, 0.316]} scale={0.7} />
+      {/* Built-in worktop, recessed doors, and brass handles on the existing bench. */}
+      <Box
+        at={[0.35, 1.3, 0.165]}
+        size={[0.92, 0.24, 0.025]}
+        material={materials.oak}
+      />
+      {[-0.0, 0.3, 0.6].map((x) => (
+        <group key={x}>
+          <Box
+            at={[x, 1.187, 0.08]}
+            size={[0.27, 0.008, 0.12]}
+            color="#8b9c81"
+          />
+          <Box
+            at={[x, 1.179, 0.11]}
+            size={[0.065, 0.01, 0.008]}
+            color="#b99250"
+            metal
+          />
+        </group>
+      ))}
+      {/* Wall shelves and equipment stay above the robot walking volume. */}
+      <Box
+        at={[-0.62, 1.39, 0.65]}
+        size={[1.05, 0.2, 0.025]}
+        material={materials.oak}
       />
       <Box
-        at={[r + WALL_T / 2, 0, WALL_H / 2]}
-        size={[WALL_T, 3.1, WALL_H]}
-        color="#68616f"
+        at={[-0.62, 1.39, 0.97]}
+        size={[1.05, 0.2, 0.025]}
+        material={materials.oak}
       />
-      <Box
-        at={[0, -r - WALL_T / 2, WALL_H / 2]}
-        size={[3, WALL_T, WALL_H]}
-        color="#68616f"
-      />
-      <Box
-        at={[-1.493, 0, 0.12]}
-        size={[0.008, 3, 0.018]}
-        color="#7e49b3"
-        glow
-      />
-      <Box
-        at={[0, 1.493, 0.12]}
-        size={[3, 0.008, 0.018]}
-        color="#7e49b3"
-        glow
-      />
-      <Box
-        at={[0, -1.608, -0.035]}
-        size={[2.8, 0.008, 0.014]}
-        color="#7e49b3"
-        glow
-      />
-      {/* Wall-mounted details live above the existing collision boundary. */}
-      {[-1.05, -0.35, 0.35, 1.05].map((x) => (
+      {[-1.03, -0.22].map((x) => (
         <Box
           key={x}
-          at={[x, 1.489, 0.62]}
-          size={[0.004, 0.01, 1.06]}
-          color="#49414f"
+          at={[x, 1.46, 0.8]}
+          size={[0.014, 0.014, 0.4]}
+          color="#b99250"
+          metal
         />
       ))}
-      <Sign
-        text="Kestrel / Research workshop"
-        at={[-0.25, 1.465, 1.02]}
-        width={1.9}
-        height={0.2}
-        wall
+      {Array.from({ length: 7 }, (_, i) => (
+        <group
+          key={i}
+          position={[-1 + i * 0.07, 1.405, 0.76]}
+          rotation={[0, ((i % 3) - 1) * 0.06, 0]}
+        >
+          <Box
+            at={[0, 0, 0]}
+            size={[0.045, 0.12, 0.19 + (i % 3) * 0.015]}
+            color={["#536d58", "#b99250", "#bc816b", "#e8e2d6"][i % 4]}
+          />
+          <Box
+            at={[0, -0.062, -0.04]}
+            size={[0.031, 0.002, 0.006]}
+            color="#ded6bd"
+          />
+        </group>
+      ))}
+      <Plant at={[-0.35, 1.39, 0.988]} scale={0.8} />
+      {[0, 1, 2].map((i) => (
+        <group key={i} position={[-0.98 + i * 0.14, 1.38, 1.04]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
+            <cylinderGeometry args={[0.043, 0.043, 0.115, 32]} />
+            <meshStandardMaterial
+              color={["#d5ceb7", "#b0bda4", "#bc816b"][i]}
+              roughness={0.5}
+            />
+          </mesh>
+          <Cylinder at={[0, 0, 0.06]} radius={0.045} height={0.009} />
+        </group>
+      ))}
+      <Box
+        at={[0.48, 1.482, 0.99]}
+        size={[0.7, 0.025, 0.19]}
+        color="#b99250"
+        metal
       />
-      <Sign
+      <Label
+        text="Kestrel field laboratory"
+        at={[0.48, 1.465, 0.99]}
+        width={0.67}
+        height={0.16}
+        back
+      />
+      <Label
         text={
           kit.id === "moments"
             ? "moment = mass × distance"
@@ -229,80 +599,62 @@ export function Workshop({
               ? "a² + b² = c²"
               : "Observe. Try. Discover."
         }
-        at={[-0.25, 1.46, 0.7]}
-        width={1.85}
-        height={0.38}
-        wall
+        at={[0.4, 1.477, 0.81]}
+        width={1.13}
+        height={0.14}
+        back
+        dark={false}
       />
-      <Fan reducedMotion={reducedMotion} />
-      <Dust reducedMotion={reducedMotion} />
-      {/* Frosted observation panels mounted on the far wall. */}
-      <Box
-        at={[-1.477, 0.25, 0.79]}
-        size={[0.025, 1.48, 0.58]}
-        color="#17151b"
+      <LiveDisplay sim={sim} />
+      {/* Task lamp: a real light and visible shade, not an unexplained glow strip. */}
+      <Cylinder at={[0.67, 1.31, 0.19]} radius={0.05} height={0.015} />
+      <Cylinder at={[0.67, 1.31, 0.31]} radius={0.008} height={0.24} />
+      <group position={[0.64, 1.27, 0.45]} rotation={[Math.PI / 2, 0, 0.2]}>
+        <mesh castShadow>
+          <coneGeometry args={[0.085, 0.08, 32, 1, true]} />
+          <meshStandardMaterial
+            color="#355342"
+            side={THREE.DoubleSide}
+            metalness={0.25}
+            roughness={0.45}
+          />
+        </mesh>
+      </group>
+      <pointLight
+        position={[0.64, 1.25, 0.41]}
+        color="#ffdf9c"
+        intensity={0.12}
+        distance={1.1}
+        decay={2}
       />
-      {[-0.22, 0.25, 0.72].map((y) => (
-        <group key={y}>
-          <Box
-            at={[-1.459, y, 0.79]}
-            size={[0.012, 0.43, 0.51]}
-            color="#82738e"
-          />
-          <Box
-            at={[-1.45, y, 0.58]}
-            size={[0.008, 0.4, 0.008]}
-            color="#b5a2c6"
-            glow
-          />
-        </group>
-      ))}
-      <Box at={[-1.47, 0.25, 0.43]} size={[0.035, 1.6, 0.04]} color="#605967" />
-      {/* Recessed workbench front: the authoritative bench is unchanged. */}
-      {[-0.0, 0.3, 0.6].map((x) => (
-        <group key={x}>
-          <Box
-            at={[x, 1.186, 0.08]}
-            size={[0.27, 0.006, 0.12]}
-            color="#69616f"
-          />
-          <Box
-            at={[x, 1.18, 0.115]}
-            size={[0.085, 0.008, 0.009]}
-            color="#e4dfe9"
-          />
-        </group>
-      ))}
-      {/* Cabinet fronts and handles remain within the existing furniture footprints. */}
-      {[-0.55, -0.8, -1.05].map((y) => (
-        <group key={y}>
-          <Box
-            at={[-1.187, y, 0.17]}
-            size={[0.006, 0.21, 0.2]}
-            color="#39333f"
-          />
-          <Box
-            at={[-1.181, y, 0.23]}
-            size={[0.008, 0.075, 0.01]}
-            color="#cfcfcf"
-          />
-        </group>
+      {/* Soft contact shading complements the offline AO of static furniture. */}
+      {[
+        [0.35, 1.3, 1.1, 0.5],
+        [-1.3, -0.75, 0.48, 0.95],
+      ].map(([x, y, w, h], i) => (
+        <Surface
+          key={i}
+          at={[x!, y!, 0.0018]}
+          size={[w!, h!]}
+          material={materials.shade}
+        />
       ))}
       {[-0.58, 0.03].map((y, i) => (
         <group key={y} position={[-0.98, y, 0.002]}>
           <mesh>
-            <ringGeometry args={[0.14, 0.15, 48]} />
-            <meshBasicMaterial color={i ? "#7e49b3" : "#6a6174"} />
+            <ringGeometry args={[0.14, 0.143, 48]} />
+            <meshBasicMaterial color="#8e956d" />
           </mesh>
-          <Sign
+          <Label
             text={i ? "PIP" : "NOVA"}
-            at={[0, -0.22, 0]}
-            width={0.24}
-            height={0.06}
+            at={[0, -0.2, 0]}
+            width={0.19}
+            height={0.048}
+            dark={false}
           />
         </group>
       ))}
-      <group position={[kit.focus[0] + 0.58, kit.focus[1] + 0.4, 0.004]}>
+      <group position={[kit.focus[0] + 0.58, kit.focus[1] + 0.4, 0.003]}>
         <mesh
           onPointerOver={() => setHover(true)}
           onPointerOut={() => setHover(false)}
@@ -311,17 +663,18 @@ export function Workshop({
             onFocus();
           }}
         >
-          <ringGeometry args={[0.065, hover ? 0.085 : 0.075, 40]} />
-          <meshBasicMaterial color={hover ? "#7e49b3" : "#655b70"} />
+          <ringGeometry args={[0.065, hover ? 0.08 : 0.07, 48]} />
+          <meshBasicMaterial color={hover ? "#496f51" : "#9b8452"} />
         </mesh>
-        <Sign
+        <Label
           text={hover ? "Focus experiment" : "EXPERIMENT"}
-          at={[0, -0.13, 0]}
-          width={0.4}
-          height={0.09}
+          at={[0, -0.12, 0]}
+          width={0.32}
+          height={0.065}
+          dark={false}
         />
       </group>
-      <Reveal key={kit.id} reducedMotion={reducedMotion} />
+      <Atmosphere reducedMotion={reducedMotion} />
     </group>
   );
 }

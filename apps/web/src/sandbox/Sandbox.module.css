@@ -1,16 +1,16 @@
 .app {
   /* Scoped to the sandbox so the original preview keeps its own theme. */
-  --ink: #f5f3f7;
-  --muted: #cfcfcf;
-  --panel: #f5f3f7;
-  --dock: #141414;
-  --on-dark: #f5f3f7;
-  --on-dark-muted: #cfcfcf;
-  --accent: #7e49b3;
-  --accent-light: #d9b7f5;
-  --glass: rgb(34 23 45 / 80%);
-  --glass-edge: rgb(207 191 223 / 28%);
-  --glass-highlight: rgb(223 199 245 / 16%);
+  --ink: #f3eee3;
+  --muted: #ced6c7;
+  --panel: #e8e2d6;
+  --dock: #293d35;
+  --on-dark: #f3eee3;
+  --on-dark-muted: #ced6c7;
+  --accent: #486d54;
+  --accent-light: #d9c38c;
+  --glass: rgb(35 55 45 / 92%);
+  --glass-edge: rgb(210 220 197 / 23%);
+  --glass-highlight: rgb(231 227 203 / 14%);
   --control: rgb(207 207 207 / 9%);
   --control-hover: rgb(207 207 207 / 17%);
   --shadow: inset 0 1px 0 var(--glass-highlight), 0 16px 40px rgb(0 0 0 / 24%);
@@ -526,7 +526,7 @@
   text-align: center;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  color: var(--dock);
+  color: var(--ink);
 }
 .predict {
   display: flex;
@@ -544,8 +544,8 @@
   cursor: pointer;
 }
 .predictOn {
-  background: #7e49b3 !important;
-  border-color: #7e49b3 !important;
+  background: #486d54 !important;
+  border-color: #9bae97 !important;
   color: #fff;
 }
 .runButton {
@@ -721,7 +721,7 @@
   transform: none;
 }
 .app * {
-  scrollbar-color: #8d8296 transparent;
+  scrollbar-color: #97aa8d transparent;
 }
 .app ::selection {
   background: var(--accent);
@@ -777,14 +777,14 @@
   .lessonCard,
   .console,
   .bubble {
-    background: #241a2e;
+    background: #293d35;
   }
 }
 @media (prefers-reduced-transparency: reduce) {
   .lessonCard,
   .console,
   .bubble {
-    background: #241a2e;
+    background: #293d35;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
@@ -801,7 +801,7 @@
   gap: 3px;
   padding: 6px;
   border-radius: 16px;
-  background: rgb(34 23 45 / 88%);
+  background: rgb(35 55 45 / 94%);
   backdrop-filter: blur(18px);
   box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
   color: #f5f3f7;
@@ -815,15 +815,15 @@
   border: 0;
   border-radius: 12px;
   background: transparent;
-  color: #e9dff3;
+  color: #f3eee3;
   cursor: pointer;
 }
-.cameraControls button:hover { background: rgb(207 191 223 / 15%); }
-.cameraControls button[aria-pressed="true"] { background: #7e49b3; color: white; }
-.cameraControls button:focus-visible { outline: 2px solid #e0c6f6; outline-offset: 2px; }
+.cameraControls button:hover { background: rgb(210 220 197 / 15%); }
+.cameraControls button[aria-pressed="true"] { background: #56765c; color: white; }
+.cameraControls button:focus-visible { outline: 2px solid #d9c38c; outline-offset: 2px; }
 .cameraHint { padding: 0 12px; white-space: nowrap; font-size: 12px; font-weight: 650; }
-.cameraHint small { display: block; margin-top: 3px; color: #d5c5e2; font-size: 10px; font-weight: 400; }
-.cameraDivider { width: 1px; height: 22px; margin: 0 3px; background: rgb(207 191 223 / 22%); }
+.cameraHint small { display: block; margin-top: 3px; color: #ced6c7; font-size: 10px; font-weight: 400; }
+.cameraDivider { width: 1px; height: 22px; margin: 0 3px; background: rgb(210 220 197 / 22%); }
 @media (max-width: 700px) {
   .cameraHint { display: none; }
   .cameraControls { bottom: 12px; }
@@ -836,3 +836,18 @@
   .sceneWrap { top: 240px; }
   .lessonCard { top: 12px; left: 12px; right: 12px; max-width: none; max-height: 216px; }
 }
+
+/* Botanical Studio: warm stone shell with forest glass over the live room. */
+.app { background: #e8e2d6; }
+.header { color: #293d35; }
+.header .brand, .header .back, .header .lesson { color: #293d35; }
+.header .pill { color: #465b4b; border-color: #b9c2ae; }
+.header .lessons { background: #d9ddcf; border-color: #b9c2ae; }
+.header .lesson small { color: #4e6452; }
+.header .lessonOn { background: #293d35; color: #f3eee3; }
+.header .lessonOn small { color: #d2dac6; }
+.stage { background: #d9d2bf; }
+.lessonOn small { color: #4e6452; }
+.cameraControls { color: #f3eee3; }
+.right { color: #c3deb4; }
+.wrong, .refusal { color: #efc8a6; }
