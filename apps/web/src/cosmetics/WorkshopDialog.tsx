@@ -59,7 +59,7 @@ export function WorkshopDialog({
   const [note, setNote] = useState<string | null>(null);
   const look = view.equipped[bot];
   const peer = view.equipped[other(bot)];
-  const offers =
+  const pool =
     view.tokens > 0
       ? offer(
           seedFrom(`offers:${view.picks.length}`),
@@ -68,6 +68,18 @@ export function WorkshopDialog({
           (id) => id !== "none" && visible(id),
         )
       : [];
+  // On the console the antenna is always among the offers while it can be earned,
+  // so a head prop is reachable from the first reward.
+  const featured =
+    shows &&
+    view.tokens > 0 &&
+    visible("antenna") &&
+    !view.unlocked.has("antenna") &&
+    (itemById("antenna")?.minLevel ?? Infinity) <= view.level;
+  const offers =
+    featured && !pool.includes("antenna")
+      ? ["antenna", ...pool.slice(0, 2)]
+      : pool;
 
   const shuffle = () => {
     const rnd = mulberry32(seedFrom(`shuffle:${bot}:${shuffles}`));
@@ -151,6 +163,7 @@ export function WorkshopDialog({
             </div>
             <div className={styles.preview}>
               <div
+                className={styles.figure}
                 style={{ transform: mirror ? "scaleX(-1)" : undefined }}
                 data-testid="workshop-preview"
               >
