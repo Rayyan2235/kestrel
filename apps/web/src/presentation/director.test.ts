@@ -14,13 +14,13 @@ const say = (seq: number, text = "short") =>
   makeBeat(ev(seq, "pip", "you", { text }), false);
 
 describe("presentation director", () => {
-  it("holds a bubble for 60 ms per character, between 2.5 s and 7 s", () => {
-    expect(readingMs("hi")).toBe(MIN_HOLD_MS);
+  it("holds a bubble for 60 ms per character, between 1.8 s and 7 s", () => {
+    expect(readingMs("hi")).toBe(1800);
     expect(readingMs("x".repeat(60))).toBe(3600);
     expect(readingMs("x".repeat(400))).toBe(MAX_HOLD_MS);
   });
 
-  it("shows one bubble at a time, fades it, waits a gap, then the next", () => {
+  it("shows one bubble at a time; the 250 ms gap overlaps the fade", () => {
     const d = createDirector();
     d.enqueue(say(0));
     d.enqueue(say(1));
@@ -28,9 +28,8 @@ describe("presentation director", () => {
     expect(d.snapshot().beat!.event.seq).toBe(0);
     d.advance(MIN_HOLD_MS);
     expect(d.snapshot().phase).toBe("fade");
+    expect(GAP_MS).toBe(250);
     d.advance(FADE_MS);
-    expect(d.snapshot()).toMatchObject({ phase: "gap" });
-    d.advance(GAP_MS);
     expect(d.snapshot().phase).toBe("show");
     expect(d.snapshot().beat!.event.seq).toBe(1);
   });
@@ -38,7 +37,7 @@ describe("presentation director", () => {
   it("can pass several phases in one advance, in ledger order", () => {
     const d = createDirector();
     [0, 1, 2].forEach((n) => d.enqueue(say(n)));
-    d.advance(MIN_HOLD_MS + FADE_MS + GAP_MS + 10);
+    d.advance(MIN_HOLD_MS + FADE_MS + 10);
     expect(d.snapshot().beat!.event.seq).toBe(1);
   });
 
@@ -63,12 +62,12 @@ describe("presentation director", () => {
     expect(d.snapshot()).toMatchObject({ phase: "fade", queued: 0 });
   });
 
-  it("skips the gap, never the dwell, when more than 3 are waiting", () => {
+  it("never shortens the dwell, even with a deep queue", () => {
     const d = createDirector();
     for (let n = 0; n < 6; n++) d.enqueue(say(n));
-    d.advance(MIN_HOLD_MS + FADE_MS);
-    expect(d.snapshot().phase).toBe("show");
-    expect(d.snapshot().beat!.event.seq).toBe(1);
+    d.advance(MIN_HOLD_MS - 1);
+    expect(d.snapshot()).toMatchObject({ phase: "show" });
+    expect(d.snapshot().beat!.event.seq).toBe(0);
   });
 
   it("a handoff capsule flies for its plan, then reads as landed", () => {
@@ -77,7 +76,7 @@ describe("presentation director", () => {
     expect(d.snapshot().capsuleState).toBe("flying");
     d.advance(d.snapshot().beat!.capsule!.durationMs);
     expect(d.snapshot().capsuleState).toBe("landed");
-    d.advance(MIN_HOLD_MS + FADE_MS + GAP_MS);
+    d.advance(MIN_HOLD_MS + FADE_MS);
     expect(d.snapshot().capsuleState).toBe("idle");
   });
 
