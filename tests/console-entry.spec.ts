@@ -16,7 +16,7 @@ test("landing opens the real console and console returns home", async ({
   await expect(page.getByText("Scripted preview", { exact: true })).toHaveCount(
     0,
   );
-  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await page.getByRole("link", { name: "Kestrel home" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
     "Big questions.Little robots.",
   );

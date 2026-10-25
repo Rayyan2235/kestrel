@@ -1,121 +1,36 @@
+/*
+ * Console layout. The playground fills the whole screen; every panel floats
+ * over it as General Intelligence Company glass (tokens and components in
+ * gic.css). Text surfaces use the system's light glass (the toast recipe:
+ * white 60% over a 20px blur) because the scene behind them is a sunny day,
+ * where white text on the dark 7–12% panel tint would not be legible.
+ */
 .app {
-  /* Scoped to the sandbox so the original preview keeps its own theme. */
-  --ink: #f3eee3;
-  --muted: #ced6c7;
-  --panel: #e8e2d6;
-  --dock: #293d35;
-  --on-dark: #f3eee3;
-  --on-dark-muted: #ced6c7;
-  --accent: #486d54;
-  --accent-light: #d9c38c;
-  --glass: rgb(35 55 45 / 92%);
-  --glass-edge: rgb(210 220 197 / 23%);
-  --glass-highlight: rgb(231 227 203 / 14%);
-  --control: rgb(207 207 207 / 9%);
-  --control-hover: rgb(207 207 207 / 17%);
-  --shadow: inset 0 1px 0 var(--glass-highlight), 0 16px 40px rgb(0 0 0 / 24%);
-  color-scheme: dark;
-  color: var(--ink);
-  background: var(--dock);
+  position: relative;
   height: 100dvh;
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
-}
-.header {
-  min-height: 70px;
-  padding: 10px 28px;
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
-}
-.brand {
+  background: #cfe9f7;
   color: var(--ink);
-  display: flex;
-  gap: 9px;
-  align-items: center;
-  text-decoration: none;
 }
-.brand h1 {
-  font-size: 22px;
-  letter-spacing: -0.035em;
-  font-weight: 750;
-  margin: 0;
+.app :is(button, a, input):focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
-.pill {
-  font-size: 11px;
-  color: var(--muted);
-  border: 1px solid var(--glass-edge);
-  border-radius: 999px;
-  padding: 4px 10px;
-}
-.lessons {
-  display: flex;
-  gap: 6px;
-  background: var(--control);
-  padding: 4px;
-  border-radius: 14px;
-}
-.lesson,
-.lessonOn {
-  border: 0;
-  border-radius: 10px;
-  padding: 6px 14px;
-  background: transparent;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 650;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.25;
-}
-.lesson small,
-.lessonOn small {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.lesson:hover {
-  background: var(--control-hover);
-}
-.lessonOn small {
-  color: #514558;
-}
-.lessonOn {
-  background: var(--panel);
-  color: var(--dock);
-}
-.back {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 13px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  text-decoration: none;
-}
-.back:hover {
-  color: var(--ink);
+.app * {
+  scrollbar-color: var(--line-strong) transparent;
 }
 
 .workspace {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 14px;
-  padding: 0 20px 20px;
+  position: absolute;
+  inset: 0;
 }
 .stage {
-  position: relative;
-  min-height: 0;
-  background: var(--control);
-  border-radius: 20px;
-  overflow: hidden;
+  position: absolute;
+  inset: 0;
+}
+.sceneWrap {
+  position: absolute;
+  inset: 0;
 }
 .boot {
   height: 100%;
@@ -124,149 +39,233 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: var(--muted);
+  color: var(--ink-secondary);
   font-size: 13px;
   padding: 24px;
   text-align: center;
 }
 .boot strong {
   color: var(--ink);
-  font-size: 16px;
+  font-size: 18px;
+  font-weight: 500;
   margin-bottom: 6px;
 }
 .error {
-  color: #ffc9c3;
+  color: #9a3d1c;
   max-width: 520px;
 }
+
+/* Floating glass nav, top left so the lesson board above the court stays visible. */
+.header {
+  position: absolute;
+  z-index: 5;
+  top: 16px;
+  left: 16px;
+}
+/* Doubled selectors outrank gic.css, which loads after this module. */
+.header .nav {
+  background: var(--wash-toast);
+  border-color: var(--wash-toast);
+  max-width: calc(100vw - 32px);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink);
+  text-decoration: none;
+  border-radius: var(--radius-lg);
+  padding: 4px;
+}
+.brand h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 23.4px;
+  letter-spacing: -0.36px;
+  font-weight: 600;
+}
+.lessons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.lesson {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 40px;
+  padding: 4px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: none;
+  color: var(--ink-secondary);
+  font: 500 13px/18.2px var(--font-sans);
+  letter-spacing: -0.13px;
+  cursor: pointer;
+  transition: background-color 250ms, color 250ms;
+}
+.lesson small {
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+.lesson:hover {
+  background: #ffffff8c;
+}
+.lesson[aria-pressed="true"] {
+  border-color: var(--control-solid-border);
+  background-color: var(--control-solid);
+  background-image: linear-gradient(180deg, var(--sheen-solid-from), var(--sheen-solid-to));
+  color: var(--white);
+}
+.lesson[aria-pressed="true"] small {
+  color: #ffffffb3;
+}
+
+/* Lesson card: top left, under the nav row. */
 .lessonCard {
   position: absolute;
-  top: 18px;
-  left: 18px;
-  max-width: 330px;
-  max-height: calc(100% - 96px);
+  z-index: 3;
+  top: 84px;
+  left: 16px;
+  width: 340px;
+  max-height: calc(100% - 84px - 88px);
   overflow-y: auto;
-  background: var(--glass);
-  border-radius: 16px;
-  box-shadow: var(--shadow);
-  padding: 14px 16px;
+  padding: var(--space-6) var(--space-5) var(--space-6) var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
-  line-height: 1.5;
+  gap: var(--space-3);
 }
 .lessonCard p {
   margin: 0;
 }
+.lessonCard > p.body {
+  color: var(--ink-secondary);
+}
 .eyebrow {
-  font-size: 14px;
-  font-weight: 700;
   color: var(--ink);
 }
 .chips {
   display: flex;
-  gap: 6px;
   flex-wrap: wrap;
-}
-.chip,
-.chipOn {
-  font-size: 12px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
-  border-radius: 999px;
-  padding: 3px 10px;
-  border: 1px solid var(--glass-edge);
-  display: inline-flex;
   align-items: center;
-  gap: 4px;
-}
-.chipOn {
-  background: var(--accent);
-  border-color: var(--accent-light);
+  gap: 6px;
 }
 .solved {
-  color: var(--accent-light);
+  color: #1f6b54;
+}
+.runButton {
+  align-self: flex-start;
+  justify-self: start;
+  min-height: 36px;
 }
 .plankButton {
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  border: 0;
-  border-radius: 999px;
-  padding: 4px 12px;
-  background: var(--dock);
-  color: var(--on-dark);
-  cursor: pointer;
-}
-.plankButton:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-.keys {
-  position: absolute;
-  left: 18px;
-  bottom: 16px;
-  right: 18px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
-  font-size: 11.5px;
-  color: var(--muted);
-  pointer-events: none;
-}
-.keys {
-  width: fit-content;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: var(--glass);
-  max-width: calc(100% - 36px);
-}
-.keys kbd {
-  font: inherit;
-  font-weight: 700;
-  color: var(--dock);
-  background: var(--panel);
-  border-radius: 6px;
-  padding: 1px 6px;
-  box-shadow: 0 1px 0 var(--glass-edge);
-}
-.note {
-  font-style: italic;
+  min-height: 28px;
+  margin-left: 4px;
 }
 
+/* Two-robot balance controls. */
+.experiment {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid #ffffffb3;
+}
+.targets {
+  display: flex;
+  gap: var(--space-3);
+}
+.target {
+  display: grid;
+  gap: 4px;
+  color: var(--ink-secondary);
+  font: 500 13px/18.2px var(--font-sans);
+}
+.experiment .stepper {
+  width: auto;
+  padding: 0;
+  gap: 0;
+}
+.stepper button {
+  width: 34px;
+  height: 36px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: 500 16px var(--font-sans);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.stepper output {
+  min-width: 52px;
+  text-align: center;
+  font: 500 14px/21px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.predict {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.result {
+  display: grid;
+  gap: 4px;
+}
+.result p,
+.hint,
+.refusal {
+  margin: 0;
+  font: 400 13px/19.5px var(--font-sans);
+  color: var(--ink-secondary);
+}
+.right {
+  color: #1f6b54 !important;
+  font-weight: 600 !important;
+}
+.wrong,
+.refusal {
+  color: #9a3d1c !important;
+}
+.wrong {
+  font-weight: 600 !important;
+}
+.hint {
+  color: var(--ink-muted);
+}
+
+/* Console: floating on the right over the playground. */
 .console {
-  min-height: 0;
-  background: var(--glass);
-  color: var(--on-dark);
-  border-radius: 20px;
-  padding: 16px;
+  position: absolute;
+  z-index: 3;
+  top: 84px;
+  right: 16px;
+  bottom: 16px;
+  width: 340px;
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-3);
 }
 .consoleHead {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid #ffffffb3;
 }
-.consoleHead > div {
-  display: flex;
+.consoleHead p {
+  margin: 0;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 .dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--accent-light);
-}
-.mode {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--accent-light);
+  background: #2e9e7a;
 }
 .telemetry {
   margin: 0;
@@ -275,338 +274,29 @@
   gap: 6px;
 }
 .telemetry div {
-  background: var(--control);
-  border-radius: 10px;
   padding: 6px 8px;
+  border-radius: var(--radius-lg);
+  background: #ffffff8c;
 }
 .telemetry dt {
-  font-size: 11px;
-  color: var(--on-dark-muted);
+  font: 500 11px/14px var(--font-sans);
+  color: var(--ink-muted);
 }
 .telemetry dd {
   margin: 0;
-  font-size: 12.5px;
-  font-weight: 650;
+  font: 600 13px/19.5px var(--font-sans);
   font-variant-numeric: tabular-nums;
-}
-.log {
-  flex: 1;
-  min-height: 120px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
-  line-height: 1.45;
-}
-.empty {
-  color: var(--on-dark-muted);
-  margin: 0;
-}
-.empty em {
-  color: var(--on-dark);
-  font-style: normal;
-}
-.fromYou,
-.fromDuck {
-  padding: 7px 10px;
-  border-radius: 10px;
-  max-width: 92%;
-}
-.fromYou {
-  align-self: flex-end;
-  background: var(--accent);
-  color: var(--on-dark);
-}
-.fromDuck {
-  background: var(--control);
-}
-.warn {
-  display: inline-grid;
-  place-items: center;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: #ffc9c3;
-  color: var(--dock);
-  font-size: 11px;
-  font-weight: 800;
-  margin-right: 6px;
-}
-.running {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  background: rgb(126 73 179 / 24%);
-  border-radius: 10px;
-  padding: 6px 8px 6px 10px;
-}
-.running button {
-  border: 0;
-  border-radius: 8px;
-  background: var(--on-dark);
-  color: var(--dock);
-  padding: 4px 8px;
-  display: flex;
-  gap: 5px;
-  align-items: center;
-  font-size: 12px;
-  font-weight: 650;
-}
-.command {
-  display: flex;
-  gap: 6px;
-}
-.command input {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: var(--control);
-  color: var(--ink);
-}
-.command button {
-  border: 0;
-  border-radius: 12px;
-  width: 42px;
-  background: var(--accent);
-  color: var(--on-dark);
-  display: grid;
-  place-items: center;
-}
-.command input:focus-visible,
-.command button:focus-visible,
-.skills button:focus-visible,
-.running button:focus-visible {
-  outline: 2px solid var(--accent-light);
-  outline-offset: 2px;
-}
-.skills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.voiceControls {
-  display: flex;
-  gap: 8px;
-}
-.voiceControls button {
-  padding: 10px 14px;
-  border: 1px solid var(--glass-edge);
-  background: var(--control);
-  color: var(--ink);
-  touch-action: none;
-  font-size: 12px;
-  font-weight: 600;
-}
-.voiceControls button:first-child {
-  flex: 1;
-  background: var(--panel);
-  color: var(--accent);
-}
-.voiceControls button[aria-pressed="true"]:first-child {
-  background: var(--accent);
-  color: var(--on-dark);
-}
-.providerNote {
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.6;
-}
-.skills button {
-  border: 1px solid var(--glass-edge);
-  background: transparent;
-  color: var(--on-dark);
-  border-radius: 10px;
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 650;
-  display: grid;
-  place-items: center;
-}
-.skills button:hover {
-  background: var(--control-hover);
-}
-
-@media (max-width: 900px) {
-  .app {
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
-  }
-  .header {
-    padding: 10px 16px;
-  }
-  .workspace {
-    grid-template-columns: 1fr;
-    padding: 0 16px 16px;
-  }
-  .stage {
-    height: 62vh;
-  }
-  .console {
-    min-height: 420px;
-  }
-  .lessonCard {
-    max-width: calc(100% - 36px);
-  }
-  .keys {
-    display: none;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  * {
-    transition: none !important;
-  }
-}
-
-.sceneWrap {
-  position: absolute;
-  inset: 0;
-}
-.bubble {
-  position: absolute;
-  left: 0;
-  top: 0;
-  max-width: 260px;
-  padding: 10px 13px;
-  border-radius: 14px 14px 14px 4px;
-  background: var(--glass);
-  color: var(--ink);
-  box-shadow: var(--shadow);
-  font-size: 12.5px;
-  line-height: 1.45;
-  pointer-events: none;
-  z-index: 3;
-  animation: bubbleIn 0.18s ease-out;
-}
-@keyframes bubbleIn {
-  from {
-    opacity: 0;
-  }
-}
-
-/* Two-robot experiment controls (minimal; the owner restyles later). */
-.experiment {
-  display: grid;
-  gap: 8px;
-  margin-top: 4px;
-}
-.targets {
-  display: flex;
-  gap: 10px;
-}
-.target {
-  display: grid;
-  gap: 3px;
-  font-size: 11px;
-  font-weight: 650;
-  color: var(--muted);
-}
-.stepper {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #c3cfbc;
-  border-radius: 999px;
-  overflow: hidden;
-}
-.stepper button {
-  border: 0;
-  background: transparent;
-  font: inherit;
-  font-size: 14px;
-  width: 26px;
-  height: 24px;
-  cursor: pointer;
-}
-.stepper output {
-  min-width: 46px;
-  text-align: center;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-}
-.predict {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-.predict button {
-  font: inherit;
-  font-size: 11px;
-  font-weight: 650;
-  border-radius: 999px;
-  border: 1px solid #c3cfbc;
-  background: transparent;
-  padding: 3px 9px;
-  cursor: pointer;
-}
-.predictOn {
-  background: #486d54 !important;
-  border-color: #9bae97 !important;
-  color: #fff;
-}
-.runButton {
-  font: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  border: 0;
-  border-radius: 10px;
-  padding: 7px 12px;
-  background: var(--dock);
-  color: var(--on-dark);
-  cursor: pointer;
-  justify-self: start;
-}
-.runButton:disabled {
-  opacity: 0.75;
-  cursor: progress;
-}
-.stepper button:focus-visible,
-.predict button:focus-visible,
-.runButton:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 2px;
-}
-.result {
-  display: grid;
-  gap: 4px;
-  font-size: 12px;
-}
-.result p,
-.hint,
-.refusal {
-  margin: 0;
-  font-size: 12px;
-}
-.right {
-  color: #345d47;
-  font-weight: 700;
-}
-.wrong {
-  color: #8a4b2a;
-  font-weight: 700;
-}
-.refusal {
-  color: #8a4b2a;
-}
-.hint {
-  color: var(--muted);
+  white-space: nowrap;
 }
 .crew {
   display: flex;
-  gap: 12px;
-  font-size: 11px;
-  font-weight: 650;
-  color: var(--on-dark);
-  opacity: 0.85;
+  gap: var(--space-3);
+  color: var(--ink-secondary);
 }
 .crew span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 .pipDot,
 .novaDot {
@@ -616,238 +306,296 @@
   display: inline-block;
 }
 .pipDot {
-  background: #cfcfcf;
-  box-shadow: inset 0 0 0 2px #3a3a3e;
+  background: #3a3a3e;
 }
 .novaDot {
   background: #7e49b3;
 }
-
-/* Smoked glass: a dense tint protects legibility over the live experiment. */
-.lessonCard,
-.console,
-.bubble {
-  border: 1px solid var(--glass-edge);
-  box-shadow: var(--shadow);
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
-}
-.consoleHead {
-  min-height: 36px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--glass-edge);
-}
-.consoleHead strong {
-  font-size: 15px;
-}
-.console {
-  gap: 16px;
-}
 .log {
-  padding-block: 8px;
-  font-size: 13px;
-  line-height: 1.6;
+  flex: 1;
+  min-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-block: 4px;
 }
-.mode {
+.empty {
+  margin: 0;
+  color: var(--ink-secondary);
+}
+.empty em {
+  font-style: normal;
+  color: var(--ink);
+}
+.fromYou,
+.fromDuck {
+  max-width: 92%;
+  padding: 7px 10px;
+  border-radius: var(--radius-lg);
+}
+.fromYou {
+  align-self: flex-end;
+  background-color: var(--control-solid);
+  background-image: linear-gradient(180deg, var(--sheen-solid-from), var(--sheen-solid-to));
+  color: var(--white);
+}
+.fromDuck {
+  background: #ffffffb3;
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+}
+.warn {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #f2735a;
+  color: var(--white);
   font-size: 11px;
-  letter-spacing: 0;
-  text-transform: none;
-}
-.telemetry dt {
-  font-size: 11px;
-}
-.telemetry dd {
-  white-space: nowrap;
-}
-.lessonCard {
-  padding: 18px;
-  gap: 12px;
-}
-.lessons {
-  border: 1px solid var(--glass-edge);
-  border-radius: 999px;
-}
-.app button {
-  border-radius: 999px;
-  min-height: 44px;
-  transition:
-    transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1),
-    background 180ms,
-    color 180ms;
-}
-.lesson,
-.lessonOn {
-  padding: 8px 18px;
-}
-.command {
-  align-items: center;
-}
-.command input {
-  min-height: 46px;
-  border: 1px solid var(--glass-edge);
-  border-radius: 999px;
-  padding-inline: 16px;
-  caret-color: var(--accent-light);
-  font-size: 13px;
-}
-.command input::placeholder {
-  color: var(--muted);
-  opacity: 1;
-}
-.command button {
-  flex: 0 0 46px;
-  width: 46px;
-  height: 46px;
-  background: var(--panel);
-  color: var(--accent);
-}
-.skills button {
-  min-width: 44px;
-  padding: 8px 12px;
+  font-weight: 700;
 }
 .running {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-lg);
+  background: #ffffffb3;
+  color: var(--ink-secondary);
+}
+.console .command {
+  width: auto;
+  height: 42px;
+}
+.voiceControls {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.running button {
-  flex-shrink: 0;
-  padding-inline: 12px;
+.voiceControls > :first-child {
+  flex: 1;
+  justify-content: space-between;
+  min-height: 40px;
+  touch-action: none;
 }
-.app :is(button, a, input):focus-visible {
-  outline: 2px solid var(--accent-light);
-  outline-offset: 3px;
+.voiceControls > :last-child {
+  min-height: 40px;
 }
-.app button:disabled {
-  opacity: 0.45;
-  transform: none;
+.providerNote {
+  color: var(--ink-muted);
 }
-.app * {
-  scrollbar-color: #97aa8d transparent;
+.skills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
-.app ::selection {
-  background: var(--accent);
-  color: var(--on-dark);
+.skills button {
+  min-height: 36px;
 }
-@media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .app button:not(:disabled):hover {
-    transform: translateY(-2px);
-  }
-  .app button:not(:disabled):active {
-    transform: translateY(0);
-  }
+
+/* Keyboard help: bottom left, clear of the camera toolbar. */
+.keys {
+  position: absolute;
+  z-index: 2;
+  left: 16px;
+  bottom: 16px;
+  max-width: min(560px, calc(100% - 900px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-xl);
+  color: var(--ink-secondary);
+  font: 500 12px/18px var(--font-sans);
+  pointer-events: none;
 }
-@media (max-width: 600px) {
-  .header {
-    gap: 12px;
-    padding: 16px;
-  }
-  .pill {
-    font-size: 11px;
-  }
-  .lessons {
-    order: 3;
-    width: 100%;
-    border-radius: 20px;
-  }
-  .lesson,
-  .lessonOn {
-    flex: 1;
-    padding: 8px;
-    font-size: 11px;
-    align-items: center;
-    text-align: center;
-  }
-  .lesson small,
-  .lessonOn small {
-    font-size: 11px;
-  }
-  .back {
-    font-size: 12px;
-  }
-  .lessonCard {
-    top: 12px;
-    left: 12px;
-    max-width: calc(100% - 24px);
-    padding: 14px;
-  }
-  .console {
-    min-height: 520px;
-  }
+.keys kbd {
+  font: 600 11px/16px var(--font-sans);
+  color: var(--ink);
+  padding: 1px 6px;
+  border-radius: var(--radius-md);
+  background: #ffffffb3;
+  box-shadow: var(--shadow-ring);
 }
-@supports not (backdrop-filter: blur(1px)) {
-  .lessonCard,
-  .console,
-  .bubble {
-    background: #293d35;
-  }
+.note {
+  color: var(--ink-muted);
 }
-@media (prefers-reduced-transparency: reduce) {
-  .lessonCard,
-  .console,
-  .bubble {
-    background: #293d35;
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
+
+/* Speech bubble beside Pip: a toast card. */
+.bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  max-width: 260px;
+  padding: 10px 13px;
+  border: 1px solid var(--wash-toast);
+  border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-2xl) var(--radius-sm);
+  background: var(--wash-toast);
+  -webkit-backdrop-filter: blur(var(--blur-toast));
+  backdrop-filter: blur(var(--blur-toast));
+  box-shadow: var(--shadow-card);
+  color: var(--ink);
+  font: 400 13px/19.5px var(--font-sans);
+  pointer-events: none;
+  animation: bubbleIn 250ms ease-out;
+}
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
   }
 }
 
+/* Camera toolbar: GIC 36px icon buttons in a glass bar, left of the console. */
 .cameraControls {
   position: absolute;
   z-index: 4;
   bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 372px;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 6px;
-  border-radius: 16px;
-  background: rgb(35 55 45 / 94%);
-  backdrop-filter: blur(18px);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 22%);
-  color: #f5f3f7;
+  border: 1px solid var(--wash-toast);
+  border-radius: var(--radius-xl);
+  background: var(--wash-toast);
+  -webkit-backdrop-filter: blur(var(--blur-toast));
+  backdrop-filter: blur(var(--blur-toast));
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
 }
 .cameraControls button {
   display: grid;
   place-items: center;
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
   border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: #f3eee3;
+  border-radius: var(--radius-lg);
+  background: var(--wash-social);
+  box-shadow: var(--shadow-ring);
+  color: var(--ink);
   cursor: pointer;
+  transition: background-color 250ms, color 250ms;
 }
-.cameraControls button:hover { background: rgb(210 220 197 / 15%); }
-.cameraControls button[aria-pressed="true"] { background: #56765c; color: white; }
-.cameraControls button:focus-visible { outline: 2px solid #d9c38c; outline-offset: 2px; }
-.cameraHint { padding: 0 12px; white-space: nowrap; font-size: 12px; font-weight: 650; }
-.cameraHint small { display: block; margin-top: 3px; color: #ced6c7; font-size: 10px; font-weight: 400; }
-.cameraDivider { width: 1px; height: 22px; margin: 0 3px; background: rgb(210 220 197 / 22%); }
-@media (max-width: 700px) {
-  .cameraHint { display: none; }
-  .cameraControls { bottom: 12px; }
+.cameraControls button:hover {
+  background: #ffffffb3;
+}
+.cameraControls button[aria-pressed="true"] {
+  background-color: var(--control-solid);
+  background-image: linear-gradient(180deg, var(--sheen-solid-from), var(--sheen-solid-to));
+  box-shadow: none;
+  color: var(--white);
+}
+.cameraHint {
+  padding: 0 10px;
+  white-space: nowrap;
+  font: 600 13px/19.5px var(--font-sans);
+}
+.cameraHint small {
+  display: block;
+  color: var(--ink-muted);
+  font: 400 11px/14px var(--font-sans);
+}
+.cameraDivider {
+  width: 1px;
+  height: 22px;
+  margin: 0 3px;
+  background: var(--line-strong);
 }
 
-/* Keep movement help separate from the camera toolbar. */
-.keys { bottom: 80px; }
-@media (max-width: 700px) {
-  .stage { height: 740px; }
-  .sceneWrap { top: 240px; }
-  .lessonCard { top: 12px; left: 12px; right: 12px; max-width: none; max-height: 216px; }
+@media (max-width: 1280px) {
+  .keys {
+    display: none;
+  }
 }
 
-/* Botanical Studio: warm stone shell with forest glass over the live room. */
-.app { background: #e8e2d6; }
-.header { color: #293d35; }
-.header .brand, .header .back, .header .lesson { color: #293d35; }
-.header .pill { color: #465b4b; border-color: #b9c2ae; }
-.header .lessons { background: #d9ddcf; border-color: #b9c2ae; }
-.header .lesson small { color: #4e6452; }
-.header .lessonOn { background: #293d35; color: #f3eee3; }
-.header .lessonOn small { color: #d2dac6; }
-.stage { background: #d9d2bf; }
-.lessonOn small { color: #4e6452; }
-.cameraControls { color: #f3eee3; }
-.right { color: #c3deb4; }
-.wrong, .refusal { color: #efc8a6; }
+/* Phones and narrow tablets: the playground stays full width, panels stack. */
+@media (max-width: 900px) {
+  .app {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    background: linear-gradient(180deg, #cfe9f7, #eaf6ef);
+  }
+  .workspace {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 16px;
+  }
+  .header {
+    position: static;
+    padding: 12px 12px 0;
+  }
+  .header .nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-width: none;
+  }
+  .lessons {
+    width: 100%;
+  }
+  .lesson {
+    flex: 1;
+    align-items: center;
+    text-align: center;
+    padding: 4px 6px;
+  }
+  .stage {
+    position: relative;
+    inset: auto;
+    height: 760px;
+  }
+  .lessonCard {
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 216px;
+  }
+  .sceneWrap {
+    top: 240px;
+  }
+  .console {
+    position: static;
+    width: auto;
+    min-height: 520px;
+    margin: 0 12px;
+  }
+  .cameraControls {
+    right: auto;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+  }
+  .cameraHint {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bubble {
+    animation: none;
+  }
+  .lesson,
+  .cameraControls button {
+    transition: none;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .bubble,
+  .cameraControls,
+  .nav {
+    background: #ffffffeb;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}

@@ -103,3 +103,6 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 - [x] Owner environment/camera pass: noir/amethyst/silver workshop, pan and pinch/wheel zoom, explicit follow/frame/reset, reduced-motion support.
 
 - [x] Replace the initial dark workshop with the owner-selected Botanical Studio material/detail pass; original maps and detailed furniture, static AO, dynamic shadows, live wall display.
+- [x] Playground: open court, garden fence on the boundary wall, equipment outside it, Folio-style foliage/grass, clouds, GIC glass console, low-power mode.
+- [owner] Review the playground branch; choose whether to commit, then merge.
+- [next] Optional: a gate arch with roses in the fence, a hedge or flower border variant, and a real-GPU frame-time check on a phone.

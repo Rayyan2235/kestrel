@@ -131,8 +131,8 @@ Run `pnpm dev` and open port 5180: the landing page is `/`, and Open console lea
 
 ## Camera controls
 
-In `/console`, drag the room to pan and scroll/pinch to zoom. Follow crew resumes automatic framing; Frame experiment centers the apparatus; Reset view restores follow. Tab to a camera button and use arrow keys to pan without driving the robots. Camera buttons support Enter/Space.
+In `/console`, drag the playground to pan and scroll/pinch to zoom. Follow crew resumes automatic framing; Frame experiment centers the apparatus; Reset view restores follow. Tab to a camera button and use arrow keys to pan without driving the robots. Camera buttons support Enter/Space.
 
-## Workshop surface bake
+## Playground rendering quality
 
-`node scripts/bake-workshop.mjs` regenerates the original static AO maps in `apps/web/public/workshop/`. It is deterministic and requires only Node built-ins. Ordinary app builds use the checked-in maps. No Blender installation is needed.
+The workshop AO bake script is gone with the room. On a software WebGL renderer (headless SwiftShader, llvmpipe) `/console` drops shadows and grass and renders at half resolution so Playwright stays responsive; open `/console?hq` to force full quality for design screenshots. Under heavy machine load, the camera spec needs its 120 s file timeout.

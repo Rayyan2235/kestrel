@@ -163,10 +163,12 @@ export function LabCamera({
         Math.hypot(a[0] - focus[0], a[1] - focus[1]),
         Math.hypot(b[0] - focus[0], b[1] - focus[1]),
       );
+      // Wide screens frame a little more of the playground, so the lesson
+      // board behind the court stays in view between the floating panels.
       desired.current.zoom = fitZoom(
         size.width,
         size.height,
-        Math.max(2.5, spread * 2 + 0.8),
+        Math.max(size.width > 900 ? 3.2 : 2.5, spread * 2 + 0.8),
       );
     } else if (mode.current === "experiment") {
       desired.current.center = [focus[0], -focus[1]];

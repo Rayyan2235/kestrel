@@ -2,6 +2,7 @@ import { useState } from "react";
 import { MOMENTS } from "@kestrel/contracts";
 import type { SimStatus } from "../simulation/duckSim";
 import styles from "./Sandbox.module.css";
+import { Button } from "./gic";
 
 type Side = "left" | "level" | "right";
 const SIDE_TEXT: Record<Side, string> = { left: "Left side down", level: "Stays level", right: "Right side down" };
@@ -43,7 +44,7 @@ export function ExperimentPanel({
               <span>
                 {w.grams} g · {w.owner === "pip" ? "Pip" : "Nova"}
               </span>
-              <div className={styles.stepper}>
+              <div className={`gic-field ${styles.stepper}`}>
                 <button aria-label={`Move the ${w.grams} g weight in`} onClick={() => step(side, -1)} disabled={running}>
                   −
                 </button>
@@ -58,12 +59,13 @@ export function ExperimentPanel({
       </div>
       <div className={styles.predict} role="radiogroup" aria-label="Your prediction">
         {(["left", "level", "right"] as const).map((s) => (
-          <button key={s} role="radio" aria-checked={prediction === s} className={prediction === s ? styles.predictOn : undefined} onClick={() => setPrediction(s)} disabled={running}>
+          <button key={s} role="radio" aria-checked={prediction === s} className="gic-tag" onClick={() => setPrediction(s)} disabled={running}>
             {SIDE_TEXT[s]}
           </button>
         ))}
       </div>
-      <button
+      <Button
+        variant="solid"
         className={styles.runButton}
         disabled={running}
         onClick={() => {
@@ -72,7 +74,7 @@ export function ExperimentPanel({
         }}
       >
         {running ? `Running · ${exp!.phase}` : "Run it with both robots"}
-      </button>
+      </Button>
       {refusal && <p className={styles.refusal}>{refusal}</p>}
       {!running && result && (
         <div className={styles.result} data-testid="experiment-result">

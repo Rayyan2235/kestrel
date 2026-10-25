@@ -380,16 +380,13 @@ export function freeKit(): LabKit {
   };
 }
 
-/** Fixed furniture shared by every lesson, so each kit sits in the same lab. */
+/**
+ * Fixed furniture shared by every lesson. The play court is deliberately
+ * empty: the robots get the whole floor, and the playground equipment sits
+ * outside the boundary wall where it needs no collider.
+ */
 export function roomProps(): PropSpec[] {
-  return [
-    block("bench", "Lab bench", [0.9, 0.22, 0.16], [0.35, 1.3], "#e0b18b", { joint: "fixed" }),
-    block("shelf", "Shelf", [0.22, 0.7, 0.3], [-1.3, -0.75], "#819f8b", { joint: "fixed" }),
-    block("crate-stack", "Crate", [0.18, 0.18, 0.18], [-1.25, 1.2], "#d6b48e", {
-      joint: "fixed",
-      yaw: 0.3,
-    }),
-  ];
+  return [];
 }
 
 export const KITS = { pythagoras: pythagorasKit, moments: momentsKit, free: freeKit };

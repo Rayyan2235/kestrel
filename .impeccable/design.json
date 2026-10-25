@@ -26,19 +26,26 @@
   "surfaces": {
     "console": {
       "mode": "experience",
-      "direction": "Botanical Studio",
+      "direction": "Playground with General Intelligence Company glass",
       "tokens": {
-        "stone": "#E8E2D6",
-        "forest": "#293D35",
-        "sage": "#9BAE97",
-        "brass": "#B99250",
-        "clay": "#BC816B",
-        "text": "#F3EEE3",
-        "muted": "#CED6C7",
-        "glass": "rgb(35 55 45 / 92%)"
+        "surface": "#fefffc",
+        "ink": "#2c2c2c",
+        "ink-secondary": "#444141",
+        "ink-muted": "#646464",
+        "control-solid": "#1f1f29",
+        "wash-toast": "#ffffff99",
+        "blur-toast": "20px",
+        "radius-2xl": "16px",
+        "font": "Inter Variable"
       },
-      "reference": "https://github.com/brunosimon/my-room-in-3d",
-      "scope": "Console and room only; preserve landing and robot identities"
+      "world": {
+        "sky": "#7cc4ee",
+        "grass": "#6cb45a",
+        "court": "#f2e6cd",
+        "fence": "#fff6e8"
+      },
+      "reference": "Owner's GIC design-system artifact; brunosimon/folio-2025 Foliage.js and Grass.js techniques",
+      "scope": "Console and playground only; preserve landing and robot identities"
     }
   }
 }

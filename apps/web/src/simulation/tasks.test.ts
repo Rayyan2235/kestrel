@@ -30,7 +30,13 @@ describe("task runner", () => {
   it("refuses targets that are missing or fixed before moving", () => {
     const r = new TaskRunner();
     expect(r.start({ kind: "go_to", target: "unicorn" }, world())).toMatch(/no unicorn/);
-    expect(r.start({ kind: "push", target: "bench" }, world())).toMatch(/fixed/);
+    const moments = momentsKit();
+    const balance: WorldView = {
+      ...world(),
+      kit: moments,
+      props: new Map(moments.props.map((p) => [p.id, [p.pos[0], p.pos[1]] as Vec2])),
+    };
+    expect(r.start({ kind: "push", target: "pivot" }, balance)).toMatch(/fixed/);
     expect(r.active).toBeNull();
   });
 

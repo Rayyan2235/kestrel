@@ -12,7 +12,7 @@ Isometric room, Pip and Nova placeholders, the analytic balance, the typed gramm
 
 - **Physics and policies.** Real Microduck physics: MuJoCo 3.11 WASM stepping the upstream MJCF, with 7 upstream ONNX policies at **50 Hz** (verified headless): walk, sit/stand, get-up, kick L/R, roll and peck. Fall recovery uses the get-up policy, and the duck respawns if it fails.
 - **Controls.** Keyboard: WASD or arrows, Q/E kick, R sit/stand, F peck, T roll, Esc stops the task. There are also console buttons and a reset.
-- **Lessons.** Maths · Pythagorean theorem (3×3, 4×4 and 5×5 grid tiles, a floor triangle and slots that light up), Physics · Moments (a beam balance: a locked plank on a pivot, with a 200 g and a 100 g weight on rails that the duck pushes; see below), and Free play. Shared room furniture (bench, shelf, crate) is part of the physics in every lesson.
+- **Lessons.** Maths · Pythagorean theorem (3×3, 4×4 and 5×5 grid tiles, a floor triangle and slots that light up), Physics · Moments (a beam balance: a locked plank on a pivot, with a 200 g and a 100 g weight on rails that the duck pushes; see below), and Free play. The court has no fixed furniture (removed 2026-10-25 so the robots have the whole floor); the boundary wall remains.
 - **Typed tasks.** These go through `parseDuckTask` → `DuckTaskSchema` → `TaskRunner` and report measured results in the log.
 - **Bubble.** A reply bubble sits next to the duck, and the log keeps history.
 
@@ -165,3 +165,9 @@ On `lab-workshop-camera`, console and room now use the owner-selected warm stone
 ## Classroom refinement (2026-10-25)
 
 On `lab-workshop-camera`, Botanical room now has a lesson-specific teaching board, chalk tray and labeled equipment storage. Claude Code continuation guide is in `docs/handoffs/claude-code-classroom-redesign.md`. `pnpm check` passes (185 tests); both lessons rendered and screenshots inspected at desktop 1440×1000 and touch mobile 390×844. Existing mobile lesson card scroll and small in-world labels remain; use zoom for board details. No physics/camera logic changes, no paid AI calls, no push/merge.
+
+## Playground — 2026-10-25
+
+On `lab-workshop-camera` (uncommitted): the classroom became a full-screen playground on a grass island with an open court, garden picket fence on the boundary wall, swings, slide, seesaw, sandpit, lesson board, Folio-style trees and grass, and clouds. Fixed furniture removed from physics. Console restyled with the owner's General Intelligence Company glass system (light toast glass over the scene, Inter, Home removed). Low-power mode for software WebGL.
+
+Verified: `pnpm check` (185 tests, typecheck, builds, API smoke). Playwright: camera + console-entry 11 passed, 1 intentional skip (after adding a 120 s file timeout to the camera spec; it passed with 120 s alone under load average ~20); sandbox spec 9 passed, 1 skipped on the final scene. Screenshots of both lessons inspected at 1440×900 and iPhone 13. Known: headless SwiftShader renders ~1–2 fps on this machine even without the playground (2 fps bare scene); the board can be clipped at the top in some follow framings on short screens.

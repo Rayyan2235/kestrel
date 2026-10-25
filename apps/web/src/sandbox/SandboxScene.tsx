@@ -11,7 +11,8 @@ import {
   type SlotSpec,
 } from "@kestrel/contracts";
 import { LabCamera } from "./LabCamera";
-import { Workshop } from "./Workshop";
+import { Playground } from "./Playground";
+import { PLAY } from "./playgroundMaterials";
 import { StudioLighting } from "./StudioLighting";
 import type { CameraCommand, CameraMode } from "./camera";
 import { Focus, Minus, Plus, RotateCcw, ScanEye } from "lucide-react";
@@ -37,7 +38,7 @@ function labelTexture(text: string, opts: { bg?: string; fg?: string; w?: number
     g.fillStyle = opts.bg;
     g.fillRect(0, 0, w, h);
   }
-  g.fillStyle = opts.fg ?? "#203b33";
+  g.fillStyle = opts.fg ?? "#2c2c2c";
   g.font = `700 ${opts.font ?? 64}px "Plus Jakarta Sans Variable", sans-serif`;
   g.textAlign = "center";
   g.textBaseline = "middle";
@@ -60,7 +61,7 @@ function gridTexture(units: number, color: string) {
     g.fillStyle = i % 2 ? "rgba(255,255,240,.08)" : "rgba(30,45,30,.035)";
     g.fillRect((i * 73.17) % px, (i * 41.31) % px, 1, 1);
   }
-  g.strokeStyle = "rgba(24, 53, 44, 0.55)";
+  g.strokeStyle = "rgba(44, 44, 44, 0.5)";
   g.lineWidth = 3;
   for (let i = 0; i <= units; i++) {
     g.beginPath();
@@ -70,7 +71,7 @@ function gridTexture(units: number, color: string) {
     g.lineTo(px, i * 64);
     g.stroke();
   }
-  g.fillStyle = "rgba(24, 53, 44, 0.8)";
+  g.fillStyle = "rgba(44, 44, 44, 0.8)";
   g.font = `800 ${Math.min(96, px / 2.6)}px "Plus Jakarta Sans Variable", sans-serif`;
   g.textAlign = "center";
   g.textBaseline = "middle";
@@ -91,7 +92,7 @@ function rulerTexture(length: number, width: number, color: string) {
   const g = c.getContext("2d")!;
   g.fillStyle = color;
   g.fillRect(0, 0, w, h);
-  g.fillStyle = "rgba(24, 53, 44, 0.7)";
+  g.fillStyle = "rgba(44, 44, 44, 0.7)";
   const half = Math.floor((length * 100) / 2);
   for (let cm = -half; cm <= half; cm++) {
     const y = h / 2 - cm * perCm;
@@ -165,7 +166,7 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
     // A push face glows only while MuJoCo reports a robot touching it.
     if (spec.role === "paddle" && !Array.isArray(material)) {
       const f = sim.touchForce(spec.id);
-      (material as THREE.MeshStandardMaterial).emissive.set(f > 0.05 ? "#b99250" : "#000000");
+      (material as THREE.MeshStandardMaterial).emissive.set(f > 0.05 ? PLAY.yellow : "#000000");
       (material as THREE.MeshStandardMaterial).emissiveIntensity = Math.min(0.9, f / 6);
     }
   });
@@ -249,10 +250,10 @@ function Slot({ slot, filled }: { slot: SlotSpec; filled: boolean }) {
     <group position={[slot.pos[0], slot.pos[1], 0.0015]} rotation={[0, 0, slot.yaw]}>
       <mesh>
         <planeGeometry args={[slot.side, slot.side]} />
-        <meshBasicMaterial color={filled ? "#d2eb88" : "#f6f7ef"} transparent opacity={filled ? 0.85 : 0.45} />
+        <meshBasicMaterial color={filled ? PLAY.mint : "#ffffff"} transparent opacity={filled ? 0.8 : 0.6} />
       </mesh>
       <lineLoop geometry={edge}>
-        <lineBasicMaterial color={filled ? "#456c53" : "#7d938a"} />
+        <lineBasicMaterial color={filled ? "#1f6b54" : "#3b4a55"} />
       </lineLoop>
       <mesh position={[0, -slot.side / 2 - 0.03, 0.001]}>
         <planeGeometry args={[0.2, 0.05]} />
@@ -270,7 +271,7 @@ function Outline({ points }: { points: [number, number][] }) {
   return (
     <line>
       <primitive object={g} attach="geometry" />
-      <lineBasicMaterial color="#203b33" />
+      <lineBasicMaterial color="#2c2c2c" />
     </line>
   );
 }
@@ -341,6 +342,25 @@ function Slots({ kit, sim, onProgress }: { kit: LabKit; sim: DuckSim; onProgress
   );
 }
 
+/**
+ * True when WebGL runs on a software rasteriser (SwiftShader, llvmpipe), as in
+ * headless CI or GPU-less machines. Those get no shadows and no grass blades,
+ * which keeps the lab responsive; everything physical is unchanged. Add
+ * `?hq` to the URL to force full quality (design screenshots).
+ */
+const SOFTWARE_GL = (() => {
+  if (new URLSearchParams(location.search).has("hq")) return false;
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2");
+    const info = gl?.getExtension("WEBGL_debug_renderer_info");
+    const name = gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    return /swiftshader|llvmpipe|software/i.test(name);
+  } catch {
+    return false;
+  }
+})();
+
 export function SandboxScene({
   sim,
   kit,
@@ -378,37 +398,40 @@ export function SandboxScene({
       live = false;
     };
   }, [tint]);
-  const furniture = useMemo(() => roomProps().map(p => ({ ...p, color: p.id === "bench" ? "#899d7d" : p.id === "shelf" ? "#9bae97" : "#bc816b" })), []);
+  // Fixed furniture, if a kit ever adds some back; the playground court itself is open.
+  const furniture = useMemo(() => roomProps(), []);
   if (error) return <div className="scene-fallback">The robot model could not load: {error}</div>;
   return (
     <div className={styles.sceneWrap}>
     <Canvas
-      shadows
+      shadows={!SOFTWARE_GL}
       orthographic
       camera={{ position: [2, 2, 2], zoom: 420, near: 0.01, far: 50 }}
-      dpr={[1, 1.5]}
+      dpr={SOFTWARE_GL ? 0.5 : [1, 1.5]}
       fallback={<div className="scene-fallback">This browser cannot show the 3D lab.</div>}
     >
-      <color attach="background" args={["#d9d2bf"]} />
       <StudioLighting />
-      <hemisphereLight args={["#fff8e8", "#6b7654", 1.3]} />
-      <ambientLight intensity={0.3} />
-      <directionalLight position={[-3, 2, -2]} color="#d8e4cf" intensity={0.8} />
+      {/* Midday sun from the front left; sky above and grass bounce below tint the shade. */}
+      <hemisphereLight args={["#eaf6ff", "#8cc56f", 1.15]} />
+      <ambientLight intensity={0.18} />
+      <directionalLight position={[3, 2, 3]} color="#dbeeff" intensity={0.45} />
       <directionalLight
-        position={[-1, 4, 3]}
-        intensity={2.3}
-        color="#fff5e9"
+        position={[-2.2, 4.4, 2.4]}
+        intensity={2.6}
+        color="#fff1d6"
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-2.5}
-        shadow-camera-right={2.5}
-        shadow-camera-top={2.5}
-        shadow-camera-bottom={-2.5}
-        shadow-normalBias={0.003}
-        shadow-bias={-0.0002}
+        shadow-camera-left={-3.6}
+        shadow-camera-right={3.6}
+        shadow-camera-top={3.6}
+        shadow-camera-bottom={-3.6}
+        shadow-camera-near={0.5}
+        shadow-camera-far={14}
+        shadow-normalBias={0.004}
+        shadow-bias={-0.0003}
         shadow-radius={3}
       />
-      <Workshop sim={sim} kit={kit} reducedMotion={reducedMotion} onFocus={() => sendCamera("experiment")} />
+      <Playground kit={kit} reducedMotion={reducedMotion} lowPower={SOFTWARE_GL} onFocus={() => sendCamera("experiment")} />
       <LabCamera sim={sim} focus={kit.focus} command={command} onMode={setMode} reducedMotion={reducedMotion} />
       <Slots kit={kit} sim={sim} onProgress={onProgress} />
       {kit.id === "moments" && <MomentsDressing sim={sim} />}

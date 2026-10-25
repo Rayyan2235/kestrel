@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, RotateCcw, Square } from "lucide-react";
+import { Bird, Check, Keyboard, RotateCcw, Square } from "lucide-react";
 import { KITS, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
@@ -8,6 +8,7 @@ import type { Skill } from "../simulation/tasks";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
+import { ArrowPill, Button } from "./gic";
 
 type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
 
@@ -251,39 +252,36 @@ export function SandboxApp() {
   const balance = status?.balance ? balanceSnapshot(status.balance) : null;
 
   return (
-    <div className={styles.app}>
-      <header className={styles.header}>
-        <a className={styles.brand} href="/" aria-label="Kestrel home">
-          <Bird size={24} strokeWidth={1.7} />
-          <h1>Kestrel</h1>
-        </a>
-        <span className={styles.pill}>Console · Microduck physics</span>
-        <nav className={styles.lessons} aria-label="Lesson">
-          {LESSONS.map((l) => (
-            <button
-              key={l.id}
-              className={l.id === kitId ? styles.lessonOn : styles.lesson}
-              aria-pressed={l.id === kitId}
-              onClick={() => chooseLesson(l.id)}
-              disabled={!sim}
-            >
-              <small>{l.subject}</small>
-              {l.topic}
-            </button>
-          ))}
-        </nav>
-        <a className={styles.back} href="/">
-          <ArrowLeft size={16} /> Home
-        </a>
-      </header>
-
+    <div className={`gic-root ${styles.app}`}>
       <main className={styles.workspace}>
-        <section className={styles.stage} aria-label="3D lab">
+        <header className={styles.header}>
+          <nav className={`gic-nav ${styles.nav}`} aria-label="Lesson">
+            <a className={styles.brand} href="/" aria-label="Kestrel home">
+              <Bird size={22} strokeWidth={1.8} aria-hidden="true" />
+              <h1>Kestrel</h1>
+            </a>
+            <div className={styles.lessons}>
+              {LESSONS.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  className={styles.lesson}
+                  aria-pressed={l.id === kitId}
+                  onClick={() => chooseLesson(l.id)}
+                  disabled={!sim}
+                >
+                  <small>{l.subject}</small> {l.topic}
+                </button>
+              ))}
+            </div>
+          </nav>
+        </header>
+        <section className={styles.stage} aria-label="3D playground">
           {sim ? (
             <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={bubble} />
           ) : (
             <div className={styles.boot} role="status">
-              <strong>{error ? "The lab could not start" : "Opening the lab…"}</strong>
+              <strong>{error ? "The playground could not start" : "Opening the playground…"}</strong>
               {boot.map((b) => (
                 <span key={b}>{b}</span>
               ))}
@@ -291,34 +289,34 @@ export function SandboxApp() {
             </div>
           )}
 
-          <div className={styles.lessonCard}>
-            <span className={styles.eyebrow}>
+          <div className={`gic-toast ${styles.lessonCard}`}>
+            <p className={`heading-sm ${styles.eyebrow}`}>
               {lesson.subject} · {lesson.topic}
-            </span>
-            <p>{OBJECTIVE[kitId]}</p>
+            </p>
+            <p className="body">{OBJECTIVE[kitId]}</p>
             {kit.slots.length > 0 && (
               <div className={styles.chips}>
                 {kit.slots.map((s) => (
-                  <span key={s.id} className={filled.includes(s.id) ? styles.chipOn : styles.chip}>
+                  <span key={s.id} className={filled.includes(s.id) ? "gic-tag gic-tag--on" : "gic-tag"}>
                     {filled.includes(s.id) && <Check size={12} />} {s.label}
                   </span>
                 ))}
               </div>
             )}
-            {solved && <strong className={styles.solved}>Right triangle built: 9 + 16 = 25.</strong>}
+            {solved && <strong className={`body ${styles.solved}`}>Right triangle built: 9 + 16 = 25.</strong>}
             {kit.id === "pythagoras" && !solved && (
-              <button className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
+              <Button variant="solid" className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
                 {status?.task?.kind === "build_squares" ? `Building · ${status.experiment?.phase ?? ""}` : "Build it together"}
-              </button>
+              </Button>
             )}
             {balance && (
               <div className={styles.chips} data-testid="balance">
                 {balance.weights.map((w) => (
-                  <span key={w.id} className={styles.chip}>
+                  <span key={w.id} className="gic-tag">
                     {w.grams} g · {w.side} · {w.cm} cm
                   </span>
                 ))}
-                <span className={balance.plank === "released" ? styles.chipOn : styles.chip}>
+                <span className={balance.plank === "released" ? "gic-tag gic-tag--on" : "gic-tag"}>
                   {balance.plank === "released"
                     ? balance.lowSide === "level"
                       ? "Level"
@@ -327,19 +325,16 @@ export function SandboxApp() {
                       ? "Levelling…"
                       : "Plank locked"}
                 </span>
-                <button
-                  className={styles.plankButton}
-                  onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}
-                >
+                <Button variant="link" className={styles.plankButton} onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}>
                   {balance.plank === "locked" ? "Release plank" : "Lock plank"}
-                </button>
+                </Button>
               </div>
             )}
             {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
           </div>
 
-          <div className={styles.keys} aria-label="Keyboard controls">
-            <Keyboard size={15} />
+          <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls">
+            <Keyboard size={15} aria-hidden="true" />
             {KEYS.map(([k, v]) => (
               <span key={k}>
                 <kbd>{k}</kbd> {v}
@@ -349,13 +344,14 @@ export function SandboxApp() {
           </div>
         </section>
 
-        <aside className={styles.console} aria-label="Duck console">
+
+        <aside className={`gic-toast ${styles.console}`} aria-label="Duck console">
           <div className={styles.consoleHead}>
-            <div>
+            <p className="heading-sm">
               <span className={styles.dot} />
-              <strong>Your duck</strong>
-            </div>
-            <span className={styles.mode} data-testid="duck-mode">
+              Your duck
+            </p>
+            <span className="gic-tag" data-testid="duck-mode">
               {status ? (sitting ? (status.sitting ? "sitting" : "sitting down") : status.mode) : "loading"}
             </span>
           </div>
@@ -380,7 +376,7 @@ export function SandboxApp() {
             </dl>
           )}
           {status && nova && (
-            <div className={styles.crew} data-testid="crew">
+            <div className={`label ${styles.crew}`} data-testid="crew">
               <span>
                 <i className={styles.pipDot} /> Pip · {status.phase ?? (status.task ? "busy" : status.mode)}
               </span>
@@ -391,12 +387,12 @@ export function SandboxApp() {
           )}
           <div className={styles.log} role="log" aria-live="polite" ref={logRef}>
             {log.length === 0 ? (
-              <p className={styles.empty}>
+              <p className={`body ${styles.empty}`}>
                 Hold to talk, or ask <em>What is the Pythagorean theorem?</em> I can explain and move the squares to demonstrate. You can also ask me to push a box or drive with the keyboard.
               </p>
             ) : (
               log.map((l) => (
-                <div key={l.id} className={l.who === "you" ? styles.fromYou : styles.fromDuck}>
+                <div key={l.id} className={`body-alt ${l.who === "you" ? styles.fromYou : styles.fromDuck}`}>
                   {l.ok === false && <span className={styles.warn}>!</span>}
                   {l.text}
                 </div>
@@ -404,20 +400,23 @@ export function SandboxApp() {
             )}
           </div>
           {(phase !== "Ready" || status?.task) && (
-            <div className={styles.running} role="status">
+            <div className={`label ${styles.running}`} role="status">
               <span data-testid="agent-phase">{phase}{status?.task ? ` · ${describe(status.task, name)}` : ""}</span>
-              <button
+              <Button
+                variant="link"
+                arrow={false}
                 onClick={() => {
                   session.current?.cancel();
                   add("duck", "Stopped.");
                 }}
               >
-                <Square size={13} /> Stop
-              </button>
+                <Square size={12} aria-hidden="true" /> Stop
+              </Button>
             </div>
           )}
-          <form className={styles.command} onSubmit={send}>
+          <form className={`gic-field ${styles.command}`} onSubmit={send}>
             <input
+              className="gic-field__input body"
               aria-label="Task for your duck"
               placeholder="Ask a question or tell me what to move…"
               value={text}
@@ -426,13 +425,13 @@ export function SandboxApp() {
               autoComplete="off"
               disabled={!sim}
             />
-            <button type="submit" aria-label="Send task" disabled={!sim || !text.trim()}>
-              <ArrowUp size={18} />
+            <button className="gic-field__submit" type="submit" aria-label="Send task" disabled={!sim || !text.trim()}>
+              <ArrowPill tone="ink" />
             </button>
           </form>
           <div className={styles.voiceControls}>
-            <button
-              type="button"
+            <Button
+              variant="solid"
               disabled={!sim}
               aria-label="Hold to talk"
               aria-pressed={phase === "Listening"}
@@ -442,29 +441,30 @@ export function SandboxApp() {
               onLostPointerCapture={() => session.current?.endCapture()}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
-            >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</button>
-            <button type="button" aria-label="Spoken replies" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
+            >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</Button>
+            <button type="button" className="gic-tag" aria-label="Spoken replies" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
               {voice ? "Voice on" : "Voice off"}
             </button>
           </div>
-          <small className={styles.providerNote}>Claude on Bedrock · ElevenLabs voice. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
+          <small className={`caption ${styles.providerNote}`}>Claude on Bedrock · ElevenLabs voice. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
           <div className={styles.skills}>
-            <button onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
               {sitting ? "Stand" : "Sit"}
             </button>
-            <button onClick={() => skill("kickL", "Left kick")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("kickL", "Left kick")} disabled={!sim}>
               Kick L
             </button>
-            <button onClick={() => skill("kickR", "Right kick")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("kickR", "Right kick")} disabled={!sim}>
               Kick R
             </button>
-            <button onClick={() => skill("peck", "Peck")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("peck", "Peck")} disabled={!sim}>
               Peck
             </button>
-            <button onClick={() => skill("roll", "Roll")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("roll", "Roll")} disabled={!sim}>
               Roll
             </button>
             <button
+              className="gic-social"
               aria-label="Reset the lab"
               onClick={() => {
                 session.current?.cancel(true);

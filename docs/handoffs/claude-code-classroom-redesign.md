@@ -1,5 +1,7 @@
 # Claude Code handoff: Kestrel classroom redesign
 
+> Superseded on 2026-10-25: the owner replaced the classroom with a playground. Current state is in `agent-memory/06-handoff.md` and `DESIGN.md`.
+
 ## Starting prompt
 
 Continue on `lab-workshop-camera`. Read AGENTS.md and agent-memory first, then this document. Improve the real `/console` into an immersive Botanical Studio **classroom** with beautiful apparatus, worktops, floor materials, and purposeful educational details. Study Bruno Simon's My Room in 3D and Folio source and running demos using REA; translate their techniques into this existing R3F/WebGL application. Apply design-taste-frontend with the owner's palette taking precedence. Preserve both physical bots, lesson interactions, camera controls and MuJoCo authority. Implement and visually verify desktop/mobile results, update agent memory, and leave the same branch ready for owner review. Do not merge or push without a new instruction.

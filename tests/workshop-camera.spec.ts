@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+// These boot the full MuJoCo lab, like sandbox.spec.ts; the 30 s default
+// cannot even hold the 60 s boot wait below.
+test.setTimeout(120000);
+
 test("explore camera persists, controls frame and reset, and keyboard stays out of robot input", async ({
   page,
 }) => {

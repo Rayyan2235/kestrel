@@ -116,6 +116,11 @@ World/experiment state, per-bot session, crew coordinator (turn/time/token budge
 
 `SandboxScene` delegates view control to `LabCamera.tsx`, pure framing/pan math to `camera.ts`, and visual-only environment dressing to `Workshop.tsx`. Camera orientation remains fixed to `CAMERA_OFFSET`, preserving screen-relative robot commands. Bubble projection is independent. Workshop dressing preserves furniture collider dimensions; dock markings do not implement charging.
 
-## Botanical Studio materials
+## Playground — 2026-10-25 (replaces Workshop and Botanical materials)
 
-`studioMaterials.ts` generates deterministic original oak/floor/stone/plaster and contact-shade canvas maps. `StudioLighting.tsx` owns a filtered Three.js RoomEnvironment and restores/disposes it on unmount. `Workshop.tsx` renders the original room dressing and a live position monitor reading DuckSim; fixed surface AO comes from `scripts/bake-workshop.mjs`. `public/workshop/PROVENANCE.md` records sources and limits. Dynamic `PropMesh` now bevels boxes without changing their bounding dimensions and disposes geometry/material maps on replacement.
+- `Playground.tsx`: island, court, learning zone, focus target, swings, slide, seesaw, sandpit, bench, bunting, lesson board (to-scale canvas diagrams), trees and clouds, all in MuJoCo coordinates. Everything except the flush court paint stands outside `ROOM_HALF`, so nothing visual needs a collider.
+- `GardenFence.tsx`: instanced picket fence on the boundary wall (inner faces on the collider line) with roses and flowers.
+- `Foliage.tsx`, `Grass.tsx`: Folio-technique canopies and lawn blades (see `PROVENANCE.md`). `playgroundMaterials.ts`: `PLAY` colours and procedural textures.
+- `gic.tsx`/`gic.css`: General Intelligence Company tokens and components (`ArrowPill`, `Button`, nav, toast glass, field, tag, icon button). `Sandbox.module.css` holds layout only.
+- `SandboxScene.tsx`: sun/sky lighting, `SOFTWARE_GL` low-power detection (`?hq` override). `StudioLighting.tsx` still supplies the filtered environment.
+- `roomProps()` in contracts now returns no furniture: the court is open in physics too. Removed: `Workshop.tsx`, `studioMaterials.ts`, `scripts/bake-workshop.mjs`, `public/workshop/`.

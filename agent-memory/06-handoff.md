@@ -1,9 +1,12 @@
-# Current handoff — Botanical classroom
+# Current handoff — playground console
 
-Continue on `lab-workshop-camera`. The owner likes Botanical Studio and asked for a more classroom-like room, then a Claude Code handoff to attempt further redesign on this same branch.
+Continue on `lab-workshop-camera`. Work from the 2026-10-25 Claude Code session is **uncommitted** in the working tree (the owner reviews before any commit; no push or merge).
 
-This pass replaces the studio shelving/sign with a large teaching board that changes with Pythagoras/Moments, a chalk tray and eraser, equipment labels, and a learning-station marker. Original materials, lighting, both bots, camera controls and physics remain intact.
+The owner turned the classroom into a bright playground: full-screen 3D scene, open court with no furniture (physics too: `roomProps()` is empty), a storybook garden picket fence on the boundary wall, swings, slide, seesaw, sandpit, bench, bunting, a lesson chalkboard, Folio-technique trees and grass, and clouds. All panels float over it as General Intelligence Company glass from the owner's design-system artifact (Inter, ArrowPill, solid/link buttons, light toast glass for legibility over the sunny scene). The Home button is gone; the Kestrel mark links home. Details: `DESIGN.md` (Playground console), `apps/web/src/sandbox/PROVENANCE.md`, `03-codebase-map.md`.
 
-Read `docs/handoffs/claude-code-classroom-redesign.md`: owner intent, palette, reference source findings/revisions, reproducible REA workflow, taste skill, code map, physics/interaction invariants and verification checklist. The user will start Claude manually. No push or merge. Local `.agents/` and `skills-lock.json` remain untracked.
+Next:
+1. Owner reviews in the browser (`pnpm dev`, `/console`) and decides on committing.
+2. Open options the owner raised: fence styling is now the garden picket; a gate arch or hedge variant is possible.
+3. Check frame time on a real phone GPU; software WebGL uses the low-power path (`?hq` forces full quality).
 
-Validation: pnpm check passes (185 tests, typecheck, web/API builds and API health smoke). Browser visual verification recorded in the changelog. Prior Botanical camera suite passed 7 checks with one intentional desktop skip. Static AO is approximate, not a full baked GI asset pipeline; small world text needs zoom on mobile.
+Untracked local-only: `.agents/`, `skills-lock.json` (taste skill install), `tests/.probe-*.mjs` (gitignored probes).

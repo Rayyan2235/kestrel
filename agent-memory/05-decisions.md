@@ -40,3 +40,7 @@ Owner directs deletion of the original scripted view, landing Open console navig
 ## 2026-10-25 — console palette
 
 Owner explicitly selected Botanical Studio: warm stone, forest green, sage, brass and clay, after rejecting the blocky noir/amethyst environment. Applies to the console and room; landing remains unchanged. The My Room in 3D reference directs richer materials, furnishing detail, and lighting rather than recoloring primitive geometry alone.
+
+## 2026-10-25 — playground replaces classroom
+
+Owner decisions in the Claude Code session: the console becomes a bright playground instead of a classroom; the whole floor is open to the robots (no walls or fixed furniture inside the boundary); windows and side panels float over a full-screen playground as glassmorphism following the owner's General Intelligence Company design-system artifact, with its components and buttons; the Home button is removed; trees should be realistic rather than low-poly; more clouds; a Disney-style garden fence instead of coloured soft-play blocks. Navy and brass (chosen for the classroom earlier the same morning) is superseded.
