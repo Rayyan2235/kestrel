@@ -340,3 +340,10 @@ Applied owner-selected palette to console and rebuilt Workshop; added studioMate
 - Workshop dialog portals to `<body>`; the console now marks `body.gic-console` while mounted so the dialog wears GIC glass, tags and solid selection above the floating panels. Demo page unaffected.
 - Camera spec budget 120 s → 180 s: CI's software WebGL ran past 120 s at the last click on #16.
 - Checks: `pnpm check` 316 tests, typecheck, builds, API smoke. Workshop and looks checked in screenshots (Pip sky shell applied on the 3D rig).
+
+## 2026-10-25 — Claude Code: lighter low-power scene for CI
+
+- #14's CI (19.2 min vs 8.7–9.4 min on Rayyan's branches) failed the camera spec at 180 s and a 5 s Moments wait. The CI trace showed every Playwright action taking 3–20 s: the page was saturated on the runner's software WebGL.
+- Low-power mode (software GL) now draws `SimpleCanopies` (one solid low-poly ball per canopy, one draw call) instead of alpha-cut leaf cards, and skips clouds and rose foliage. On this Mac's many-core SwiftShader the frame rate was unchanged (≈2 fps either way), so the CI gain is expected, not measured locally.
+- Camera spec budget 180 s → 300 s; the sequence reached its last click at 172 s on CI.
+- `sandbox.spec` natural text still fails on main, #15 and #17 alike (#13's agent session no longer logs the pre-action line); not addressed here.

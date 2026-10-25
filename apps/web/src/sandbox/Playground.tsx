@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import type { LabKit } from "@kestrel/contracts";
 import { ROOM_HALF, SCREEN_DIRS } from "../simulation/constants";
-import { Foliage, barkTexture, type Canopy } from "./Foliage";
+import { Foliage, SimpleCanopies, barkTexture, type Canopy } from "./Foliage";
 import { Grass } from "./Grass";
 import { GardenFence } from "./GardenFence";
 import {
@@ -697,7 +697,7 @@ export function Playground({
 }: {
   kit: LabKit;
   reducedMotion: boolean;
-  /** Software WebGL: skip the grass blades, the costliest optional layer. */
+  /** Software WebGL: no grass blades or clouds, solid canopies instead of leaf cards. */
   lowPower?: boolean;
   onFocus: () => void;
 }) {
@@ -751,7 +751,7 @@ export function Playground({
       </mesh>
       <LearningZone focus={kit.focus} />
       <FocusTarget focus={kit.focus} onFocus={onFocus} />
-      <GardenFence reducedMotion={reducedMotion} />
+      <GardenFence reducedMotion={reducedMotion} lowPower={lowPower} />
       <LessonBoard lesson={kit.id} at={board} />
       {/* Swings on the open left side, where the default view always shows them. */}
       <SwingSet at={[-2.25, 0.1, -0.02]} yaw={Math.PI / 2} reducedMotion={reducedMotion} />
@@ -769,8 +769,8 @@ export function Playground({
       {SHRUBS.map(([x, y, c]) => (
         <Flowers key={`${x},${y}`} at={[x, y, -0.02]} color={c} />
       ))}
-      <Foliage canopies={canopies} reducedMotion={reducedMotion} />
-      <Clouds reducedMotion={reducedMotion} />
+      {lowPower ? <SimpleCanopies canopies={canopies} /> : <Foliage canopies={canopies} reducedMotion={reducedMotion} />}
+      {!lowPower && <Clouds reducedMotion={reducedMotion} />}
     </group>
   );
 }

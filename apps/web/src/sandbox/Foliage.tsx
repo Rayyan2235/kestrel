@@ -161,3 +161,35 @@ export function barkTexture() {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
+
+/**
+ * Low-power stand-in for <Foliage>: one solid low-poly ball per canopy, a
+ * single draw call with no alpha-cut cards. Software WebGL (headless CI,
+ * GPU-less machines) rasterises every leaf card on the CPU, so the full
+ * canopies there cost more than the rest of the scene together.
+ */
+export function SimpleCanopies({ canopies }: { canopies: Canopy[] }) {
+  const mesh = useMemo(() => {
+    const geometry = new THREE.IcosahedronGeometry(1, 1);
+    const material = new THREE.MeshLambertMaterial({ flatShading: true });
+    const mesh = new THREE.InstancedMesh(geometry, material, canopies.length);
+    const o = new THREE.Object3D();
+    canopies.forEach((c, i) => {
+      o.position.set(...c.at);
+      o.scale.setScalar(c.radius);
+      o.updateMatrix();
+      mesh.setMatrixAt(i, o.matrix);
+      mesh.setColorAt(i, new THREE.Color(c.color));
+    });
+    return mesh;
+  }, [canopies]);
+  useEffect(
+    () => () => {
+      mesh.geometry.dispose();
+      (mesh.material as THREE.Material).dispose();
+      mesh.dispose();
+    },
+    [mesh],
+  );
+  return <primitive object={mesh} />;
+}
