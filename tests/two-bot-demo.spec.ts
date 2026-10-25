@@ -26,6 +26,7 @@ const captureVariants = async (page: Page) => {
           const s = getComputedStyle(e);
           return {
             variant: e.getAttribute("data-variant"),
+            opacity: parseFloat(s.opacity),
             bg: s.backgroundColor,
             border: s.borderTopColor,
             w: parseFloat(s.borderTopWidth),
@@ -38,6 +39,8 @@ const captureVariants = async (page: Page) => {
         }),
       );
     for (const r of rows) {
+      // skip frames still fading in: their colors are mid-transition
+      if (r.opacity < 0.99) continue;
       if (r.variant === "to-you") out.toYou ??= r;
       if (r.variant === "bot-to-bot") out.pill ??= r;
     }
@@ -130,7 +133,7 @@ test.describe("addressee drives every cue", () => {
   test("open question: to-you bubble, bot-to-bot pill with capsule, handback", async ({
     page,
   }) => {
-    await open(page);
+    await open(page, 3000); // pill now plays ~700 ms after the ledger handoff; 3 s keeps handoff capsule and pill together
     await send(page, "why does it tilt?");
     await expect(page.getByTestId("status-pip")).not.toHaveAttribute(
       "data-state",
@@ -346,7 +349,7 @@ test.describe("accessibility modes", () => {
     page,
   }) => {
     await page.emulateMedia({ forcedColors: "active" });
-    await open(page);
+    await open(page, 3000);
     await send(page, "why does it tilt?");
     const pill = page.locator(
       '[data-testid="bubble"][data-variant="bot-to-bot"]',
@@ -366,7 +369,7 @@ test.describe("accessibility modes", () => {
     page,
     context,
   }) => {
-    await open(page);
+    await open(page, 3000); // phone pill is ~300 ms at 1 s; see min-visible-time gate
     const cdp = await context.newCDPSession(page);
     await cdp.send("Emulation.setEmulatedVisionDeficiency", {
       type: "achromatopsia",
@@ -468,7 +471,7 @@ test.describe("visual rules", () => {
   test("light bubbles carry a 2px ink outline with 3:1 against the room; dark pill is dark", async ({
     page,
   }) => {
-    await open(page);
+    await open(page, 3000);
     await send(page, "why does it tilt?");
     // phones show one bubble at a time, so sample both variants over time
     const seen = await captureVariants(page);
@@ -539,7 +542,7 @@ for (const vp of [
     test("bubbles stay inside the stage, do not overlap each other, and do not cover a bot", async ({
       page,
     }) => {
-      await open(page);
+      await open(page, 3000); // at 1 s the phone pill is ~300 ms: too short to sample
       await send(page, "why does it tilt?");
       const pill = page.locator(
         '[data-testid="bubble"][data-variant="bot-to-bot"]',
