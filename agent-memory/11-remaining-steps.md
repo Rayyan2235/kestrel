@@ -99,3 +99,5 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 - [done on glass-windows] Import the approved landing assets/components, route Open console to the actual lab, remove original scripted screen, and add dark-purple glass.
 - [authorized] Merge the combined landing/console PR to main once CI passes. Earlier owner-review merge hold is superseded for this PR.
 - [later] Two-robot physics and cooperative experiments still require their separate integration; not implied by the landing artwork.
+
+- [x] Owner environment/camera pass: noir/amethyst/silver workshop, pan and pinch/wheel zoom, explicit follow/frame/reset, reduced-motion support.

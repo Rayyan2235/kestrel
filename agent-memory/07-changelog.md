@@ -260,3 +260,7 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 - Read-only code review found a stale original-root integration expectation; corrected it. Integration checks and PR CI are the remaining merge gates.
 
 Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.
+
+## 2026-10-25 — Codex: workshop and camera
+
+Created `lab-workshop-camera` from main. Added LabCamera, camera math/tests, Workshop, camera toolbar and responsive stage spacing; extracted bubble anchoring from camera following. Workshop uses original procedural geometry and the confirmed palette, preserving MuJoCo props/colliders and both robot rigs. Added browser coverage for persistent exploration, zoom, follow/frame/reset, keyboard Space isolation, lesson switching and touch pinch/cancel. Updated DESIGN and shared memory. Validation: pnpm check (185 tests, builds/API smoke) passed; Playwright 7 passed/1 intentional skip; diff whitespace check passed. Initial interpolation-sensitive assertions corrected; review-discovered Space conflict reproduced then fixed. No paid AI calls, push or merge.

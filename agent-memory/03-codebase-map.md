@@ -111,3 +111,7 @@ World/experiment state, per-bot session, crew coordinator (turn/time/token budge
 - `src/welcome/`: imported landing UI and Arc controls; public artwork/font assets under `public/welcome/`. Landing balance example uses shared deterministic contracts but does not load MuJoCo or ONNX.
 - Removed the old `App.tsx`, `App.module.css`, `world/LabScene.tsx`, and preview-only Zustand `state/lab.ts` plus its obsolete tests. The older map above is historical for those files. Shared contracts and teammate demo runtime remain.
 - `tests/console-entry.spec.ts` and `tests/welcome.spec.ts` cover product navigation and landing interactions; sandbox specs exercise real physics at `/console` and the legacy `/sandbox.html` route.
+
+## Workshop and camera — 2026-10-25
+
+`SandboxScene` delegates view control to `LabCamera.tsx`, pure framing/pan math to `camera.ts`, and visual-only environment dressing to `Workshop.tsx`. Camera orientation remains fixed to `CAMERA_OFFSET`, preserving screen-relative robot commands. Bubble projection is independent. Workshop dressing preserves furniture collider dimensions; dock markings do not implement charging.

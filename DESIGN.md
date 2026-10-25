@@ -48,3 +48,7 @@ Lesson, console and speech surfaces use dense smoked glass, subtle silver edges 
 ## Integrated product entry — October 25, 2026
 
 The illustrated welcome page is the root route. Every Open console action leads directly to `/console`, the existing real Microduck lab. Home returns to the welcome page; the old scripted preview screen is removed. The console glass now uses a dark purple tint (`rgb(34 23 45 / 80%)`) and lavender-lit silver edges; brand colors stay unchanged. Welcome display lettering is self-hosted Grandstander; body text is Plus Jakarta Sans. Owner-supplied concept art remains distinct from runtime physics.
+
+## Console workshop environment
+
+The owner-approved Folio-inspired workshop extends the noir/amethyst/silver identity into the 3D scene. Pale silver flooring keeps the science readable; graphite walls/cabinetry and amethyst inlaid lighting establish depth. Recessed wall panels, cabinet handles, flush dock markings, a slow wall fan and sparse dust provide peripheral detail. A brief expanding floor ring marks lesson entry; reduced motion disables it and ambient movement. The orthographic view retains a fixed angle for screen-relative robot commands. A compact purple glass camera toolbar provides follow, frame, zoom and reset; drag/pinch exploration persists until the learner changes mode. Mobile separates the lesson panel vertically from the scene.

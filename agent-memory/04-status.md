@@ -153,3 +153,7 @@ On `glass-windows` (from main `4154acf`): sandbox lesson/console/speech windows 
 Root now serves the landing page; Open console enters the real lab at `/console`, with `/lab` and `/sandbox.html` compatibility. The original scripted screen, scene and store are removed; the explicit two-bot demo remains separate. Console windows now have a dark purple glass tint. `pnpm check` passes with 139 tests after removing eight obsolete preview-store tests. Landing/navigation/sandbox browser checks pass 16/16 on desktop/mobile. Production entry/console screenshots have no page errors or overflow. Merge to main explicitly authorized by owner, pending CI.
 
 Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.
+
+## Workshop/camera branch — 2026-10-25
+
+On `lab-workshop-camera`: palette-aligned workshop, independent pan/pinch/wheel camera, follow/frame/reset and keyboard controls, reduced-motion behavior and mobile layout. Physics unchanged. `pnpm check`: 185 passing tests and successful builds/API smoke. Browser: 7 passed; 1 intentional desktop skip of mobile pinch test. Independent review finding (Space keyup interception) fixed with a failing-then-passing browser regression. Not merged.

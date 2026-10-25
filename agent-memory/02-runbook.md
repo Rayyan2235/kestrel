@@ -128,3 +128,7 @@ Paid checks: `node scripts/live-voice-check.mjs` (voice round trip plus demo). T
 ## Product routes — 2026-10-25
 
 Run `pnpm dev` and open port 5180: the landing page is `/`, and Open console leads to `/console`. Old `/lab` and `/sandbox.html` links also open the real console. The original scripted preview is removed. Live AI/voice need each teammate's root `.env` (see `.env.example`); never copy or commit credentials. The standalone mock teammate demo remains `/?demo=two-bot`.
+
+## Camera controls
+
+In `/console`, drag the room to pan and scroll/pinch to zoom. Follow crew resumes automatic framing; Frame experiment centers the apparatus; Reset view restores follow. Tab to a camera button and use arrow keys to pan without driving the robots. Camera buttons support Enter/Space.
