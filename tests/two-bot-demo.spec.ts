@@ -13,6 +13,39 @@ const send = async (page: Page, text: string) => {
   await page.getByRole("button", { name: "Send command" }).click();
 };
 
+type Seen = { bg: string; border: string; w: number; room: string[] };
+
+/** Polls until both a to-you bubble and a bot-to-bot pill have been seen (or ~9 s pass). */
+const captureVariants = async (page: Page) => {
+  const out: { toYou?: Seen; pill?: Seen } = {};
+  for (let i = 0; i < 60 && !(out.toYou && out.pill); i++) {
+    const rows = await page
+      .locator('[data-testid="bubble"]')
+      .evaluateAll((els) =>
+        els.map((e) => {
+          const s = getComputedStyle(e);
+          return {
+            variant: e.getAttribute("data-variant"),
+            bg: s.backgroundColor,
+            border: s.borderTopColor,
+            w: parseFloat(s.borderTopWidth),
+            room: (
+              getComputedStyle(
+                document.querySelector('[data-testid="stage"]')!,
+              ).backgroundImage.match(/rgb\([^)]*\)/g) ?? []
+            ).slice(0, 4),
+          };
+        }),
+      );
+    for (const r of rows) {
+      if (r.variant === "to-you") out.toYou ??= r;
+      if (r.variant === "bot-to-bot") out.pill ??= r;
+    }
+    await page.waitForTimeout(150);
+  }
+  return out;
+};
+
 /** Parses rgb()/rgba()/color(srgb ...) into 0..255 channels. */
 const lum = (css: string): number => {
   const nums = css.match(/-?\d*\.?\d+/g)?.map(Number) ?? [];
@@ -123,6 +156,9 @@ test.describe("addressee drives every cue", () => {
     await expect(
       page.locator('[data-testid="bubble"][data-anchor="nova"]'),
     ).toHaveAttribute("data-to", "you");
+    // on phones the bot channel is behind a tab
+    if (await page.getByTestId("tab-bots").count())
+      await page.getByTestId("tab-bots").click();
     await expect(page.getByTestId("evidence")).toBeVisible();
     await expect(page.getByTestId("budget")).toHaveAttribute("data-calls", "2");
     await expect(page.getByTestId("budget")).toHaveAttribute("data-hops", "1");
@@ -341,16 +377,14 @@ test.describe("accessibility modes", () => {
     );
     await expect(pill).toBeVisible({ timeout: 8000 });
     await expect(pill.getByTestId("bubble-chip")).toContainText("to Nova");
-    // luminance must separate light (to you) from dark (bot to bot) without hue
-    await expect(page.getByTestId("handback-strip")).toBeVisible({
-      timeout: 8000,
-    });
-    const toYou = page.locator('[data-testid="bubble"][data-to="you"]').first();
-    const l = await toYou.evaluate((e) => getComputedStyle(e).backgroundColor);
-    const d = await pill
-      .evaluate((e) => getComputedStyle(e).backgroundColor)
-      .catch(() => null);
-    if (d) expect(Math.abs(lum(l) - lum(d))).toBeGreaterThan(0.3);
+    // luminance must separate light (to you) from dark (bot to bot) without hue.
+    // On phones only one bubble shows at a time, so sample both over time.
+    const seen = await captureVariants(page);
+    expect(seen.toYou, "never saw a to-you bubble").toBeDefined();
+    expect(seen.pill, "never saw a bot-to-bot pill").toBeDefined();
+    expect(Math.abs(lum(seen.toYou!.bg) - lum(seen.pill!.bg))).toBeGreaterThan(
+      0.3,
+    );
   });
 
   test("focus is not stolen from a field the learner is typing in", async ({
@@ -436,37 +470,17 @@ test.describe("visual rules", () => {
   }) => {
     await open(page);
     await send(page, "why does it tilt?");
-    const toYou = page
-      .locator('[data-testid="bubble"][data-variant="to-you"]')
-      .first();
-    await expect(toYou).toBeVisible();
-    const light = await toYou.evaluate((e) => {
-      const s = getComputedStyle(e);
-      return {
-        bg: s.backgroundColor,
-        border: s.borderTopColor,
-        w: parseFloat(s.borderTopWidth),
-        // the stage paints its room as a gradient, so read the colors from it
-        room: (
-          getComputedStyle(
-            document.querySelector('[data-testid="stage"]')!,
-          ).backgroundImage.match(/rgb\([^)]*\)/g) ?? []
-        ).slice(0, 4),
-      };
-    });
-    expect(light.w).toBeGreaterThanOrEqual(2);
-    expect(light.room.length).toBeGreaterThan(0);
-    for (const room of new Set(light.room))
-      expect(contrast(light.border, room)).toBeGreaterThanOrEqual(3);
-    const pill = page.locator(
-      '[data-testid="bubble"][data-variant="bot-to-bot"]',
-    );
-    await expect(pill).toBeVisible({ timeout: 8000 });
-    const dark = await pill.evaluate(
-      (e) => getComputedStyle(e).backgroundColor,
-    );
-    expect(lum(dark)).toBeLessThan(0.1);
-    expect(lum(light.bg)).toBeGreaterThan(0.6);
+    // phones show one bubble at a time, so sample both variants over time
+    const seen = await captureVariants(page);
+    const light = seen.toYou;
+    expect(light, "never saw a to-you bubble").toBeDefined();
+    expect(seen.pill, "never saw a bot-to-bot pill").toBeDefined();
+    expect(light!.w).toBeGreaterThanOrEqual(2);
+    expect(light!.room.length).toBeGreaterThan(0);
+    for (const room of new Set(light!.room))
+      expect(contrast(light!.border, room)).toBeGreaterThanOrEqual(3);
+    expect(lum(seen.pill!.bg)).toBeLessThan(0.1);
+    expect(lum(light!.bg)).toBeGreaterThan(0.6);
   });
 
   test("rail: learner thread is light, bot channel is dark", async ({
@@ -621,5 +635,33 @@ test.describe("phone budget", () => {
     await open(page);
     await expect(page.getByRole("tablist")).toBeVisible();
     await expect(page.getByRole("tab")).toHaveCount(2);
+  });
+
+  test("tabs swap panes, flag unread on the hidden tab, and keep Ask/Stop/handback on both", async ({
+    page,
+  }) => {
+    await open(page);
+    await expect(page.getByTestId("tab-you")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.getByRole("tabpanel")).toHaveCount(1);
+    await send(page, "why does it tilt?");
+    await expect(page.getByTestId("unread-bots")).toBeVisible({
+      timeout: 8000,
+    });
+    await expect(page.getByTestId("handback-strip")).toBeVisible({
+      timeout: 8000,
+    });
+    await expect(page.getByTestId("ask-peer")).toBeVisible();
+    await page.getByTestId("tab-bots").click();
+    await expect(page.getByTestId("tab-bots")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.getByTestId("channel-entry").first()).toBeVisible();
+    await expect(page.getByTestId("unread-bots")).toHaveCount(0);
+    await expect(page.getByTestId("handback-strip")).toBeVisible();
+    await expect(page.getByTestId("ask-peer")).toBeVisible();
   });
 });
