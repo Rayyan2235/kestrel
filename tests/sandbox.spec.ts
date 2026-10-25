@@ -85,10 +85,19 @@ test("Moments: Claude balances the plank with a real push and reads the measured
   const placed = JSON.parse(requests[1].messages.at(-1).content[0].content);
   expect(placed.ok).toBe(true);
   expect(placed.summary).toMatch(/^Moved the 200 g weight from 20 cm to (9\.\d|10(\.\d)?) cm \(asked for 10 cm\)\.$/);
+  // A real push lands within about a millimetre of 10 cm, and the balance is
+  // sensitive: 1 mm on the 200 g weight tilts it about 0.5°. So the release
+  // must be near-balanced and reported truthfully, not exactly level.
   const released = JSON.parse(requests[2].messages.at(-1).content[0].content);
-  expect(released.summary).toMatch(/^Released the plank\. It stayed level \(0\.\d°\)\.$/);
-  expect(released.world.balance).toMatchObject({ plank: "released", lowSide: "level" });
-  await expect(page.getByTestId("balance")).toContainText("Level");
+  const tilt = released.world.balance;
+  expect(tilt.plank).toBe("released");
+  expect(tilt.tiltDeg, released.summary).toBeLessThan(1.5);
+  const report = /^Released the plank\. (?:It stayed level \((\d+\.\d)°\)|The (left|right) side went down (\d+\.\d)°)\.$/.exec(released.summary);
+  expect(report, released.summary).not.toBeNull();
+  const reported = Number(report![1] ?? report![3]);
+  // The wording matches the number (level means under 0.5°), and the world snapshot agrees.
+  expect(report![2] ? reported >= 0.5 : reported < 0.5).toBe(true);
+  expect(Math.abs(reported - tilt.tiltDeg)).toBeLessThanOrEqual(0.15);
   expect(errors).toEqual([]);
 });
 
