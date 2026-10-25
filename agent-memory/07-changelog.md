@@ -347,3 +347,9 @@ Applied owner-selected palette to console and rebuilt Workshop; added studioMate
 - Low-power mode (software GL) now draws `SimpleCanopies` (one solid low-poly ball per canopy, one draw call) instead of alpha-cut leaf cards, and skips clouds and rose foliage. On this Mac's many-core SwiftShader the frame rate was unchanged (≈2 fps either way), so the CI gain is expected, not measured locally.
 - Camera spec budget 180 s → 300 s; the sequence reached its last click at 172 s on CI.
 - `sandbox.spec` natural text still fails on main, #15 and #17 alike (#13's agent session no longer logs the pre-action line); not addressed here.
+
+## 2026-10-25 — Claude Code: robot narrates before acting again
+
+- `sandbox.spec` natural text failed on main, #15 and #17: since #13's agent-session rewrite, words that arrive with a `duck_task` call ("I'll walk forward to demonstrate.") were never said or logged; only final words were. `AgentSession.submit` now says them before acting and records them in the turn summary so they are not repeated.
+- Checks: typecheck, 316 unit tests; `sandbox.spec` + `real-console.spec` locally 13 passed, 5 skipped, 0 failed (natural text passes on desktop and mobile).
+

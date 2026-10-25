@@ -299,6 +299,8 @@ export class AgentSession {
         const call = calls[0];
         if (call.name !== "duck_task") throw new Error("Unknown agent action.");
         const task = DuckTaskSchema.parse(call.input);
+        // Say what it is about to do before doing it, as the robot did before the lesson-flow rewrite.
+        if (words) { summary.push(words); await this.say(words, signal); }
         const result = await this.act(task, signal, recipient);
         this.alive(signal);
         summary.push(`Measured ${JSON.stringify(task)}: ${result.summary}`);
