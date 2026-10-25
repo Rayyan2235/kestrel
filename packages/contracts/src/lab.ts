@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rescueKit, isRescueRoute } from "./rescue.js";
 import type { BotId } from "./bot.js";
 
 // Modular lab props. One spec drives both the MuJoCo body and its render
@@ -62,7 +63,7 @@ export type SlotSpec = {
 };
 
 export type LabKit = {
-  id: "pythagoras" | "moments" | "free";
+  id: "pythagoras" | "moments" | "free" | "rescue";
   subject: "Maths" | "Physics" | "Sandbox";
   topic: string;
   props: PropSpec[];
@@ -85,9 +86,8 @@ export function tile(
   pos: Vec2,
   color: string,
   yaw = 0,
-  physicalScale = 1,
 ): PropSpec {
-  const side = units * UNIT * physicalScale;
+  const side = units * UNIT;
   return {
     id,
     label: `${units}×${units} square`,
@@ -134,11 +134,10 @@ export function pythagorasSlots(
   b: number,
   origin: Vec2,
   ids: { a: string; b: string; c: string },
-  physicalScale = 1,
 ): { slots: SlotSpec[]; outline: Vec2[]; c: number } {
   const c = Math.hypot(a, b);
   const [ox, oy] = origin;
-  const u = UNIT * physicalScale;
+  const u = UNIT;
   const hyp = Math.atan2(b, -a); // direction of the edge from (a,0) to (0,b)
   // Outward normal of the hypotenuse, away from the right angle.
   const n: Vec2 = [b / c, a / c];
@@ -178,11 +177,11 @@ export function pythagorasSlots(
   return { slots, outline, c };
 }
 
-/** A square counts as placed when its center lies within 20% of the slot side. */
+/** A square counts as placed when its center lies within `tolerance` of the slot. */
 export function slotFilled(
   propXY: Vec2,
   slot: SlotSpec,
-  tolerance = slot.side * 0.22,
+  tolerance = UNIT,
 ): boolean {
   return (
     Math.hypot(propXY[0] - slot.pos[0], propXY[1] - slot.pos[1]) <= tolerance
@@ -193,14 +192,11 @@ export function pythagorasKit(): LabKit {
   const ids = { a: "square-3", b: "square-4", c: "square-5" };
   // The triangle's legs: 4 units along +x and 3 along +y, so the squares
   // are 4×4 below, 3×3 to the left and 5×5 on the hypotenuse.
-  // Keep the established 3-4-5 tile scale; placement logic handles settling
-  // and drift instead of enlarging the props to mask inaccurate pushes.
-  const physicalScale = 1;
   const { slots, outline } = pythagorasSlots(4, 3, [0.35, -0.1], {
     a: ids.b,
     b: ids.a,
     c: ids.c,
-  }, physicalScale);
+  });
   return {
     id: "pythagoras",
     focus: [0.45, -0.05],
@@ -210,9 +206,9 @@ export function pythagorasKit(): LabKit {
     props: [
       // Each tile starts outside its own side of the triangle, so pushing it
       // straight in never sweeps across a slot that is already filled.
-      tile(ids.a, 3, [-0.25, 0.35], "#5caca4", 0, physicalScale),
-      tile(ids.b, 4, [0.43, -0.8], "#dc8060", 0, physicalScale),
-      tile(ids.c, 5, [0.27, 0.75], "#d2b54c", 0, physicalScale),
+      tile(ids.a, 3, [-0.25, 0.35], "#5caca4"),
+      tile(ids.b, 4, [0.43, -0.8], "#dc8060"),
+      tile(ids.c, 5, [0.95, 0.62], "#d2b54c"),
     ],
     slots,
     outline,
@@ -394,7 +390,7 @@ export function roomProps(): PropSpec[] {
   return [];
 }
 
-export const KITS = { pythagoras: pythagorasKit, moments: momentsKit, free: freeKit };
+export const KITS = { rescue: rescueKit, pythagoras: pythagorasKit, moments: momentsKit, free: freeKit };
 export type KitId = keyof typeof KITS;
 
 // ── Duck tasks ─────────────────────────────────────────────────────────
@@ -404,6 +400,7 @@ export type KitId = keyof typeof KITS;
 
 const PropRef = z.string().min(1).max(40);
 export const DuckTaskSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("rescue_route"), route: z.array(z.enum(["A", "B", "C", "D", "E", "F", "H"])).refine(isRescueRoute, "Follow connected arrows from A to H") }).strict(),
   z.object({ kind: z.literal("move"), meters: z.number().min(-1).max(2) }).strict(),
   z.object({ kind: z.literal("turn"), degrees: z.number().min(-360).max(360) }).strict(),
   z.object({ kind: z.literal("go_to"), target: PropRef }).strict(),

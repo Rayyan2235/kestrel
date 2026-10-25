@@ -239,14 +239,14 @@
 .console {
   position: absolute;
   z-index: 3;
-  top: 16px;
+  top: 84px;
   right: 16px;
   bottom: 16px;
-  width: 352px;
-  padding: var(--space-4);
+  width: 340px;
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-3);
 }
 .consoleHead {
   display: flex;
@@ -306,10 +306,10 @@
   display: inline-block;
 }
 .pipDot {
-  background: #3a3a3e;
+  background: #454b54;
 }
 .novaDot {
-  background: #7e49b3;
+  background: #244267;
 }
 .log {
   flex: 1;
@@ -385,9 +385,6 @@
 .voiceControls > :last-child {
   min-height: 40px;
 }
-.providerNote {
-  color: var(--ink-muted);
-}
 .skills {
   display: flex;
   flex-wrap: wrap;
@@ -426,29 +423,100 @@
 .note {
   color: var(--ink-muted);
 }
+/* Collapsed, the controls are one small "Controls" pill; open, the keys wrap under it. */
+.keysHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.keys[data-open="true"] .keysHead {
+  flex-basis: 100%;
+}
+.keysHead .chevron {
+  transform: rotate(180deg);
+}
+.keysHead[aria-expanded="true"] .chevron {
+  transform: none;
+}
 
 /* Speech bubble beside Pip: a toast card. */
+/*
+ * Pixel-art thought bubble. The stepped outline is hard box-shadows (no
+ * blur): the white body grows one pixel step out, then ink one step past it
+ * with ink corner pixels, which notches every corner like a sprite. Two
+ * pixel dots trail down to Pip. One "pixel" is --px.
+ */
 .bubble {
+  --px: 3px;
+  --bubble-ink: #2c2c2c;
   position: absolute;
   left: 0;
   top: 0;
   z-index: 2;
-  max-width: 260px;
-  padding: 10px 13px;
-  border: 1px solid var(--wash-toast);
-  border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-2xl) var(--radius-sm);
-  background: var(--wash-toast);
-  -webkit-backdrop-filter: blur(var(--blur-toast));
-  backdrop-filter: blur(var(--blur-toast));
-  box-shadow: var(--shadow-card);
+  max-width: 250px;
+  padding: 7px 11px;
+  background: #ffffff;
   color: var(--ink);
-  font: 400 13px/19.5px var(--font-sans);
+  font: 500 15px/20px "Pixelify Sans", var(--font-sans);
+  letter-spacing: 0.2px;
+  box-shadow:
+    0 calc(var(--px) * -1) #ffffff,
+    0 var(--px) #ffffff,
+    calc(var(--px) * -1) 0 #ffffff,
+    var(--px) 0 #ffffff,
+    0 calc(var(--px) * -2) var(--bubble-ink),
+    0 calc(var(--px) * 2) var(--bubble-ink),
+    calc(var(--px) * -2) 0 var(--bubble-ink),
+    calc(var(--px) * 2) 0 var(--bubble-ink),
+    calc(var(--px) * -1) calc(var(--px) * -1) var(--bubble-ink),
+    var(--px) calc(var(--px) * -1) var(--bubble-ink),
+    calc(var(--px) * -1) var(--px) var(--bubble-ink),
+    var(--px) var(--px) var(--bubble-ink),
+    0 calc(var(--px) * 4) #00000024;
+  transform-origin: 50% 100%;
   pointer-events: none;
-  animation: bubbleIn 250ms ease-out;
+  animation: bubbleIn 280ms steps(4, end) both;
+}
+.bubble::before,
+.bubble::after {
+  content: "";
+  position: absolute;
+  background: #ffffff;
+  box-shadow:
+    0 calc(var(--px) * -1) var(--bubble-ink),
+    0 var(--px) var(--bubble-ink),
+    calc(var(--px) * -1) 0 var(--bubble-ink),
+    var(--px) 0 var(--bubble-ink);
+}
+.bubble::before {
+  width: calc(var(--px) * 3);
+  height: calc(var(--px) * 3);
+  left: calc(50% - var(--px) * 3);
+  bottom: calc(var(--px) * -6);
+}
+.bubble::after {
+  width: var(--px);
+  height: var(--px);
+  left: calc(50% - var(--px) * 1);
+  bottom: calc(var(--px) * -10);
 }
 @keyframes bubbleIn {
   from {
     opacity: 0;
+    scale: 0.6;
+  }
+  70% {
+    opacity: 1;
+    scale: 1.06;
+  }
+  to {
+    scale: 1;
   }
 }
 
@@ -457,7 +525,7 @@
   position: absolute;
   z-index: 4;
   bottom: 16px;
-  right: 384px;
+  right: 372px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -600,46 +668,48 @@
   }
 }
 
-/* Console accordion: the log and the two conversation panes, one open at a time. */
-.windows {
+.missionConsole { overflow-y: auto; }
+@media (max-width: 900px) {
+  .rescueStage { height: 440px; }
+  .rescueStage .sceneWrap { top: 0; }
+}
+
+/* Right rail: the objectives on top, the console under them. */
+.rail {
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rail .console {
+  position: relative;
+  inset: auto;
+  width: auto;
   flex: 1;
   min-height: 0;
+  /* On short screens the console scrolls instead of its parts overlapping. */
+  overflow-y: auto;
+}
+.objectives {
+  flex: none;
+  max-height: 50%;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-3);
 }
-.windows > * {
-  min-height: 0;
-}
-.windows > :last-child {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-.window {
-  display: flex;
-  flex-direction: column;
-  border-radius: var(--radius-xl);
-  background: #ffffffb3;
-  box-shadow: var(--shadow-card);
-  overflow: hidden;
-}
-.window[data-open="true"] {
-  flex: 1;
-  min-height: 150px;
-}
-.window h2 {
-  margin: 0;
-  font: 500 14px/21px var(--font-sans);
-  letter-spacing: -0.15px;
-}
-.fold {
+.objectivesHead {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  min-height: 40px;
-  padding: 8px 12px;
+  padding: 0;
   border: 0;
   background: none;
   color: var(--ink);
@@ -647,155 +717,231 @@
   text-align: left;
   cursor: pointer;
 }
-.app .fold:focus-visible {
-  outline-offset: -4px;
-  border-radius: 10px;
-}
-.chevron {
-  flex: none;
+.objectivesCount {
   margin-left: auto;
-  transition: transform 250ms;
-}
-.fold[aria-expanded="true"] .chevron {
-  transform: rotate(180deg);
-}
-.count {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: #c9ecdc;
-  color: var(--control-solid);
-  font: 600 11px/18px var(--font-sans);
-  text-align: center;
-}
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-.window .log {
-  min-height: 0;
-  padding: 0 12px 12px;
-}
-.log[hidden] {
-  display: none;
-}
-
-/* Who the learner is talking to, beside Pause and the routing chip. */
-.picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink-secondary);
-}
-.picker button {
-  min-height: 32px;
-}
-.addressChip {
-  width: 100%;
   color: var(--ink-muted);
 }
-
-/* Teammate overlays (bubbles, capsule) and progress panels read these tokens. */
-.overlayTokens,
-.lightScope {
-  --ink: #2c2c2c;
-  --muted: #646464;
-  --panel: #ffffffe6;
-  --dock: #1f1f29;
-  --on-dark: #ffffff;
-  --on-dark-muted: #ffffffb3;
-  --accent: #c9ecdc;
-  --shadow: 0 1px 8px 0 #0000000d;
-  color: var(--ink);
+.chevron {
+  transition: transform 250ms;
 }
-.overlayTokens {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+.objectivesHead[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
 }
-.lightScope {
-  display: grid;
-  gap: 8px;
+.activeObjective {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.activeObjective p {
   margin: 0;
-  padding: 12px;
-  border-radius: var(--radius-xl);
+}
+.objectiveBrief,
+.xpText {
+  color: var(--ink-secondary);
+}
+.xpTrack {
+  position: relative;
+  height: 12px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
   background: #ffffff8c;
-  box-shadow: var(--shadow-card);
-  font: 500 13px/19.5px var(--font-sans);
+  box-shadow: var(--shadow-ring);
+  transition: box-shadow 400ms;
+}
+.xpTrack i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f6c453, #f29f3d);
+  transition: width 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.xpWon {
+  box-shadow: 0 0 0 1px #f2b13d, 0 0 14px #f6c45399;
+}
+.objectiveList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.objectiveItem {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: #ffffff59;
+  color: var(--ink);
+  font: 500 13px/18.2px var(--font-sans);
+  letter-spacing: -0.13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 250ms, color 250ms;
+}
+.objectiveItem small {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--ink-muted);
+}
+.objectiveItem > :last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.objectiveItem:hover {
+  background: #ffffff99;
+}
+.objectiveItem[aria-pressed="true"] {
+  border-color: var(--control-solid-border);
+  background-color: var(--control-solid);
+  background-image: linear-gradient(180deg, var(--sheen-solid-from), var(--sheen-solid-to));
+  color: var(--white);
+}
+.objectiveItem[aria-pressed="true"] small {
+  color: #ffffffb3;
 }
 @media (prefers-reduced-motion: reduce) {
+  .xpTrack i,
   .chevron {
     transition: none;
   }
 }
-/* The rail only takes spare height while one of its panes is open. */
-.windows > :last-child {
-  flex: none;
+@media (max-width: 900px) {
+  .rail {
+    position: static;
+    width: auto;
+    margin: 0 12px;
+  }
+  .rail .console {
+    margin: 0;
+  }
+  .objectives {
+    max-height: none;
+  }
 }
-.windows > :last-child:has([data-open="true"]) {
+
+/* Console windows: You and Pip, Pip and Nova. One open at a time. */
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Open, a window takes the spare height and its log scrolls inside it; 160px keeps a few lines readable. */
+.pane[data-open="true"] {
   flex: 1;
+  min-height: 160px;
 }
-/* Teammate progress controls in GIC dress: tag-like buttons, hairline frames. */
-.lightScope button {
-  min-height: 32px;
-  padding: 4px 12px;
-  border: 1px solid var(--tag-border);
-  border-radius: var(--radius-lg);
-  background: #ffffffb3;
-  box-shadow: var(--shadow-pill);
-  color: var(--ink);
-  font: 500 13px/18.2px var(--font-sans);
-  cursor: pointer;
-}
-.lightScope button:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-.lightScope :is([data-testid="xp-pill"], [data-testid="challenge-banner"], [data-testid="prediction-prompt"]) {
-  border-width: 1px;
-  border-color: var(--line-strong);
-  box-shadow: var(--tag-shadow);
-}
-/* Lesson-flow additions from main, in GIC glass. */
-.recipient {
+.paneHead {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--ink-muted);
-  font: 500 13px/18.2px var(--font-sans);
-}
-.recipient select {
+  width: 100%;
   padding: 6px 10px;
-  border: 1px solid var(--line-field);
+  border: 0;
   border-radius: var(--radius-lg);
-  background: var(--surface-raised);
+  background: #ffffff59;
   color: var(--ink);
   font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 250ms;
 }
-.demoStatus {
+.paneHead:hover {
+  background: #ffffff99;
+}
+.paneState {
+  margin-left: auto;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pushRight {
+  margin-left: auto;
+}
+.paneHead[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.crewFrom {
+  font-weight: 600;
+  margin-right: 4px;
+}
+.fromPip {
+  box-shadow: inset 3px 0 0 #454b54, var(--shadow-card);
+}
+.fromNova {
+  box-shadow: inset 3px 0 0 #244267, var(--shadow-card);
+}
+.fromCrew {
+  background: #fff6dc;
+}
+
+/* Confetti over everything when an objective is met; never catches the pointer. */
+.confetti {
   position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   z-index: 50;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 16px;
-  border: 1px solid var(--wash-toast);
-  border-radius: var(--radius-2xl);
-  background: var(--wash-toast);
-  -webkit-backdrop-filter: blur(var(--blur-toast));
-  backdrop-filter: blur(var(--blur-toast));
-  box-shadow: var(--shadow-float);
-  color: var(--ink);
-  font: 600 13px/19.5px var(--font-sans);
+  pointer-events: none;
 }
-.skills button[data-active="true"] {
-  border-color: var(--control-solid-border);
-  background-color: var(--control-solid);
-  color: var(--white);
+.fightRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* The lesson card folds to its title row. */
+.lessonHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lessonHead[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+/* The landing page's mark: eyes and the Grandstander wordmark (same self-hosted file). */
+@font-face {
+  font-family: "Grandstander";
+  src: url("/welcome/fonts/grandstander-latin-900.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+}
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo svg {
+  width: 34px;
+  height: 18px;
+  flex: none;
+}
+.brand .logo h1 {
+  margin: 0;
+  font-family: "Grandstander", var(--font-sans);
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.logoPeriod {
+  color: #c5a3e8;
 }

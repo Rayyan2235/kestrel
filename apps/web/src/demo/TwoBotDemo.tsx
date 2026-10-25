@@ -14,18 +14,6 @@ import {
   type FormEvent,
 } from "react";
 import { ArrowUp, Pause, Play, RotateCcw, Square } from "lucide-react";
-import { BotFigure } from "../cosmetics/BotFigure.js";
-import { WorkshopDialog } from "../cosmetics/WorkshopDialog.js";
-import { ChallengeBar } from "../progress/ChallengeBar.js";
-import { challengeById } from "../progress/challenges.js";
-import { demoSeed } from "../progress/demoSeed.js";
-import { createLabEventLog } from "../progress/events.js";
-import { PredictionPrompt } from "../progress/PredictionPrompt.js";
-import { ProgressHud } from "../progress/ProgressHud.js";
-import { DUCKSIM_TOL_GCM } from "../progress/outcome.js";
-import { createProgressStore } from "../progress/store.js";
-import { useProgress } from "../progress/useStore.js";
-import type { HeldMove } from "../coordinator/types.js";
 import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
 import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
 import { createCoordinator } from "../coordinator/index.js";
@@ -45,7 +33,7 @@ const DELAYS = [1000, 3000, 6000] as const;
 const SPEEDS = [0.5, 1] as const;
 
 /** Loads the real lab for `?sim=mujoco`; the stub otherwise, or if loading fails. */
-export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
+export function TwoBotDemo() {
   const mujoco =
     new URLSearchParams(window.location.search).get("sim") === "mujoco";
   const stub = useMemo(() => createFakeSim(), []);
@@ -82,26 +70,17 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
         </div>
       </div>
     );
-  return (
-    <DemoRoom
-      sim={real ?? stub}
-      mujoco={real !== null}
-      failed={failed}
-      progress={progress}
-    />
-  );
+  return <DemoRoom sim={real ?? stub} mujoco={real !== null} failed={failed} />;
 }
 
 function DemoRoom({
   sim: lab,
   mujoco,
   failed,
-  progress,
 }: {
   sim: SimAdapter;
   mujoco: boolean;
   failed: string | null;
-  progress: boolean;
 }) {
   const reducedMotion = Boolean(useReducedMotion());
   const [, rerender] = useReducer((n: number) => n + 1, 0);
@@ -141,15 +120,8 @@ function DemoRoom({
     };
   }, [wantsLive]);
 
-  const { sim, c, log, store } = useMemo(() => {
+  const { sim, c } = useMemo(() => {
     const sim = lab;
-    const log = createLabEventLog();
-    // The progress demo profile lives in memory only: storage is never touched.
-    const store = createProgressStore({
-      log,
-      storage: null,
-      seed: demoSeed(),
-    });
     // Reads the delay at call time so the selector applies to the next call.
     const mock: Provider = {
       respond: (req, signal) =>
@@ -163,40 +135,8 @@ function DemoRoom({
       respond: (req, signal) =>
         (liveRef.current ? claude : mock).respond(req, signal),
     };
-    return {
-      sim,
-      c: createCoordinator({
-        sim,
-        provider,
-        ...(progress
-          ? {
-              log,
-              ...(mujoco ? { tolGcm: DUCKSIM_TOL_GCM, settleMs: 400 } : {}),
-            }
-          : {}),
-      }),
-      log,
-      store,
-    };
-  }, [lab, progress, mujoco]);
-  // Dev-only handle for browser tests: the logged lab events.
-  useEffect(() => {
-    if (!progress || !import.meta.env.DEV) return;
-    (window as unknown as { kestrelProgress: unknown }).kestrelProgress = {
-      events: () => log.events(),
-    };
-  }, [progress, log]);
-  const held = useRef<HeldMove | null>(null);
-  const [workshop, setWorkshop] = useState(false);
-  const [setup, setSetup] = useState<"idle" | "busy" | "failed">("idle");
-  const view = useProgress(store);
-  const challengeId = c.challengeId();
-  const completed =
-    challengeId !== null &&
-    view.awards.some((a) => a.awardId === `complete|${challengeId}`);
-  const explained =
-    challengeId !== null &&
-    view.awards.some((a) => a.awardId === `explain|${challengeId}`);
+    return { sim, c: createCoordinator({ sim, provider }) };
+  }, [lab]);
   useEffect(() => {
     const offs = [c.subscribe(rerender), sim.subscribe(rerender)];
     return () => offs.forEach((off) => off());
@@ -208,18 +148,16 @@ function DemoRoom({
   const idleRef = useRef(true);
   idleRef.current = pres.phase === "idle" && pres.queued === 0;
   const status = { pip: c.botState("pip"), nova: c.botState("nova") };
-  const channel = deriveChannel(ledger, status, c.budget());
+  const view = deriveChannel(ledger, status, c.budget());
   const running = (["pip", "nova"] as const).some((b) =>
     ["thinking", "waiting", "acting"].includes(status[b]),
   );
-  // A held move can be cancelled with Stop even though no chain is running.
-  const stoppable = running || (progress && c.holding());
   const lastLearner = [...ledger].reverse().find((e) => e.kind === "learner");
   const threadBot: BotId =
     lastLearner && lastLearner.to !== "you" ? lastLearner.to : selected;
 
   // Handback: pulse the dock once; move focus only when nothing is being typed.
-  const handbackId = channel.handback?.id ?? null;
+  const handbackId = view.handback?.id ?? null;
   useEffect(() => {
     if (!handbackId) return;
     setPulsing(true);
@@ -281,24 +219,6 @@ function DemoRoom({
       rightCm: w.rightCm,
       undo: undo.current,
     });
-    if (progress && c.challengeId() && r.kind === "move") {
-      // A challenge move waits for a prediction before anything moves.
-      const challenge = challengeById(c.challengeId()!)!;
-      focus.current = r.side;
-      held.current = c.heldTurn(
-        bot,
-        cmd,
-        {
-          say: "Lock your prediction, then I'll move it.",
-          action: { side: r.side, cm: r.cm },
-        },
-        {
-          challengeId: challenge.challengeId,
-          promptId: challenge.prompts[0]!.promptId,
-        },
-      );
-      return undefined;
-    }
     if (r.kind === "move") {
       undo.current.push({
         side: r.side,
@@ -337,28 +257,12 @@ function DemoRoom({
 
   function stop() {
     runId.current++;
-    setSetup("idle");
     setStep(null);
     halt();
   }
 
-  function startChallenge(id: string) {
-    runId.current++;
-    setStoppedSeq(null);
-    focus.current = null;
-    undo.current = [];
-    setStep(null);
-    pres.interrupt();
-    setSetup("busy");
-    const mine = runId.current;
-    void c.startChallenge(id, challengeById(id)!.setup).then((ok) => {
-      if (runId.current === mine) setSetup(ok ? "idle" : "failed");
-    });
-  }
-
   function reset() {
     runId.current++;
-    setSetup("idle");
     setStoppedSeq(null);
     focus.current = null;
     undo.current = [];
@@ -432,13 +336,6 @@ function DemoRoom({
             {failed && ` (The MuJoCo lab failed to load: ${failed})`}
           </>
         )}
-        {progress && (
-          <>
-            {" "}
-            <strong>Demo profile: progress is not saved.</strong> XP comes only
-            from measured results; items are cosmetic.
-          </>
-        )}
       </div>
       <main className={styles.layout}>
         <section className={styles.left} aria-label="Lab">
@@ -495,21 +392,27 @@ function DemoRoom({
                   ? pres.beat.event
                   : null;
               return (
-                <BotFigure
+                <div
                   key={b}
-                  id={b}
-                  look={progress ? view.equipped[b] : undefined}
-                  attrs={{
-                    "data-facing": speaking?.to ?? "you",
-                    "data-state": status[b],
-                  }}
+                  className={styles.bot}
+                  data-testid={`bot-${b}`}
+                  data-bot={b}
+                  data-facing={speaking?.to ?? "you"}
+                  data-state={status[b]}
+                  data-shape={b}
                   style={
                     {
                       "--x": `${ANCHORS[b].x}%`,
                       "--y": `${ANCHORS[b].y}%`,
                     } as CSSProperties
                   }
-                />
+                >
+                  <span className={styles.eyes} aria-hidden="true">
+                    <i />
+                    <i />
+                  </span>
+                  <span className={styles.tag}>{BOT_NAMES[b]}</span>
+                </div>
               );
             })}
             <BubbleLayer
@@ -534,54 +437,6 @@ function DemoRoom({
             )}
           </div>
 
-          {progress && (
-            <>
-              <ProgressHud
-                store={store}
-                paused={paused}
-                speed={speed}
-                onWorkshop={() => setWorkshop(true)}
-              />
-              <ChallengeBar
-                active={challengeId}
-                completed={completed}
-                explained={explained}
-                onStart={startChallenge}
-                onExplain={() =>
-                  challengeId &&
-                  log.append({
-                    type: "explanation_submitted",
-                    challengeId,
-                    epoch: c.epoch(),
-                    worldVersion: sim.snapshot().version,
-                  })
-                }
-              />
-              {setup === "busy" && (
-                <p role="status" data-testid="setup-status">
-                  {c.pushing()
-                    ? `${BOT_NAMES[c.pushing()!]} is setting up the beam…`
-                    : "Setting up the beam…"}
-                </p>
-              )}
-              {setup === "failed" && (
-                <p role="alert" data-testid="setup-failed">
-                  Setup did not finish. Try again.
-                </p>
-              )}
-              {c.pushing() && setup !== "busy" && (
-                <p role="status" data-testid="pushing">
-                  {BOT_NAMES[c.pushing()!]} is pushing the weight…
-                </p>
-              )}
-              {c.holding() && held.current && (
-                <PredictionPrompt
-                  onChoose={(choice) => held.current?.commit(choice)}
-                  onSkip={() => held.current?.skip()}
-                />
-              )}
-            </>
-          )}
           <section
             className={styles.dock}
             aria-label="Command dock"
@@ -603,14 +458,6 @@ function DemoRoom({
                   {BOT_NAMES[b]}
                 </button>
               ))}
-              {progress && (
-                <WorkshopDialog
-                  store={store}
-                  open={workshop}
-                  onOpenChange={setWorkshop}
-                  persisted={false}
-                />
-              )}
             </div>
             <form onSubmit={submit} className={styles.form}>
               <label htmlFor="cmd">To {BOT_NAMES[selected]}</label>
@@ -681,7 +528,7 @@ function DemoRoom({
               <button
                 data-testid="dock-stop"
                 onClick={stop}
-                disabled={!stoppable}
+                disabled={!running}
               >
                 <Square size={14} aria-hidden="true" /> Stop
               </button>
@@ -700,9 +547,9 @@ function DemoRoom({
           </section>
         </section>
         <ChannelPanel
-          view={channel}
+          view={view}
           threadBot={threadBot}
-          running={stoppable}
+          running={running}
           onAsk={(from, to) => {
             runId.current++;
             c.askPeer(from, to);

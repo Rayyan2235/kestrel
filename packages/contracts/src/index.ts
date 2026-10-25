@@ -2,7 +2,6 @@ import { z } from "zod";
 import { BotSchema, type BotId } from "./bot.js";
 export { BotSchema, type BotId } from "./bot.js";
 export * from "./ledger.js";
-export * from "./progress.js";
 export const CommandSchema = z
   .object({
     botId: BotSchema,
@@ -119,3 +118,5 @@ export function previewExchange(botId: BotId, world: World): Message[] {
 
 export * from "./lab.js";
 export * from "./agent.js";
+
+export * from "./rescue.js";

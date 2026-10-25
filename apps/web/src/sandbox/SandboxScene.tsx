@@ -11,6 +11,9 @@ import {
   type SlotSpec,
 } from "@kestrel/contracts";
 import { LabCamera } from "./LabCamera";
+import { Explosion } from "./Explosion";
+import { RescueCourse } from "./RescueCourse";
+import type { RescueRoute } from "@kestrel/contracts";
 import { Playground } from "./Playground";
 import { PLAY } from "./playgroundMaterials";
 import { StudioLighting } from "./StudioLighting";
@@ -19,8 +22,7 @@ import { Focus, Minus, Plus, RotateCcw, ScanEye } from "lucide-react";
 import type { BotId } from "@kestrel/contracts";
 import { BOTS, type DuckSim } from "../simulation/duckSim";
 import { buildDuckRig, poseDuckRig, type DuckRig } from "../simulation/rig";
-import type { BotLook } from "@kestrel/contracts";
-import { applyLook, describeLook, dressingFor } from "../cosmetics/rig3d";
+import "@fontsource/pixelify-sans/500.css";
 import styles from "./Sandbox.module.css";
 
 // Everything inside <MjFrame> uses MuJoCo coordinates (z up), so props,
@@ -297,28 +299,29 @@ function BubbleAnchor({
   bubble: React.RefObject<HTMLDivElement | null>;
 }) {
   const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
-  const other = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const { camera } = useThree();
   const head = useMemo(() => new THREE.Vector3(), []);
   const { size } = useThree();
   useFrame(() => {
     sim.readTrunk(pose, "pip");
-    sim.readTrunk(other, "nova");
     // Anchor the speech bubble just above the duck's head, in screen space.
     const el = bubble.current;
     if (el) {
-      const speaking = el.dataset.speaker === "nova" ? other.pos : pose.pos;
-      head.set(speaking[0], speaking[2] + 0.2, -speaking[1]).project(camera);
+      head.set(pose.pos[0], pose.pos[2] + 0.2, -pose.pos[1]).project(camera);
       const x = ((head.x + 1) / 2) * size.width;
       const y = ((1 - head.y) / 2) * size.height;
-      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+      const visibleX = Math.max(el.offsetWidth / 2 + 8, Math.min(size.width - el.offsetWidth / 2 - 8, x));
+      // The thought dots hang 30px under the bubble, down to the head.
+      const visibleY = Math.max(el.offsetHeight + 38, Math.min(size.height - 8, y));
+      el.style.visibility = "visible";
+      el.style.transform = `translate(${visibleX.toFixed(1)}px, ${visibleY.toFixed(1)}px) translate(-50%, calc(-100% - 30px))`;
     }
   });
   return null;
 }
 
 /** Pip in Nox Noir graphite, Nova in Royal Amethyst. */
-export const BOT_TINTS: Record<BotId, string> = { pip: "#3a3a3e", nova: "#7e49b3" };
+export const BOT_TINTS: Record<BotId, string> = { pip: "#454b54", nova: "#244267" };
 
 function Slots({ kit, sim, onProgress }: { kit: LabKit; sim: DuckSim; onProgress: (filled: string[]) => void }) {
   const [filled, setFilled] = useState<string[]>([]);
@@ -372,16 +375,18 @@ export function SandboxScene({
   tint,
   onProgress,
   bubble,
-  looks,
+  rescueRoute = null,
+  blasts = [],
 }: {
   sim: DuckSim;
   kit: LabKit;
+  rescueRoute?: RescueRoute | null;
   tint: string;
-  /** Workshop looks per robot: shell colour and simple props, drawn only. */
-  looks?: Record<BotId, BotLook>;
   onProgress: (filled: string[]) => void;
   /** Latest public reply from the duck, shown next to it. */
-  bubble: { id: number; text: string; speaker: BotId } | null;
+  bubble: { id: number; text: string } | null;
+  /** Clashes to draw an explosion for, in MuJoCo coordinates. */
+  blasts?: { id: number; at: [number, number, number] }[];
 }) {
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<CameraMode>("follow");
@@ -406,24 +411,6 @@ export function SandboxScene({
       live = false;
     };
   }, [tint]);
-  const dressings = useMemo(
-    () =>
-      rigs
-        ? (Object.fromEntries(BOTS.map((id) => [id, dressingFor(rigs[id], BOT_TINTS[id] ?? tint)])) as Record<
-            BotId,
-            ReturnType<typeof dressingFor>
-          >)
-        : null,
-    [rigs, tint],
-  );
-  useEffect(() => {
-    if (!dressings || !looks) return;
-    for (const id of BOTS) applyLook(dressings[id], looks[id]);
-    // Dev-only handle for browser tests: what each robot wears.
-    if (import.meta.env.DEV)
-      (window as unknown as { kestrelLooks: unknown }).kestrelLooks = () =>
-        Object.fromEntries(BOTS.map((id) => [id, describeLook(dressings[id])]));
-  }, [dressings, looks]);
   // Fixed furniture, if a kit ever adds some back; the playground court itself is open.
   const furniture = useMemo(() => roomProps(), []);
   if (error) return <div className="scene-fallback">The robot model could not load: {error}</div>;
@@ -459,6 +446,7 @@ export function SandboxScene({
       />
       <Playground kit={kit} reducedMotion={reducedMotion} lowPower={SOFTWARE_GL} onFocus={() => sendCamera("experiment")} />
       <LabCamera sim={sim} focus={kit.focus} command={command} onMode={setMode} reducedMotion={reducedMotion} />
+      {kit.id === "rescue" && <RescueCourse route={rescueRoute} />}
       <Slots kit={kit} sim={sim} onProgress={onProgress} />
       {kit.id === "moments" && <MomentsDressing sim={sim} />}
       <MjFrame>
@@ -468,6 +456,11 @@ export function SandboxScene({
       </MjFrame>
       {rigs && BOTS.map((id) => <Robot key={id} sim={sim} id={id} rig={rigs[id]} />)}
       {rigs && <BubbleAnchor sim={sim} bubble={bubbleRef} />}
+      <MjFrame>
+        {blasts.map((b) => (
+          <Explosion key={b.id} at={b.at} reducedMotion={reducedMotion} />
+        ))}
+      </MjFrame>
     </Canvas>
       <div className={styles.cameraControls} role="group" aria-label="Camera controls" onKeyUp={e => { if ([" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.stopPropagation(); }} onKeyDown={e => {
         const pan: Record<string, CameraCommand["kind"]> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
@@ -483,7 +476,7 @@ export function SandboxScene({
         <button type="button" aria-label="Reset view" onClick={() => sendCamera("reset")} title="Reset view"><RotateCcw size={16} /></button>
       </div>
       {bubble && (
-        <div key={bubble.id} ref={bubbleRef} data-speaker={bubble.speaker} className={styles.bubble} role="status">
+        <div key={bubble.id} ref={bubbleRef} style={{visibility:"hidden"}} className={styles.bubble} role="status">
           {bubble.text}
         </div>
       )}

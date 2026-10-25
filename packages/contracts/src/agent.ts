@@ -3,35 +3,19 @@ import { DuckTaskSchema } from "./lab.js";
 
 const Text = z.object({ type: z.literal("text"), text: z.string().min(1).max(2400) }).strict();
 const Tool = z.object({ type: z.literal("tool_use"), id: z.string().min(1).max(100), name: z.literal("duck_task"), input: DuckTaskSchema }).strict();
-const UiTool = z.object({
-  type: z.literal("tool_use"),
-  id: z.string().min(1).max(100),
-  name: z.literal("open_lesson_book"),
-  input: z.object({ lesson: z.enum(["pythagoras", "moments"]) }).strict(),
-}).strict();
-const QuizTool = z.object({
-  type: z.literal("tool_use"),
-  id: z.string().min(1).max(100),
-  name: z.literal("open_lesson_quiz"),
-  input: z.object({ lesson: z.enum(["pythagoras", "moments"]) }).strict(),
-}).strict();
 const Result = z.object({ type: z.literal("tool_result"), tool_use_id: z.string().min(1).max(100), content: z.string().max(5000), is_error: z.boolean() }).strict();
 export const AgentMessageSchema = z.discriminatedUnion("role", [
   z.object({ role: z.literal("user"), content: z.array(z.union([Text, Result])).min(1).max(4) }).strict(),
-  z.object({ role: z.literal("assistant"), content: z.array(z.union([Text, Tool, UiTool, QuizTool])).min(1).max(4) }).strict(),
+  z.object({ role: z.literal("assistant"), content: z.array(z.union([Text, Tool])).min(1).max(4) }).strict(),
 ]);
 export type AgentMessage = z.infer<typeof AgentMessageSchema>;
 const XY = z.tuple([z.number().finite(), z.number().finite()]);
 export const AgentRequestSchema = z.object({
-  botId: z.union([z.enum(["pip", "nova"]), z.literal("both")]),
+  botId: z.literal("pip"),
   worldVersion: z.number().int().nonnegative(),
   world: z.object({
-    lesson: z.enum(["pythagoras", "moments", "free"]),
+    lesson: z.enum(["pythagoras", "moments", "free", "rescue"]),
     duck: z.object({ x: z.number().finite(), y: z.number().finite(), yawDeg: z.number().finite(), mode: z.string().max(30) }).strict(),
-    robots: z.object({
-      pip: z.object({ x: z.number().finite(), y: z.number().finite(), yawDeg: z.number().finite(), mode: z.string().max(30) }).strict(),
-      nova: z.object({ x: z.number().finite(), y: z.number().finite(), yawDeg: z.number().finite(), mode: z.string().max(30) }).strict(),
-    }).strict().optional(),
     props: z.array(z.object({ id: z.string().max(40), label: z.string().max(80), movable: z.boolean(), position: XY, units: z.number().optional() }).strict()).max(20),
     slots: z.array(z.object({ forProp: z.string().max(40), position: XY, filled: z.boolean() }).strict()).max(10),
     // Measured state of the Moments balance: lock pin, tilt and each weight's rail position.
@@ -48,7 +32,7 @@ export const AgentRequestSchema = z.object({
 export type AgentRequest = z.infer<typeof AgentRequestSchema>;
 export const AgentResponseSchema = z.object({
   worldVersion: z.number().int().nonnegative(),
-  content: z.array(z.union([Text, Tool, UiTool, QuizTool])).min(1).max(4),
+  content: z.array(z.union([Text, Tool])).min(1).max(4),
 }).strict();
 export type AgentResponse = z.infer<typeof AgentResponseSchema>;
 

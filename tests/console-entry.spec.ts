@@ -18,7 +18,7 @@ test("landing opens the real console and console returns home", async ({
   );
   await page.getByRole("link", { name: "Kestrel home" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Big questions.Little robots.",
+    "Real robots.Real physics.",
   );
 });
 

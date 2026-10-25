@@ -20,14 +20,16 @@ import type { DuckPose } from "./tasks";
 // After ROSClaw Duckverse's WalkTo/TurnTo (Apache-2.0), with the commands
 // re-measured for this policy instead of copied.
 
+// 2026-10-25: six real-physics approach/turn runs at the faster settings:
+// 6/6 arrivals, no falls; mean 4.2 s vs 5.2 s, final error 2.4 cm vs 2.5 cm.
 export const NAV = {
   gaitMin: 0.25,
-  cruise: 0.55,
-  approach: 0.3,
+  cruise: 0.65,
+  approach: 0.35,
   /** Backing up: the policy ignores −0.15 to −0.30 entirely. */
   back: -0.4,
-  spin: 3.0,
-  spinNear: 1.8,
+  spin: 3.6,
+  spinNear: 2.1,
   spinMin: 1.6,
   steerGain: 2.0,
   steerMax: 1.2,

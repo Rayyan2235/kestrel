@@ -1,12 +1,9 @@
-import { AgentResponseSchema, DuckTaskSchema, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type BotId, type DuckTask } from "@kestrel/contracts";
+import { AgentResponseSchema, DuckTaskSchema, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type DuckTask } from "@kestrel/contracts";
 import type { DuckSim, SimEvent } from "../simulation/duckSim";
-import type { LessonId } from "../lessons/lessonContent";
 
 export type AgentPhase = "Ready" | "Listening" | "Microphone permission" | "Transcribing" | "Thinking" | "Acting" | "Speaking";
 type Outcome = { ok: boolean; summary: string };
-export type Recipient = BotId | "both";
 const aborted = () => new DOMException("Stopped", "AbortError");
-const concisePublicText = (text: string) => text.replace(/\s+/g, " ").trim().match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.slice(0, 2).join("").trim().slice(0, 320) ?? "";
 async function checked(response: Response) {
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -33,62 +30,44 @@ export function balanceSnapshot(b: NonNullable<ReturnType<DuckSim["status"]>["ba
 }
 
 /** One owner for capture, requests, physical actions and playback cancellation. */
+/** The robot reply noise (owner-supplied clip). Words appear in the think bubble, not as speech. */
+const ROBOT_SOUND = "/audio/bd1-reply.mp3";
+
 export class AgentSession {
   private controller = new AbortController();
   private version = 0;
   private history: AgentMessage[] = [];
-  private pending = new Map<DuckTask, (outcome: Outcome) => void>();
+  private pending: { task: DuckTask; resolve: (outcome: Outcome) => void } | null = null;
+  private audio: HTMLAudioElement | null = null;
+  private audioUrl: string | null = null;
   private recorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
   private captureHeld = false;
   private captureTimer: ReturnType<typeof setTimeout> | undefined;
   private playbackCancel: (() => void) | null = null;
-  private audioContext: AudioContext | null = null;
-  private soundBuffer: Promise<AudioBuffer> | null = null;
-  private soundSource: AudioBufferSourceNode | null = null;
-  private soundDone: (() => void) | null = null;
-  private recipient: Recipient = "pip";
-  private botId: BotId = "pip";
-  /** The console resolves spoken names and conversation context before dispatch. */
-  onTranscript?: (text: string) => void | Promise<void>;
-  robotSound = true;
+  private speechController: AbortController | null = null;
+  voice = true;
   phase: AgentPhase = "Ready";
 
-  constructor(private sim: DuckSim, private add: (who: "you" | "duck", text: string, ok?: boolean, speaker?: BotId) => void, private change: (phase: AgentPhase) => void, private onLearningAction: (action: "book" | "quiz", lesson: LessonId) => void = () => {}) {}
+  constructor(private sim: DuckSim, private add: (who: "you" | "duck", text: string, ok?: boolean) => void, private change: (phase: AgentPhase) => void) {}
   private setPhase(phase: AgentPhase) { this.phase = phase; this.change(phase); }
-  setRecipient(recipient: Recipient, speaker?: BotId) {
-    this.recipient = recipient;
-    this.botId = speaker ?? (recipient === "both" ? this.botId : recipient);
-  }
   private alive(signal: AbortSignal) { if (signal.aborted) throw aborted(); }
   private silence() {
-    try { this.playbackCancel?.(); } catch { /* A source that failed before start cannot be stopped. */ }
+    this.speechController?.abort();
+    this.audio?.pause();
+    this.playbackCancel?.();
     this.playbackCancel = null;
-    try { this.soundSource?.stop(); } catch { /* The source may already have ended. */ }
-    this.soundSource = null;
-    this.soundDone?.();
-    this.soundDone = null;
+    this.audio = null;
+    if (this.audioUrl) URL.revokeObjectURL(this.audioUrl);
+    this.audioUrl = null;
   }
-  primeRobotSound() {
-    if (!this.robotSound || typeof window === "undefined" || !("AudioContext" in window)) return;
-    this.audioContext ??= new AudioContext();
-    void this.audioContext.resume().catch(error => console.warn("Could not enable robot sound playback:", error));
-    this.soundBuffer ??= fetch("/audio/bd1-reply.mp3")
-      .then(response => {
-        if (!response.ok) throw new Error(`Audio file request failed (${response.status}).`);
-        return response.arrayBuffer();
-      })
-      .then(bytes => this.audioContext!.decodeAudioData(bytes))
-      .catch(error => { this.soundBuffer = null; throw error; });
-  }
-  setRobotSound(enabled: boolean) { this.robotSound = enabled; if (!enabled) this.silence(); else this.primeRobotSound(); }
-  setVoice(enabled: boolean) { this.setRobotSound(enabled); }
+  setVoice(enabled: boolean) { this.voice = enabled; if (!enabled) this.silence(); }
   cancel(clearHistory = false) {
     this.controller.abort();
     this.controller = new AbortController();
     this.version++;
-    for (const resolve of this.pending.values()) resolve({ ok: false, summary: "Interrupted by the learner." });
-    this.pending.clear();
+    this.pending?.resolve({ ok: false, summary: "Interrupted by the learner." });
+    this.pending = null;
     this.sim.stopAll?.();
     this.sim.tasks.cancel();
     this.sim.manual = { vx: 0, wz: 0 };
@@ -101,29 +80,19 @@ export class AgentSession {
     if (clearHistory) this.history = [];
     this.setPhase("Ready");
   }
-  event(event: SimEvent): boolean {
+  event(event: SimEvent) {
     if (event.type === "reset") this.cancel(true);
-    else if (event.type === "task-done") {
-      const resolve = this.pending.get(event.task);
-      if (!resolve) return false;
-      resolve({ ok: event.ok, summary: event.summary });
-      this.pending.delete(event.task);
-      return true;
+    else if (event.type === "task-done" && this.pending?.task === event.task) {
+      this.pending.resolve({ ok: event.ok, summary: event.summary });
+      this.pending = null;
     }
-    return false;
   }
-  private world(recipient: Recipient): AgentRequest["world"] {
+  private world(): AgentRequest["world"] {
     const positions = this.sim.propPositions();
-    const status = this.sim.status(recipient === "nova" ? "nova" : "pip");
-    const novaStatus = this.sim.status("nova");
-    const pipStatus = this.sim.status("pip");
+    const status = this.sim.status();
     return {
       lesson: this.sim.kit.id,
       duck: { ...status.pose, mode: status.mode },
-      robots: {
-        pip: { ...pipStatus.pose, mode: pipStatus.mode },
-        nova: { ...novaStatus.pose, mode: novaStatus.mode },
-      },
       // Paddles are part of their weights, not things to talk about.
       props: this.sim.kit.props.filter(p => p.role !== "paddle").map(p => ({ id: p.id, label: p.label, movable: p.joint === "free", position: positions.get(p.id) ?? [p.pos[0], p.pos[1]], ...(p.units ? { units: p.units } : {}) })),
       slots: this.sim.kit.slots.map(s => ({ forProp: s.forProp, position: s.pos, filled: slotFilled(positions.get(s.forProp) ?? [99, 99], s) })),
@@ -132,126 +101,64 @@ export class AgentSession {
   }
   private async say(text: string, signal: AbortSignal) {
     this.alive(signal);
-    text = concisePublicText(text);
-    if (!text) return;
-    this.add("duck", text, true, this.botId);
-    if (!this.robotSound) return;
-    await this.playRobotSound(signal);
-  }
-  async announce(text: string, ok = true, playSound = true) {
-    const signal = this.controller.signal;
-    const concise = concisePublicText(text);
-    if (!concise) return;
-    this.add("duck", concise, ok, this.botId);
-    if (this.robotSound && playSound) {
-      try { await this.playRobotSound(signal); }
-      finally { if (!signal.aborted) this.setPhase("Ready"); }
-    }
-  }
-  private async playRobotSound(signal: AbortSignal, updatePhase = true) {
-    this.alive(signal);
-    this.primeRobotSound();
-    const context = this.audioContext;
-    const bufferPromise = this.soundBuffer;
-    if (!context || !bufferPromise) return;
-    if (updatePhase) this.setPhase("Speaking");
+    this.add("duck", text);
+    if (!this.voice) return;
+    // Robots answer with a short robot noise; their words stay in the think bubble.
+    this.setPhase("Speaking");
+    const speech = new AbortController();
+    this.speechController = speech;
     try {
-      const buffer = await bufferPromise;
-      this.alive(signal);
-      await context.resume();
+      const audio = new Audio(ROBOT_SOUND);
+      this.audio = audio;
       await new Promise<void>((resolve, reject) => {
         let finished = false;
-        const finish = () => {
+        const finish = (error?: Error) => {
           if (finished) return;
           finished = true;
           clearTimeout(timer);
           signal.removeEventListener("abort", stop);
           this.playbackCancel = null;
-          this.soundDone = null;
-          this.soundSource = null;
-          resolve();
+          error ? reject(error) : resolve();
         };
-        const stop = () => { this.soundSource?.stop(); finish(); };
-        const timer = setTimeout(finish, 10000);
-        const source = context.createBufferSource();
-        source.buffer = buffer;
-        source.connect(context.destination);
-        source.onended = finish;
-        this.soundSource = source;
-        this.soundDone = finish;
-        this.playbackCancel = stop;
+        const stop = () => { audio.pause(); finish(aborted()); };
+        const timer = setTimeout(() => { audio.pause(); finish(); }, 6000);
+        this.playbackCancel = () => finish();
+        audio.onended = () => finish();
+        audio.onerror = () => finish();
         signal.addEventListener("abort", stop, { once: true });
-        try { source.start(); } catch (error) {
-          clearTimeout(timer);
-          signal.removeEventListener("abort", stop);
-          this.playbackCancel = null;
-          this.soundDone = null;
-          this.soundSource = null;
-          reject(error);
-        }
+        // A blocked autoplay just means no chirp this time; the bubble still shows the reply.
+        void audio.play().catch(() => finish());
       });
-    } catch (error) {
-      console.warn("Robot reply sound could not play:", error);
-      if (this.soundBuffer === bufferPromise && error instanceof Error && !signal.aborted) this.soundBuffer = null;
+      if (this.audio === audio) this.audio = null;
+    } catch {
+      this.alive(signal);
     }
   }
-  private act(task: DuckTask, signal: AbortSignal, recipient: Recipient): Promise<Outcome> {
+  private act(task: DuckTask, signal: AbortSignal): Promise<Outcome> {
     this.alive(signal);
     this.setPhase("Acting");
-    const shared = task.kind === "build_squares" || task.kind === "set_balance";
-    if (recipient === "both" && ["push", "go_to", "place_weight"].includes(task.kind))
-      return Promise.resolve({ ok: false, summary: "That object task needs one robot. Choose Pip or Nova, or ask for a coordinated lesson action." });
-    const targets: (BotId | "lab")[] = shared ? ["lab"] : recipient === "both" ? ["pip", "nova"] : [recipient];
-    const tasks = targets.map(() => structuredClone(task));
-    const waits = tasks.map((copy, i) => new Promise<Outcome>((resolve, reject) => {
-      const finish = (outcome: Outcome) => { clearTimeout(timer); signal.removeEventListener("abort", stop); this.pending.delete(copy); resolve(outcome); };
-      const stop = () => { clearTimeout(timer); this.pending.delete(copy); reject(aborted()); };
+    return new Promise((resolve, reject) => {
+      const finish = (outcome: Outcome) => { clearTimeout(timer); signal.removeEventListener("abort", stop); resolve(outcome); };
+      const stop = () => { clearTimeout(timer); this.pending = null; reject(aborted()); };
       const timer = setTimeout(() => {
-        this.sim.stopAll();
+        this.sim.tasks.cancel(); this.pending = null;
         finish({ ok: false, summary: "Action timed out; the simulator did not report success." });
-      }, shared ? 300000 : 180000);
-      this.pending.set(copy, finish);
+      }, 180000);
+      this.pending = { task, resolve: finish };
       signal.addEventListener("abort", stop, { once: true });
-      const target = targets[i] === "lab" ? "pip" : targets[i]!;
-      const refusal = this.sim.runTask(copy, target);
-      if (refusal) finish({ ok: false, summary: refusal });
-    }));
-    return Promise.all(waits).then(results => results.length === 1 ? results[0]! : {
-      ok: results.every(r => r.ok),
-      summary: results.map((r, i) => `${targets[i] === "pip" ? "Pip" : "Nova"}: ${r.summary}`).join(" "),
+      const refusal = this.sim.runTask(task);
+      if (refusal) { this.pending = null; finish({ ok: false, summary: refusal }); }
     });
   }
-  async demonstrate(lesson: LessonId): Promise<Outcome> {
-    this.cancel();
-    const signal = this.controller.signal;
-    this.primeRobotSound();
-    const task: DuckTask = lesson === "pythagoras"
-      ? { kind: "build_squares" }
-      : { kind: "set_balance", left_cm: 10, right_cm: 20 };
-    try {
-      const sound = this.robotSound ? this.playRobotSound(signal, false) : Promise.resolve();
-      const outcome = await this.act(task, signal, "both");
-      await sound;
-      this.alive(signal);
-      this.history = [...this.history,
-        { role: "user", content: [{ type: "text", text: `The coordinated ${lesson} demonstration finished: ${outcome.summary}` }] },
-        { role: "assistant", content: [{ type: "text", text: outcome.summary }] },
-      ].slice(-8) as AgentMessage[];
-      return outcome;
-    } finally { if (!signal.aborted) this.setPhase("Ready"); }
-  }
-  async submit(text: string, recipient: Recipient = this.recipient, mode: "normal" | "follow-up" = "normal", speaker?: BotId) {
+  async submit(text: string) {
     text = text.trim();
     if (!text) return;
-    this.setRecipient(recipient, speaker);
     this.cancel();
-    this.primeRobotSound();
     this.add("you", text);
     if (/^(stop|halt|freeze|wait)[.!]?$/i.test(text)) { this.add("duck", "Stopped."); return; }
     const signal = this.controller.signal;
     const version = this.version;
-    const modelText = mode === "follow-up" ? `Answer this learner follow-up without reopening the lesson flow: ${text}` : text;
-    const messages: AgentMessage[] = [...this.history, { role: "user", content: [{ type: "text", text: modelText }] }];
+    const messages: AgentMessage[] = [...this.history, { role: "user", content: [{ type: "text", text }] }];
     const summary: string[] = [];
     const deadline = setTimeout(() => { if (!signal.aborted) { this.cancel(); this.add("duck", "I stopped at the time limit. You can ask me to continue.", false); } }, 8 * 60 * 1000);
     try {
@@ -259,56 +166,25 @@ export class AgentSession {
       for (let step = 0; step <= 6; step++) {
         this.alive(signal);
         this.setPhase("Thinking");
-        const request: AgentRequest = { botId: this.botId, worldVersion: version, world: this.world(recipient), messages, final: step === 6 };
+        const request: AgentRequest = { botId: "pip", worldVersion: version, world: this.world(), messages, final: step === 6 };
         const response = AgentResponseSchema.parse(await (await checked(await fetch("/api/agent/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.any([signal, AbortSignal.timeout(55000)]) }))).json());
         this.alive(signal);
         if (response.worldVersion !== this.version) throw aborted();
         messages.push({ role: "assistant", content: response.content });
+        const words = response.content.filter(b => b.type === "text").map(b => b.text).join(" ");
+        if (words) { summary.push(words); await this.say(words, signal); }
+        this.alive(signal);
         const calls = response.content.filter(b => b.type === "tool_use");
-        const words = response.content.filter(b => b.type === "text").map(b => b.text).join(" ").trim();
-        const learningCall = calls.find(call => call.name === "open_lesson_book" || call.name === "open_lesson_quiz");
-        if (learningCall) {
-          if (mode === "follow-up") {
-            const reply = concisePublicText(words) || "I can clarify that. Which part would you like me to explain?";
-            summary.push(reply);
-            await this.say(reply, signal);
-          } else if (learningCall.name === "open_lesson_book") {
-            const intro = concisePublicText(words) || (learningCall.input.lesson === "pythagoras"
-              ? "In a right triangle, the squares on the two shorter sides have areas that add up to the square on the hypotenuse: a squared plus b squared equals c squared."
-              : "A moment is the turning effect of a weight: its mass multiplied by its distance from the pivot.");
-            summary.push(intro);
-            const shownAt = Date.now();
-            await this.say(intro, signal);
-            // Keep the learner-facing introduction visible before the modal dims the chat.
-            const remaining = 2000 - (Date.now() - shownAt);
-            if (remaining > 0) await new Promise<void>((resolve, reject) => {
-              const timer = setTimeout(() => { signal.removeEventListener("abort", stop); resolve(); }, remaining);
-              const stop = () => { clearTimeout(timer); reject(aborted()); };
-              signal.addEventListener("abort", stop, { once: true });
-            });
-            this.alive(signal);
-            this.onLearningAction("book", learningCall.input.lesson);
-          } else {
-            if (words) { summary.push(words); await this.say(words, signal); }
-            this.onLearningAction("quiz", learningCall.input.lesson);
-          }
-          break;
-        }
         if (!calls.length) break;
         if (calls.length !== 1 || step === 6) throw new Error("The agent exceeded its action budget.");
         const call = calls[0];
-        if (call.name !== "duck_task") throw new Error("Unknown agent action.");
         const task = DuckTaskSchema.parse(call.input);
-        const result = await this.act(task, signal, recipient);
+        const result = await this.act(task, signal);
         this.alive(signal);
         summary.push(`Measured ${JSON.stringify(task)}: ${result.summary}`);
-        messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: call.id, is_error: !result.ok, content: JSON.stringify({ ...result, world: this.world(recipient) }) }] });
-        this.alive(signal);
-        continue;
+        messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: call.id, is_error: !result.ok, content: JSON.stringify({ ...result, world: this.world() }) }] });
       }
-      const finalWords = messages.at(-1)?.role === "assistant" ? messages.at(-1)!.content.filter(b => b.type === "text").map(b => b.text).join(" ") : "";
-      if (finalWords && !summary.includes(finalWords)) await this.say(finalWords, signal);
-      this.history = [...this.history, { role: "user", content: [{ type: "text", text: modelText }] }, { role: "assistant", content: [{ type: "text", text: summary.join("\n").slice(-2400) || "Turn ended." }] }].slice(-8) as AgentMessage[];
+      this.history = [...this.history, { role: "user", content: [{ type: "text", text }] }, { role: "assistant", content: [{ type: "text", text: summary.join("\n").slice(-2400) || "Turn ended." }] }].slice(-8) as AgentMessage[];
     } catch (error) {
       if (!signal.aborted) this.add("duck", (error as Error).message, false);
     } finally {
@@ -319,7 +195,6 @@ export class AgentSession {
   async startCapture() {
     if (this.captureHeld) return;
     this.cancel();
-    this.primeRobotSound();
     this.captureHeld = true;
     const signal = this.controller.signal;
     this.setPhase("Microphone permission");
@@ -359,8 +234,7 @@ export class AgentSession {
       const { text } = await response.json();
       this.alive(signal);
       if (!text?.trim()) throw new Error("I didn't hear speech. Please try again.");
-      if (this.onTranscript) await this.onTranscript(text);
-      else await this.submit(text);
+      await this.submit(text);
     } catch (error) {
       if (!signal.aborted) { this.add("duck", (error as Error).message, false); this.setPhase("Ready"); }
     }

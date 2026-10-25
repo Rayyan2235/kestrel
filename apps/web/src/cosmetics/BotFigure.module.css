@@ -1,8 +1,0 @@
-/* Workshop preview: same figure, no stage positioning. */
-.static.static {
-  position: relative;
-  left: auto;
-  top: auto;
-  transform: none;
-  zoom: calc(var(--figure-size, 64px) / 64px);
-}

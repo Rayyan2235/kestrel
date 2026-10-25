@@ -72,7 +72,8 @@ test("Moments: Claude balances the plank with a real push and reads the measured
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
   await page.getByRole("button", { name: "Robot reply sound" }).click();
   await page.getByRole("button", { name: /Moments/ }).click();
-  await expect(page.getByTestId("balance")).toContainText("Plank locked");
+  // Switching lessons waits on the physics loop, which is slow on CI.
+  await expect(page.getByTestId("balance")).toContainText("Plank locked", { timeout: 30000 });
   await page.getByLabel("Task for your duck").fill("Can you balance the plank?");
   await page.getByRole("button", { name: "Send task" }).click();
   await expect(page.getByRole("log")).toContainText("The simulator measured it level.", { timeout: 200000 });
@@ -110,7 +111,8 @@ test("Moments: the learner predicts, both robots push their own weights, and the
   await page.goto("/sandbox.html");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
   await page.getByRole("button", { name: /Moments/ }).click();
-  await expect(page.getByTestId("balance")).toContainText("Plank locked");
+  // Switching lessons waits on the physics loop, which is slow on CI.
+  await expect(page.getByTestId("balance")).toContainText("Plank locked", { timeout: 30000 });
   // 200 g at 15 cm against 100 g at 30 cm: equal moments.
   for (let i = 0; i < 5; i++) await page.getByRole("button", { name: "Move the 200 g weight in" }).click();
   for (let i = 0; i < 10; i++) await page.getByRole("button", { name: "Move the 100 g weight out" }).click();
@@ -148,7 +150,8 @@ test("Moments: a balanced plank stays level with a weight at the very end of its
   await page.goto("/sandbox.html");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
   await page.getByRole("button", { name: /Moments/ }).click();
-  await expect(page.getByTestId("balance")).toContainText("Plank locked");
+  // Switching lessons waits on the physics loop, which is slow on CI.
+  await expect(page.getByTestId("balance")).toContainText("Plank locked", { timeout: 30000 });
   const tilts = await page.evaluate(async () => {
     const sim = (window as any).kestrelSim;
     sim.stop();

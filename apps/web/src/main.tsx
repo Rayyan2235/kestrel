@@ -17,8 +17,8 @@ const TwoBotDemo = lazy(() =>
 const path = window.location.pathname.replace(/\/$/, "");
 const inConsole =
   path === "/console" || path === "/lab" || path.startsWith("/lab/");
-// ?demo=two-bot is the stub two-bot page; ?demo=progress adds challenges, XP and the Workshop to it.
-const demo = new URLSearchParams(window.location.search).get("demo");
+const demo =
+  new URLSearchParams(window.location.search).get("demo") === "two-bot";
 if (inConsole) document.title = "Kestrel — Console";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -34,13 +34,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <Console />
     ) : (
       <React.StrictMode>
-        {demo === "two-bot" ? (
-          <TwoBotDemo />
-        ) : demo === "progress" ? (
-          <TwoBotDemo progress />
-        ) : (
-          <WelcomePage />
-        )}
+        {demo ? <TwoBotDemo /> : <WelcomePage />}
       </React.StrictMode>
     )}
   </Suspense>,

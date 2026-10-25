@@ -33,7 +33,7 @@ test("the landing page loads without paid or external requests", async ({
   const w = watch(page);
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-    "Big questions.Little robots.",
+    "Real robots.Real physics.",
   );
   expect(w.errors).toEqual([]);
   expect(w.external).toEqual([]);

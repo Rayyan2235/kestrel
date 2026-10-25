@@ -54,8 +54,8 @@
   height: 64px;
   display: grid;
   place-items: center;
-  border: 3px solid var(--accent, var(--ink));
-  background: var(--shell, #fff);
+  border: 3px solid var(--ink);
+  background: #fff;
 }
 .bot[data-shape="pip"] {
   border-radius: 50%;
@@ -72,7 +72,7 @@
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: var(--eye, var(--ink));
+  background: var(--ink);
 }
 /* Gaze: facing the learner is centred and down; facing the peer shifts sideways. */
 .bot[data-bot="pip"][data-facing="nova"] .eyes {
@@ -233,54 +233,4 @@
   color: var(--panel);
   font-size: 13px;
   font-weight: 700;
-}
-
-/* Cosmetic looks (CSS-drawn). They never change how a robot moves. */
-.bot[data-eye-shape="visor"] .eyes i {
-  width: 16px;
-  height: 7px;
-  border-radius: 4px;
-}
-.bot[data-eye-shape="happy"] .eyes i {
-  height: 6px;
-  border-radius: 9px 9px 0 0;
-}
-.bot[data-head="antenna"]::before {
-  content: "";
-  position: absolute;
-  top: -22px;
-  left: 50%;
-  width: 3px;
-  height: 18px;
-  background: var(--ink);
-  box-shadow: 0 -4px 0 2px var(--accent, var(--ink));
-}
-.bot[data-head="goggles"] .eyes {
-  padding: 3px 6px;
-  border: 3px solid var(--ink);
-  border-radius: 8px;
-}
-.bot[data-back="backpack"]::after {
-  content: "";
-  position: absolute;
-  right: -12px;
-  top: 14px;
-  width: 10px;
-  height: 28px;
-  border: 3px solid var(--ink);
-  border-radius: 4px;
-  background: var(--accent, var(--ink));
-}
-.bot[data-neck="scarf"] {
-  box-shadow: 0 8px 0 -2px var(--accent, var(--ink));
-}
-.bot[data-head="partyhat"]::before {
-  content: "";
-  position: absolute;
-  top: -24px;
-  left: 50%;
-  translate: -50% 0;
-  border-left: 11px solid transparent;
-  border-right: 11px solid transparent;
-  border-bottom: 22px solid var(--accent, var(--ink));
 }

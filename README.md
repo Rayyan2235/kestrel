@@ -29,7 +29,7 @@ The landing page loads without starting the simulator. The console runs Microduc
 
 ## Current boundaries
 
-The console on main has one Microduck. Two-robot physics and cooperative experiment work remain on their separate branches. Landing artwork depicts the intended companions, not runtime footage. The landing balance illustration uses an ideal mass × distance model; the console uses simulated physics. Physical lifting, final robot art, accounts and production hosting remain separate work.
+Landing artwork depicts the intended companions, not runtime footage. The landing balance illustration uses an ideal mass × distance model; the console uses simulated physics. Physical lifting, final robot art, accounts and production hosting remain separate work.
 
 ## Workspace
 
@@ -47,7 +47,10 @@ docs/                 Architecture, build roadmap and Claude context-audit promp
 - Two policy-controlled Microducks, Pip and Nova, share one MuJoCo world with the apparatus. They walk with the upstream ONNX walking policy at 50 Hz; their motion comes from the policy's joint targets and MuJoCo contact.
 - **Moments:** a hinged beam with a 200 g and a 100 g weight on rails. Each robot pushes its own weight's paddle along its rail. The learner sets the targets, predicts, and runs the experiment: lock, push, withdraw, verify clear, release, then a measured tilt compared with the moments from the measured positions. Idealised parts: the lock pin and the rail clamps are kinematic holds (a clamp holds a carriage where a robot left it; it never moves one).
 - **Pythagoras:** square tiles pushed onto a floor triangle (9 + 16 = 25). The robots can build it together.
-- Claude (Bedrock) can drive the same tasks; voice uses ElevenLabs. Both need server keys in `.env`.
+- Claude (Bedrock) can drive the same tasks. ElevenLabs transcribes the learner's voice; the robots answer with a short robot sound, and their words appear in a think bubble and the log. Both need server keys in `.env`.
+- **Objectives:** Balance the beam, Build the right triangle and Rescue Pip, each with an XP bar that fills only when the simulator measures the goal met (for the beam: the released plank reads level, under 0.5°, for one second).
+- **Free play fight:** Pip and Nova face each other, charge and back off in rounds; their bodies really collide in MuJoCo. A fast clash (closing faster than 0.45 m/s into 20 cm) draws a cartoon explosion, and a loser chosen at random is knocked over by a scripted shove (a velocity impulse, not crash physics); it gets back up with its own get-up policy.
+- **Console windows:** You and Pip, and Pip and Nova, are collapsible. Pip and Nova shows the simulator's two-robot handoffs and each robot's measured result; Nova is not a separate language model.
 - Not yet: robot avoidance while both walk the same lane (lanes are scheduled instead), grasping, a jump skill, hardware.
 
 Core stack: TypeScript, React 19, Fiber 9, Three.js, Zustand, Radix Primitives, Motion, Fastify and Zod. Exact versions are in `pnpm-lock.yaml`. The Microduck physics and walking-policy integration runs in the console.

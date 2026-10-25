@@ -1,4 +1,5 @@
-import { slotFilled, type BotId, type DuckTask, type LabKit, type PropSpec, type Vec2 } from "@kestrel/contracts";
+import { RESCUE, rescuePoints, routeIsClear } from "@kestrel/contracts";
+import type { BotId, DuckTask, LabKit, PropSpec, Vec2 } from "@kestrel/contracts";
 import { SCREEN_DIRS } from "./constants";
 import { PlaceWeight } from "./moments";
 import { NAV, Navigator } from "./navigate";
@@ -108,6 +109,7 @@ export function footprint(p: PropSpec): number {
 }
 
 const TIMEOUT_S: Record<DuckTask["kind"], number> = {
+  rescue_route: 150,
   move: 20,
   turn: 10,
   go_to: 30,
@@ -137,17 +139,24 @@ type Run = {
   lastProp?: Vec2;
   stillFor?: number;
   replans?: number;
-  placementRetries?: number;
   place?: PlaceWeight;
   /** Release: the pin has been pulled; the plank's last angle and how long it has been still. */
   pulled?: boolean;
   lastAngle?: number;
+  traveled?: number;
+  lastPose?: Vec2;
 };
 
 export class TaskRunner {
   private run: Run | null = null;
   /** The running task's state-machine phase, from its last step. */
   phase: string | null = null;
+
+  get rescueProgress(): { meters: number; battery: number } | null {
+    if (this.run?.task.kind !== "rescue_route") return null;
+    const meters = this.run.traveled ?? 0;
+    return { meters, battery: Math.max(0, 1 - meters / RESCUE.batteryMeters) };
+  }
 
   get active(): DuckTask | null {
     return this.run?.task ?? null;
@@ -162,6 +171,15 @@ export class TaskRunner {
   start(task: DuckTask, world: WorldView): string | null {
     const run: Run = { task, t: 0, start: { ...world.duck }, nav: new Navigator(), phase: "approach" };
     if (task.kind === "set_balance" || task.kind === "build_squares") return "Both robots do this together; the lab coordinates it.";
+    if (task.kind === "rescue_route") {
+      if (world.kit.id !== "rescue" || world.id !== "pip") return "Open Robot rescue and send Pip.";
+      if (dist([world.duck.x, world.duck.y], RESCUE.start) > 0.1) return "Reset the rescue before trying a route.";
+      const points = rescuePoints(task.route);
+      if (points.length < 2 || !routeIsClear(points)) return "Follow connected arrows from A to H.";
+      run.waypoints = points.slice(1);
+      run.traveled = 0;
+      run.lastPose = [world.duck.x, world.duck.y];
+    }
     if (task.kind === "go_to" && !world.props.has(task.target))
       return `There is no ${task.target} in this lab.`;
     if ((task.kind === "release_plank" || task.kind === "lock_plank") && !world.balance)
@@ -229,6 +247,24 @@ export class TaskRunner {
     const { task } = run;
     const duck = world.duck;
     switch (task.kind) {
+      case "rescue_route": {
+        const here: Vec2 = [duck.x, duck.y];
+        run.traveled! += dist(run.lastPose!, here);
+        run.lastPose = here;
+        if (run.traveled! >= RESCUE.batteryMeters)
+          return { ...HOLD, done: { ok: false, summary: "Battery died! That route was too long. Back to the start—try a shorter way." } };
+        if ([...world.touching].some(([id, force]) => id.startsWith("rescue-barrier-") && force > 0.05) || world.others.some(r => dist(here, [r.pose.x, r.pose.y]) < 0.19))
+          return { ...HOLD, done: { ok: false, summary: "Pip met an obstacle. Reset and try again." } };
+        const goal = run.waypoints![0]!;
+        const twist = run.nav.to(duck, world.speed, goal);
+        if (run.nav.status !== "arrived") return { ...twist, phase: "Following your route" };
+        // Recheck physical position: settling alone must not claim a rescue.
+        if (dist(here, goal) > 0.1) return { ...HOLD, done: { ok: false, summary: "Pip drifted away from the route point. Try again." } };
+        run.waypoints!.shift();
+        run.nav.next();
+        if (run.waypoints!.length) return HOLD;
+        return { ...HOLD, done: { ok: true, summary: `Made it! Pip reached the charger with ${Math.max(0, Math.ceil((1-run.traveled!/RESCUE.batteryMeters)*100))}% battery left. Your shorter route saved Pip.` } };
+      }
       case "stop":
         return { vx: 0, wz: 0, done: { ok: true, summary: "Stopped." } };
       case "sit":
@@ -321,32 +357,14 @@ export class TaskRunner {
     const spec = world.kit.props.find((p) => p.id === task.target)!;
     const goal = run.goal!;
     const remaining = dist(prop, goal);
-    const slot = task.toward === "slot" ? world.kit.slots.find(s => s.forProp === task.target) : undefined;
-    const targetReached = slot ? slotFilled(prop, slot) : remaining <= 0.04;
     // Same tolerance as slotFilled(), so "done" and the lit slot agree. Then
     // back off the square (forward would shove it), so the next move starts clear.
-    if (run.phase === "withdraw" || run.phase === "settle" || targetReached) {
+    if (run.phase === "withdraw" || run.phase === "settle" || remaining <= 0.04) {
       if (run.phase !== "withdraw" && run.phase !== "settle") run.phase = "withdraw";
-      if (dist(run.lastProp ?? prop, prop) > 0.003) {
-        run.lastProp = prop;
-        run.stillFor = 0;
-      } else run.stillFor = (run.stillFor ?? 0) + 1 / 50;
       const gap = dist([duck.x, duck.y], prop) - footprint(spec);
       if (run.phase === "withdraw" && gap < 0.16 && run.t < TIMEOUT_S.push - 5) return { vx: NAV.back, wz: 0, phase: "withdraw" };
       run.phase = "settle";
       if (world.speed > NAV.settleSpeed) return { ...HOLD, phase: "settle" };
-      if ((run.stillFor ?? 0) < 0.5) return { ...HOLD, phase: "settle" };
-      if (slot && !slotFilled(prop, slot)) {
-        if ((run.placementRetries ?? 0) >= 2)
-          return { ...HOLD, done: { ok: false, summary: `${spec.label} settled ${cm(remaining)} from its target and is still outside its slot after two corrections.` } };
-        run.placementRetries = (run.placementRetries ?? 0) + 1;
-        run.phase = "approach";
-        run.waypoints = undefined;
-        run.nav.next();
-        run.lastProp = prop;
-        run.stillFor = 0;
-        return HOLD;
-      }
       return { ...HOLD, done: { ok: true, summary: `${spec.label} moved ${cm(run.startProp ? dist(run.startProp, prop) : 0)} and is ${cm(remaining)} from its target.` } };
     }
     const dir: Vec2 = [(goal[0] - prop[0]) / remaining, (goal[1] - prop[1]) / remaining];
@@ -411,6 +429,6 @@ export class TaskRunner {
     // Push: steer for a point just past the prop on the push line, at the
     // approach command (0.3, above the gait's dead zone).
     const aim: Vec2 = [prop[0] + dir[0] * 0.05, prop[1] + dir[1] * 0.05];
-    return { ...run.nav.forward(duck, Math.atan2(aim[1] - duck.y, aim[0] - duck.x), NAV.gaitMin), phase: "push" };
+    return { ...run.nav.forward(duck, Math.atan2(aim[1] - duck.y, aim[0] - duck.x), NAV.approach), phase: "push" };
   }
 }

@@ -1,0 +1,31 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}body{margin:0;padding:36px;background:#edf2e9;color:#253c46;font-family:Arial,sans-serif}h1{font-size:32px;margin:0 0 8px}header p{margin:0 0 26px;color:#52666b;font-size:16px}.grid{display:grid;grid-template-columns:1fr;gap:22px}.card{background:#fffdf8;border:1px solid #d4ded5;border-radius:22px;overflow:hidden}.scene{height:310px;background:#a9d8eb}canvas{display:block;width:100%;height:100%}.info{padding:18px 22px}.info h2{font-size:23px;margin:0 0 8px}.info p{margin:0;color:#52666b;font-size:14px}.swatches{display:flex;gap:26px;margin-top:13px}.swatches span{display:flex;align-items:center;gap:8px;font-size:13px}.swatches i{display:inline-block;width:19px;height:19px;border-radius:50%;border:1px solid #0002}footer{margin-top:18px;font-size:13px;color:#52666b}
+</style></head><body><header><h1>Pip & Nova · Selected colors</h1><p>Same robot geometry, pose and lighting. Pip on the left · Nova on the right.</p></header><main class="grid"></main><footer>Live rig materials · actual Microduck models · simplified playground-colored setting</footer><script type="module">
+import * as THREE from '/node_modules/three/build/three.module.js';
+import { buildDuckRig, poseDuckRig } from '/src/simulation/rig.ts';
+import { DEFAULT_POSE } from '/src/simulation/constants.ts';
+const options=[['01','Dark grey & Navy','#454b54','#244267','Pip in charcoal grey. Nova in navy. Cool light panels and matching feet.']];
+for(const [num,title,pip,nova,desc] of options){
+ const card=document.createElement('article');card.className='card';card.id='option-'+num;
+ card.innerHTML='<div class="scene"></div><div class="info"><h2>'+num+' · '+title+'</h2><p>'+desc+'</p><div class="swatches"><span><i style="background:'+pip+'"></i>Pip '+pip.toUpperCase()+'</span><span><i style="background:'+nova+'"></i>Nova '+nova.toUpperCase()+'</span></div></div>';
+ document.querySelector('.grid').append(card);
+ const box=card.querySelector('.scene'),scene=new THREE.Scene(); scene.background=new THREE.Color('#a9d8eb');
+ const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(2);renderer.setSize(box.clientWidth,310);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;box.append(renderer.domElement);
+ const camera=new THREE.PerspectiveCamera(31,box.clientWidth/310,.01,20);camera.position.set(.05,.43,1.15);camera.lookAt(0,.14,0);camera.zoom=1.4;camera.updateProjectionMatrix();
+ scene.add(new THREE.HemisphereLight('#e9f6ff','#a5b88a',2.2));const sun=new THREE.DirectionalLight('#fff1d6',3);sun.position.set(-1,2,1);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-2;sun.shadow.camera.right=2;sun.shadow.camera.top=2;sun.shadow.camera.bottom=-2;sun.shadow.bias=-.0001;scene.add(sun);
+ const ground=new THREE.Mesh(new THREE.PlaneGeometry(20,20),new THREE.MeshStandardMaterial({color:'#8ead69',roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+ const pad=new THREE.Mesh(new THREE.BoxGeometry(1.15,.025,.68),new THREE.MeshStandardMaterial({color:'#e7e4d8',roughness:.9}));pad.position.y=.0125;pad.receiveShadow=true;scene.add(pad);
+ // White playground fence behind the pair provides consistent environmental contrast.
+ const fenceMat=new THREE.MeshStandardMaterial({color:'#f5f1df'});
+ for(let i=0;i<21;i++){const post=new THREE.Mesh(new THREE.BoxGeometry(.017,.18,.018),fenceMat);post.position.set(-.64+i*.064,.09,-.45);post.castShadow=true;scene.add(post);}
+ for(const y of [.06,.135]){const rail=new THREE.Mesh(new THREE.BoxGeometry(1.35,.015,.016),fenceMat);rail.position.set(0,y,-.45);scene.add(rail);}
+ for(const [i,color] of [pip,nova].entries()){
+  const rig=await buildDuckRig(color);poseDuckRig(rig,[0,0,.24],[1,0,0,0],DEFAULT_POSE);
+  rig.placer.rotation.y=-Math.PI/2 + (i===0?.14:-.14);
+  const shell=new THREE.Color(color);
+  rig.placer.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(rig.placer);rig.placer.position.set(i===0?-.21:.21,.026-bounds.min.y,0);scene.add(rig.placer);
+ }
+ renderer.render(scene,camera);
+}
+window.previewReady=true;
+</script></body></html>

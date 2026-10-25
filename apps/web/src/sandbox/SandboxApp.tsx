@@ -1,62 +1,61 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import { useReducedMotion } from "motion/react";
-import { Bird, Check, ChevronDown, Keyboard, Pause, Play, RotateCcw, Square } from "lucide-react";
-import { BOT_NAMES, KITS, MOMENTS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
-import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
-import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
-import { createCoordinator } from "../coordinator/index.js";
-import type { HeldMove } from "../coordinator/types.js";
-import { WorkshopDialog } from "../cosmetics/WorkshopDialog.js";
-import { parseFast } from "../fastpath/index.js";
-import { ChallengeBar } from "../progress/ChallengeBar.js";
-import { challengeById } from "../progress/challenges.js";
-import { demoSeed } from "../progress/demoSeed.js";
-import { createLabEventLog } from "../progress/events.js";
-import { DUCKSIM_TOL_GCM } from "../progress/outcome.js";
-import { PredictionPrompt } from "../progress/PredictionPrompt.js";
-import { ProgressHud } from "../progress/ProgressHud.js";
-import { createProgressStore } from "../progress/store.js";
-import { useProgress } from "../progress/useStore.js";
-import { createDuckSimAdapter } from "../simulation/real/index.js";
-import { ChannelPanel, type RailPane } from "../handoff/ChannelPanel.js";
-import { deriveChannel } from "../handoff/model.js";
-import { usePresentation } from "../presentation/usePresentation.js";
-import { createMockProvider } from "../provider/mock.js";
-import { consoleSim, createConversation, threadOf } from "./conversation";
-import { crewLead, OWNER, pressStart, resolveAddressees, type AddressContext, type Resolution } from "../addressing/resolve.js";
-import { Contained } from "./Contained";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Check, ChevronDown, Keyboard, RotateCcw, Square, Volume2, VolumeX, Zap } from "lucide-react";
+import { KITS, type DuckTask, type KitId, type LabKit, type RescueRoute } from "@kestrel/contracts";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
-import type { LessonId } from "../lessons/lessonContent";
-import { makeQuizQuestions } from "../lessons/lessonContent";
-import { LessonBookOverlay, type LessonMeasurements } from "../lessons/LessonBookOverlay";
-import { DemoOutcomeOverlay } from "../lessons/DemoOutcomeOverlay";
-import { QuizOverlay } from "../lessons/QuizOverlay";
-import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
-import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
+import { VEL_ANG, VEL_BACK, VEL_FWD, VEL_STEER, VEL_TURN_WALK } from "../simulation/constants";
+import { BOTS, DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
+import { RescuePanel, type RescueOutcome } from "./RescuePanel";
 import { ExperimentPanel } from "./ExperimentPanel";
+import { ObjectivesBoard } from "./ObjectivesBoard";
+import { ConsolePane } from "./ConsolePane";
+import { KestrelLogo } from "./KestrelLogo";
+import { Confetti } from "./Confetti";
+import { BLAST_LIFE } from "./Explosion";
+import { CLASH, FIGHT, RECOIL, aimError, chargeTwist, distance, faceTwist, isClash, type FightPhase, type Pose } from "./fight";
+import { playBoom, unlockAudio } from "./sfx";
+import { CREW_TASKS, handoffLine, type CrewLine } from "./crewChannel";
+import { LEVEL_HOLD_MS, OBJECTIVES, beamLevel, type ObjectiveId } from "./objectives";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 import { ArrowPill, Button } from "./gic";
 
-type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean; speaker?: BotId };
-type LearningFlow = { step: "book" | "demo" | "demo-complete" | "demo-incomplete" | "quiz"; lesson: LessonId; message?: string } | null;
+type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
+type Pane = "you" | "crew" | null;
 
-/** Bubble anchors near each duck, as a percentage of the 3D stage. */
-const ANCHORS: Anchors = { pip: { x: 30, y: 60 }, nova: { x: 70, y: 60 } };
+const PANE_KEY = "kestrel.console.window";
+const CONTROLS_KEY = "kestrel.controls.open";
+const LESSON_KEY = "kestrel.lesson.open";
+function remember(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* The choice just isn't remembered. */
+  }
+}
+function savedPane(): Pane {
+  try {
+    const v = window.localStorage.getItem(PANE_KEY);
+    return v === "crew" || v === "none" ? (v === "crew" ? "crew" : null) : "you";
+  } catch {
+    return "you";
+  }
+}
 
 const LESSONS: { id: KitId; subject: string; topic: string }[] = [
+  { id: "rescue", subject: "Mission", topic: "Robot rescue" },
   { id: "pythagoras", subject: "Maths", topic: "Pythagorean theorem" },
   { id: "moments", subject: "Physics", topic: "Moments" },
   { id: "free", subject: "Sandbox", topic: "Free play" },
 ];
 
 const OBJECTIVE: Record<KitId, string> = {
+  rescue: "Help Pip reach its charger. Choose a route and predict its distance.",
   pythagoras:
     "Each square goes on the side of the right triangle that matches it. Count the tiles: does 9 + 16 make 25? Pip and Nova can build it together.",
   moments:
     "Pip moves the 200 g weight, Nova the 100 g. Choose where each goes, predict which way the plank tips, then run it.",
-  free: "Walk, turn, kick and push blocks around the lab.",
+  free: "Walk, turn, kick and push blocks around the playground. Or set Pip and Nova on each other: they charge, clash and get back up.",
 };
 
 const KEYS: [string, string][] = [
@@ -70,34 +69,9 @@ const KEYS: [string, string][] = [
   ["Esc", "Stop task"],
 ];
 
-/** The console's accordion: its own log, or one of the two conversation panes. */
-type ConsoleWindow = "log" | RailPane | null;
-const WINDOW_KEY = "kestrel.console.window";
-const savedWindow = (): ConsoleWindow => {
-  try {
-    const v = window.localStorage.getItem(WINDOW_KEY);
-    return v === "log" || v === "you" || v === "bots" ? v : v === "none" ? null : "log";
-  } catch {
-    return "log";
-  }
-};
-
-/** What the 3D robots can show today: six shell colours, a head prop, a backpack. */
-const CONSOLE_LOOKS: ReadonlySet<string> = new Set([
-  "shell-sky", "shell-mint", "shell-slate", "shell-plum", "shell-gold", "shell-coral",
-  "none", "antenna", "partyhat", "backpack",
-]);
-
-const safeStorage = (): Storage | null => {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-};
-
 function describe(task: DuckTask, name: (id: string) => string = (id) => id): string {
   switch (task.kind) {
+    case "rescue_route": return "Follow your rescue route";
     case "move":
       return `${task.meters < 0 ? "Back up" : "Walk forward"} ${Math.abs(Math.round(task.meters * 100))} cm`;
     case "turn":
@@ -135,60 +109,114 @@ export function SandboxApp() {
   const [text, setText] = useState("");
   const [filled, setFilled] = useState<string[]>([]);
   const nextId = useRef(0);
+  const stageRef = useRef<HTMLElement>(null);
+  // A sticky bubble (the rescue result) stays until the next reset or run instead of timing out.
+  const [bubble, setBubble] = useState<{ id: number; text: string; sticky?: boolean } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const session = useRef<AgentSession | null>(null);
-  const demoAttempt = useRef(0);
   const [phase, setPhase] = useState<AgentPhase>("Ready");
-  const [robotSound, setRobotSound] = useState(true);
-  const [crewSelected, setCrewSelected] = useState(false);
-  const [learningFlow, setLearningFlow] = useState<LearningFlow>(null);
-  const [quizQuestions, setQuizQuestions] = useState(() => makeQuizQuestions());
-  const conv = useMemo(createConversation, []);
-  const events = useSyncExternalStore(conv.subscribe, conv.events);
-  const selected = useSyncExternalStore(conv.subscribe, conv.selected);
-  const selectedRef = useRef<BotId>("pip");
-  selectedRef.current = selected;
-  /** The robot the current agent turn is bound to. */
-  const turnBot = useRef<BotId | null>(null);
-  /** A selection made since the last turn, and the open question thread. */
-  const selectedSince = useRef<BotId | null>(null);
-  const thread = useRef<{ bot: BotId; at: number } | null>(null);
-  /** Routing context taken at press-start (stale-voice rule). */
-  const pressed = useRef<AddressContext | null>(null);
-  const lastRoute = useRef<{ text: string; bot: BotId; at: number } | null>(null);
-  const [chip, setChip] = useState<{ label: string; heard: string | null; reaction: string | null } | null>(null);
-  const reducedMotion = Boolean(useReducedMotion());
-  const [paused, setPaused] = useState(false);
-  /** DuckSim events fanned out to the SimAdapter that the coordinator reads. */
-  const relay = useRef(new Set<(e: SimEvent) => void>());
-  const [, rerender] = useReducer((n: number) => n + 1, 0);
+  const [voice, setVoice] = useState(true);
+  const [rescueRoute, setRescueRoute] = useState<RescueRoute | null>(null);
+  const [rescueOutcome, setRescueOutcome] = useState<RescueOutcome | null>(null);
+  const [objective, setObjective] = useState<ObjectiveId | null>(null);
+  const [won, setWon] = useState(false);
+  const [earned, setEarned] = useState<ReadonlySet<ObjectiveId>>(new Set());
+  const [boardOpen, setBoardOpen] = useState(true);
+  const [confetti, setConfetti] = useState(0);
+  const [fighting, setFighting] = useState(false);
+  const [score, setScore] = useState({ pip: 0, nova: 0 });
+  const [blasts, setBlasts] = useState<{ id: number; t: number; at: [number, number, number] }[]>([]);
+  const fight = useRef<{ on: boolean; phase: FightPhase; since: number }>({ on: false, phase: "face", since: 0 });
+  const voiceRef = useRef(true);
+  const simRef = useRef<DuckSim | null>(null);
+  // Set when the balance-beam objective starts: release the plank once the lab has loaded.
+  const tipOnLoad = useRef(false);
+  const levelSince = useRef<number | null>(null);
+  const [pane, setPane] = useState<Pane>(savedPane);
+  const [lessonOpen, setLessonOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(LESSON_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+  const [controlsOpen, setControlsOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(CONTROLS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [crewLog, setCrewLog] = useState<CrewLine[]>([]);
+  const [crewSeen, setCrewSeen] = useState(-1);
+  const crewRef = useRef<HTMLDivElement>(null);
+  // Each two-robot task is handed over once; Pip's own reports join the channel while one runs.
+  const announced = useRef(new WeakSet<object>());
+  const crewOn = useRef(false);
 
-  const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean, bot?: BotId, source: "built-in" | "live" = "built-in") => {
+  const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => {
     const id = nextId.current++;
-    setLog((l) => [...l, { id, who, text: line, ok, ...(who === "duck" ? { speaker: bot ?? turnBot.current ?? selectedRef.current } : {}) }].slice(-40));
-    // Every line also enters the conversation: the learner to the selected robot, a reply from a robot to the learner.
-    if (who === "you") conv.record("you", turnBot.current ?? selectedRef.current, "learner", line, "built-in");
-    else conv.record(bot ?? turnBot.current ?? selectedRef.current, "you", "say", line, source);
-    // A robot's question to the learner keeps the thread open for 30 s.
-    if (who === "duck" && line.trim().endsWith("?")) thread.current = { bot: bot ?? turnBot.current ?? selectedRef.current, at: Date.now() };
-  }, [conv]);
-  /** The agent's own lines are the Claude agent's (live); the rest are built in. */
-  const agentAdd = useCallback((who: LogEntry["who"], line: string, ok?: boolean, speaker?: BotId) => add(who, line, ok, speaker, who === "duck" && ok !== false ? "live" : "built-in"), [add]);
+    setLog((l) => [...l, { id, who, text: line, ok }].slice(-40));
+    // The duck's replies also appear as a bubble beside it in the room.
+    if (who === "duck") setBubble({ id, text: line });
+  }, []);
+
+  const crewSay = useCallback((from: CrewLine["from"], text: string, ok?: boolean) => {
+    const id = nextId.current++;
+    setCrewLog((l) => [...l, { id, from, text, ok }].slice(-40));
+  }, []);
+
+  /** End a robot fight and let go of both robots. */
+  const endFight = useCallback(() => {
+    if (!fight.current.on) return;
+    fight.current.on = false;
+    setFighting(false);
+    for (const id of BOTS) if (simRef.current) simRef.current.robot(id).manual = { vx: 0, wz: 0 };
+  }, []);
+
+  useEffect(() => {
+    if (!bubble || bubble.sticky) return;
+    const t = window.setTimeout(() => setBubble(null), Math.max(12000, bubble.text.length * 70));
+    return () => window.clearTimeout(t);
+  }, [bubble]);
 
   const onEvent = useCallback(
     (e: SimEvent) => {
-      relay.current.forEach((fn) => fn(e));
-      if (session.current?.event(e)) return;
-      if (e.type === "task-done") {
-        if (e.task.kind === "push" && e.task.toward === "slot") return;
-        if (["kick", "sit", "stand", "peck", "roll"].includes(e.task.kind)) return;
-        add("duck", e.summary, e.ok, e.duck === "lab" ? undefined : e.duck);
+      session.current?.event(e);
+      if (e.type === "reset") endFight();
+      if (e.type === "reset" && tipOnLoad.current) {
+        tipOnLoad.current = false;
+        // A beat on the level, locked beam first, so the learner sees it tip.
+        window.setTimeout(() => {
+          if (simRef.current?.kit.id === "moments") simRef.current.runTask({ kind: "release_plank" });
+        }, 900);
       }
-      else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false, e.duck);
-      else if (e.type === "recovered") return;
-      else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset") add("duck", e.reason, false);
+      if (e.type === "task-done" && e.task.kind === "rescue_route") {
+        setRescueOutcome({ok:e.ok, summary:e.summary});
+        setBubble({id:nextId.current++,text:e.summary,sticky:true}); return;
+      }
+      if (e.type === "reset") {
+        setRescueOutcome({ok:false, summary:e.reason === "Rescue retry" ? "Pip is back at the start. Try a different checkpoint order." : "Course ready. Tell Pip the checkpoint order.",reset:true});
+        setRescueRoute(null); setBubble(null);
+      }
+      if (e.type === "plan") {
+        const line = handoffLine(e.task);
+        crewOn.current = true;
+        if (line) crewSay("pip", line);
+      } else if (e.type === "task-done") {
+        if (e.duck === "nova") crewSay("nova", e.summary, e.ok);
+        else if (e.duck === "pip" && crewOn.current) crewSay("pip", e.summary, e.ok);
+        else if (e.duck === "lab" && CREW_TASKS.has(e.task.kind)) {
+          crewOn.current = false;
+          crewSay("crew", e.summary, e.ok);
+        }
+      } else if ((e.type === "fell" || e.type === "recovered") && e.duck === "nova") crewSay("nova", e.type === "fell" ? "I fell. Getting back up…" : "Back on my feet.", e.type === "recovered");
+      if (e.type === "task-done") add("duck", e.summary, e.ok);
+      else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false);
+      else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true);
+      else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset" && e.reason !== "Rescue retry") add("duck", e.reason, false);
     },
-    [add],
+    [add, crewSay, endFight],
   );
 
   useEffect(() => {
@@ -199,16 +227,9 @@ export function SandboxApp() {
         created = s;
         if (!live) return;
         s.start();
+        simRef.current = s;
         setSim(s);
-        session.current = new AgentSession(s, agentAdd, setPhase, (action, lesson) => {
-          if (action === "book") setLearningFlow({ step: "book", lesson });
-          else {
-            setQuizQuestions(makeQuizQuestions());
-            setLearningFlow({ step: "quiz", lesson });
-          }
-        });
-        session.current.setRobotSound(robotSound);
-        session.current.onTranscript = (heard) => routeRef.current(heard, pressed.current ?? currentRef.current(), true);
+        session.current = new AgentSession(s, add, setPhase);
         // Dev-only handle for browser tests and debugging.
         if (import.meta.env.DEV) (window as unknown as { kestrelSim: DuckSim }).kestrelSim = s;
       })
@@ -218,113 +239,171 @@ export function SandboxApp() {
       session.current?.cancel();
       created?.stop();
     };
-  }, [onEvent, agentAdd]);
-
-  // The session can be created after the learner already changed the reply sound.
-  useEffect(() => {
-    session.current?.setRobotSound(robotSound);
-  }, [robotSound, sim]);
-
-  // Ask Pip / Ask Nova: the labelled mock hands off between the robots and back to the learner.
-  // On the Moments lesson the coordinator drives the real robots through the SimAdapter
-  // (held challenge moves, measured outcomes); elsewhere it only reads and refuses moves.
-  const labLog = useMemo(createLabEventLog, []);
-  const demoProfile = new URLSearchParams(window.location.search).get("profile") === "demo";
-  const store = useMemo(
-    () =>
-      createProgressStore({
-        log: labLog,
-        storage: demoProfile ? null : safeStorage(),
-        ...(demoProfile ? { seed: demoSeed() } : {}),
-      }),
-    [labLog, demoProfile],
-  );
-  const view = useProgress(store);
-  const adapterRef = useRef<ReturnType<typeof createDuckSimAdapter> | null>(null);
-  const [adapter, setAdapter] = useState<ReturnType<typeof createDuckSimAdapter> | null>(null);
-  // The real adapter measures both weights on the balance, so it is built only once
-  // DuckSim reports them, never during render; each lesson change rebuilds it.
-  useEffect(() => {
-    if (!sim || kitId !== "moments") return;
-    let made: ReturnType<typeof createDuckSimAdapter> | null = null;
-    const t = window.setInterval(() => {
-      const rails = sim.status().balance?.rails;
-      if (!rails || !MOMENTS.weights.every((w) => rails.has(w.id))) return;
-      window.clearInterval(t);
-      try {
-        made = createDuckSimAdapter(sim, (fn) => {
-          relay.current.add(fn);
-          return () => void relay.current.delete(fn);
-        });
-        adapterRef.current = made;
-        setAdapter(made);
-      } catch (e) {
-        console.error("Moments adapter could not start", e);
-      }
-    }, 100);
-    return () => {
-      window.clearInterval(t);
-      made?.dispose();
-      if (adapterRef.current === made) adapterRef.current = null;
-      setAdapter(null);
-    };
-  }, [sim, kitId]);
-  const { coordinator } = useMemo(
-    () => ({
-      coordinator: createCoordinator({
-        sim: adapter ?? consoleSim(() => ({ balance: sim?.status().balance ?? null })),
-        provider: createMockProvider({ delayMs: 1000 }),
-        ...(adapter ? { log: labLog, tolGcm: DUCKSIM_TOL_GCM, settleMs: 400 } : {}),
-      }),
-    }),
-    [sim, adapter, labLog],
-  );
-  useEffect(() => {
-    conv.resetMirror();
-    return coordinator.subscribe(() => {
-      conv.mirror(coordinator.ledger());
-      rerender();
-    });
-  }, [coordinator, conv]);
-  const held = useRef<HeldMove | null>(null);
-  const [workshop, setWorkshop] = useState(false);
-  const [setup, setSetup] = useState<"idle" | "busy" | "failed">("idle");
-  const challengeId = coordinator.challengeId();
-  const completed = challengeId !== null && view.awards.some((a) => a.awardId === `complete|${challengeId}`);
-  const explained = challengeId !== null && view.awards.some((a) => a.awardId === `explain|${challengeId}`);
-  const pres = usePresentation(events, { paused, speed: 1, reducedMotion });
-  const botStatus = { pip: coordinator.botState("pip"), nova: coordinator.botState("nova") };
-  const asking = (["pip", "nova"] as const).some((b) => ["thinking", "waiting", "acting"].includes(botStatus[b]));
-  const channel = { ...deriveChannel(events, botStatus, coordinator.budget()), youThread: threadOf(events, selected) };
+  }, [onEvent]);
 
   useEffect(() => {
     if (!sim) return;
     const t = window.setInterval(() => {
-      setStatus(sim.status());
-      setNova(sim.status("nova"));
+      const pip = sim.status();
+      const nova = sim.status("nova");
+      setStatus(pip);
+      setNova(nova);
+      // Two-robot plans announce themselves (the "plan" event). Nova's own weight, when
+      // Pip hands it over alone, shows up only as Nova's task, outside any plan.
+      const idle = !pip.experiment || pip.experiment.phase === "DONE";
+      const task = idle && nova.task?.kind === "place_weight" ? nova.task : null;
+      if (task && !announced.current.has(task)) {
+        announced.current.add(task);
+        const line = handoffLine(task);
+        if (line) crewSay("pip", line);
+      }
     }, 200);
     return () => window.clearInterval(t);
-  }, [sim]);
+  }, [sim, crewSay]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [log]);
+  }, [log, pane]);
+
+  useEffect(() => {
+    crewRef.current?.scrollTo({ top: crewRef.current.scrollHeight });
+    if (pane === "crew") setCrewSeen(crewLog.at(-1)?.id ?? -1);
+  }, [crewLog, pane]);
+
+  function togglePane(p: Exclude<Pane, null>) {
+    const next = pane === p ? null : p;
+    setPane(next);
+    remember(PANE_KEY, next ?? "none");
+  }
 
   function chooseLesson(id: KitId) {
-    demoAttempt.current++;
-    setLearningFlow(null);
+    if (id === kitId) return;
+    endFight();
+    setScore({ pip: 0, nova: 0 });
     session.current?.cancel(true);
-    coordinator.endChallenge();
-    // The adapter polls the balance, which only exists on the Moments lesson.
-    adapterRef.current?.dispose();
-    adapterRef.current = null;
     const next = KITS[id]();
     setKitId(id);
+    setBubble(null);
+    setRescueOutcome(null);
+    setRescueRoute(null);
     setKit(next);
     setFilled([]);
+    setCrewLog([]);
+    crewOn.current = false;
     sim?.setKit(next);
-    add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
+    if(id !== "rescue") add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
   }
+
+  /** Start (or restart) an objective from a fresh lab, its XP bar empty. */
+  function startObjective(id: ObjectiveId) {
+    if (!sim) return;
+    const o = OBJECTIVES.find((x) => x.id === id)!;
+    setObjective(id);
+    setWon(false);
+    setBoardOpen(false);
+    levelSince.current = null;
+    tipOnLoad.current = id === "balance-beam";
+    if (o.kit !== kitId) chooseLesson(o.kit);
+    else {
+      session.current?.cancel(true);
+      setFilled([]);
+      setBubble(null);
+      sim.reset();
+    }
+  }
+
+  /** Picking another lesson from the nav leaves the objective. */
+  function pickLesson(id: KitId) {
+    if (objective && OBJECTIVES.find((o) => o.id === objective)!.kit !== id) {
+      setObjective(null);
+      setWon(false);
+    }
+    chooseLesson(id);
+  }
+
+  function startFight() {
+    if (!sim) return;
+    session.current?.cancel();
+    unlockAudio();
+    fight.current = { on: true, phase: "face", since: performance.now() };
+    setFighting(true);
+    crewSay("pip", "Nova, en garde!");
+    crewSay("nova", "Bring it, Pip!");
+  }
+
+  useEffect(() => {
+    voiceRef.current = voice;
+  }, [voice]);
+
+  // Free play: watch for fast clashes (an explosion each), and run the fight when it is on.
+  useEffect(() => {
+    if (!sim || kitId !== "free") return;
+    const a = { pos: [0, 0, 0], quat: [1, 0, 0, 0] } as Parameters<DuckSim["readTrunk"]>[0];
+    const b = { pos: [0, 0, 0], quat: [1, 0, 0, 0] } as Parameters<DuckSim["readTrunk"]>[0];
+    // Distance samples over the last CLASH.windowMs, oldest first.
+    const recent: { d: number; t: number }[] = [];
+    let armed = true;
+    const pose = (s: SimStatus): Pose => ({ x: s.pose.x, y: s.pose.y, yaw: (s.pose.yawDeg * Math.PI) / 180 });
+    const upright = (s: SimStatus) => s.mode !== "fallen" && s.mode !== "recovering";
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const ps = sim.status("pip");
+      const ns = sim.status("nova");
+      const P = pose(ps);
+      const N = pose(ns);
+      const d = distance(P, N);
+      recent.push({ d, t: now });
+      while (recent.length > 1 && now - recent[1]!.t >= CLASH.windowMs) recent.shift();
+      const first = recent[0]!;
+      if (d > CLASH.rearm) armed = true;
+      const hit = armed && now - first.t >= CLASH.windowMs * 0.8 && isClash(first.d, d, (now - first.t) / 1000);
+      if (hit) {
+        armed = false;
+        // One of them loses, at random: a scripted shove knocks it over.
+        const loser = Math.random() < 0.5 ? "pip" : "nova";
+        const winner = loser === "pip" ? "nova" : "pip";
+        const L = loser === "pip" ? P : N;
+        const W = loser === "pip" ? N : P;
+        sim.knock(loser, [L.x - W.x, L.y - W.y]);
+        setScore((sc) => ({ ...sc, [winner]: sc[winner] + 1 }));
+        crewSay(winner, winner === "pip" ? "Ha! That round is mine, Nova." : "Gotcha, Pip! My round.");
+        sim.readTrunk(a, "pip");
+        sim.readTrunk(b, "nova");
+        const id = nextId.current++;
+        const at: [number, number, number] = [(a.pos[0] + b.pos[0]) / 2, (a.pos[1] + b.pos[1]) / 2, (a.pos[2] + b.pos[2]) / 2];
+        setBlasts((list) => [...list.filter((x) => now - x.t < BLAST_LIFE * 1000 + 500), { id, t: now, at }]);
+        if (voiceRef.current) playBoom();
+      }
+      const f = fight.current;
+      if (!f.on) return;
+      const pip = sim.robot("pip");
+      const nova = sim.robot("nova");
+      const ep = aimError(P, N);
+      const en = aimError(N, P);
+      const go = (phase: FightPhase) => {
+        f.phase = phase;
+        f.since = now;
+      };
+      if (f.phase === "face") {
+        const ready = upright(ps) && upright(ns);
+        if (ready && Math.abs(ep) < FIGHT.facedRad && Math.abs(en) < FIGHT.facedRad) go("charge");
+        pip.manual = ready && Math.abs(ep) >= FIGHT.facedRad ? faceTwist(ep) : { vx: 0, wz: 0 };
+        nova.manual = ready && Math.abs(en) >= FIGHT.facedRad ? faceTwist(en) : { vx: 0, wz: 0 };
+      } else if (f.phase === "charge") {
+        if (hit || now - f.since > FIGHT.chargeMs || !upright(ps) || !upright(ns)) go("recoil");
+        else {
+          pip.manual = chargeTwist(ep);
+          nova.manual = chargeTwist(en);
+        }
+      }
+      if (f.phase === "recoil") {
+        if (now - f.since > FIGHT.recoilMs) go("face");
+        pip.manual = { ...RECOIL };
+        nova.manual = { ...RECOIL };
+      }
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [sim, kitId, crewSay]);
 
   /** A two-robot plan or experiment, started by the learner. */
   const crew = (task: DuckTask): string | null => {
@@ -353,47 +432,34 @@ export function SandboxApp() {
     [sim, add],
   );
 
-  function beginDemonstration(lessonId: LessonId) {
-    const attempt = ++demoAttempt.current;
-    setLearningFlow({ step: "demo", lesson: lessonId });
-    void session.current?.demonstrate(lessonId).then(async result => {
-      if (attempt !== demoAttempt.current) return;
-      await session.current?.announce(result.summary, result.ok, false);
-      if (attempt !== demoAttempt.current) return;
-      setLearningFlow({ step: result.ok ? "demo-complete" : "demo-incomplete", lesson: lessonId, message: result.summary });
-    }).catch(error => {
-      if (attempt !== demoAttempt.current) return;
-      const message = (error as Error).name === "AbortError"
-        ? "The demonstration was interrupted before its measurements were complete. Reset the lab and try again."
-        : "The demonstration stopped before its measurements were complete. Reset the lab and try again.";
-      add("duck", message, false);
-      setLearningFlow({ step: "demo-incomplete", lesson: lessonId, message });
-    });
-  }
-
   // Keyboard: held keys drive the walking command; letters fire skills.
   useEffect(() => {
     if (!sim) return;
+    if (kitId === "rescue") return;
     const held = new Set<string>();
     const apply = () => {
       const fwd = held.has("w") || held.has("arrowup");
       const back = held.has("s") || held.has("arrowdown");
       const left = held.has("a") || held.has("arrowleft");
       const right = held.has("d") || held.has("arrowright");
+      const moving = fwd || back;
+      const turning = left || right;
+      const turnRate = moving ? VEL_STEER : VEL_ANG;
       sim.manual = {
-        vx: fwd ? VEL_FWD : back ? VEL_BACK : 0,
-        wz: left ? VEL_ANG : right ? -VEL_ANG : 0,
+        vx: fwd ? (turning ? VEL_TURN_WALK : VEL_FWD) : back ? VEL_BACK : 0,
+        wz: left ? turnRate : right ? -turnRate : 0,
       };
     };
     const typing = (e: KeyboardEvent) =>
       e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
     const down = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); session.current?.cancel(); add("duck", "Stopped."); return; }
+      if (e.key === "Escape") { e.preventDefault(); endFight(); session.current?.cancel(); add("duck", "Stopped."); return; }
       if (typing(e) || e.metaKey || e.ctrlKey) return;
-      if (e.code === "Space") { e.preventDefault(); if (!e.repeat) talk(); return; }
+      if (e.code === "Space") { e.preventDefault(); if (!e.repeat) { endFight(); void session.current?.startCapture(); } return; }
       const k = e.key.toLowerCase();
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
         e.preventDefault();
+        endFight();
         session.current?.cancel();
         held.add(k);
         apply();
@@ -430,164 +496,40 @@ export function SandboxApp() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [sim, skill, add]);
-
-  // The session is created once; these refs always point at the latest router.
-  const routeRef = useRef<(cmd: string, ctx: AddressContext, spoken?: boolean) => void>(() => {});
-  const currentRef = useRef<() => AddressContext>(() => ({ selected: null, thread: null }));
-  useEffect(() => {
-    routeRef.current = route;
-    currentRef.current = currentContext;
-    // Dev-only handle for browser tests: a fixture transcript, as if spoken (no mic, no Scribe).
-    if (import.meta.env.DEV)
-      (window as unknown as { kestrelVoice: unknown }).kestrelVoice = {
-        press: () => (pressed.current = pressStart(currentContext())),
-        transcript: (heard: string) => route(heard, pressed.current ?? currentContext(), true),
-      };
-  });
+  }, [sim, skill, add, kitId, endFight]);
 
   function send(e: FormEvent) {
     e.preventDefault();
     if (!sim || !text.trim()) return;
-    route(text.trim(), currentContext());
+    endFight();
+    void session.current?.submit(text.trim());
     setText("");
   }
-
-  function currentContext(): AddressContext {
-    if (crewSelected) return { selected: null, thread: null };
-    const open = thread.current && Date.now() - thread.current.at < 30_000 ? thread.current.bot : null;
-    return { selected: selectedSince.current, thread: open };
-  }
-
-  /** Hold-to-talk: the no-name target is taken now, before the transcript arrives. */
-  function talk() {
-    pressed.current = pressStart(currentContext());
-    void session.current?.startCapture();
-  }
-
-  /** One router for typed and spoken turns: name first, then the precedence rules. */
-  function route(cmd: string, ctx: AddressContext, spoken = false) {
-    let r: Resolution;
-    try {
-      r = resolveAddressees(cmd, ctx);
-    } catch {
-      r = { to: [selectedRef.current], mode: "selected", body: cmd, mentions: [], heard: null, unsure: false, side: null };
-    }
-    selectedSince.current = null;
-    const world = adapterRef.current?.snapshot();
-    const fast = world ? parseFast(r.body, { focus: null, leftCm: world.leftCm, rightCm: world.rightCm, undo: [] }) : null;
-    const move = fast?.kind === "move" ? { side: fast.side, cm: fast.cm } : null;
-    // A crew turn needs group words or the "Both" selection; any other unaddressed
-    // line goes to the selected robot's agent, as before addressing existed.
-    const crew = r.mode === "group" || (r.mode === "crew-default" && crewSelected);
-    const bot = r.mode === "crew-default" ? selectedRef.current : r.to[0]!;
-    const other = (b: BotId): BotId => (b === "pip" ? "nova" : "pip");
-    const label = crew ? "to Crew" : `to ${BOT_NAMES[bot]}${r.unsure ? "?" : ""}`;
-    setChip({
-      label: crew ? `${label} · one reply for the crew` : label,
-      heard: r.heard,
-      reaction: r.mode === "owner" ? `${BOT_NAMES[other(bot)]} turns and nods` : null,
-    });
-    if (r.mode === "clarify") {
-      turnBot.current = bot;
-      add("you", cmd);
-      add("duck", "Which weight? The left one (200 g) or the right one (100 g)?", true, bot);
-      return;
-    }
-    // While a challenge is active, a fast-path move waits for the learner's prediction.
-    const id = coordinator.challengeId();
-    if (id && move) {
-      const challenge = challengeById(id)!;
-      held.current = coordinator.heldTurn(
-        crew ? OWNER[move.side] : bot,
-        cmd,
-        { say: "Lock your prediction, then I'll move it.", action: move },
-        { challengeId: id, promptId: challenge.prompts[0]!.promptId },
-      );
-      return;
-    }
-    if (crew) {
-      const lead = crewLead(move?.side ?? r.side, coordinator.lastTrial(), null);
-      turnBot.current = lead;
-      lastRoute.current = { text: r.body, bot: lead, at: Date.now() };
-      session.current?.setRecipient("both", lead);
-      void session.current?.submit(r.body, "both", "normal", lead);
-      return;
-    }
-    // Wrong rail: the named robot answers, then hands the push to the weight's owner.
-    if (move && OWNER[move.side] !== bot) {
-      const owner = OWNER[move.side];
-      void coordinator.delegate(bot, owner, cmd, `That's ${BOT_NAMES[owner]}'s rail. ${BOT_NAMES[owner]}, can you?`, {
-        say: `Moving the ${move.side} weight to ${move.cm} cm.`,
-        action: move,
-        question: `Can you move the ${move.side} weight to ${move.cm} cm?`,
-      });
-      return;
-    }
-    turnBot.current = bot;
-    // Only a spoken turn can be redirected by tapping the other robot; a typed one was chosen on purpose.
-    lastRoute.current = spoken ? { text: r.body, bot, at: Date.now() } : null;
-    session.current?.setRecipient(bot, bot);
-    void session.current?.submit(r.body, bot, "normal", bot);
-  }
-
-  /** Tapping the other robot within 3 s, before anything moves, sends the turn to it instead. */
-  function selectBot(b: BotId) {
-    setCrewSelected(false);
-    conv.select(b);
-    selectedSince.current = b;
-    const last = lastRoute.current;
-    if (last && last.bot !== b && Date.now() - last.at < 3000 && session.current?.phase !== "Acting") {
-      lastRoute.current = null;
-      session.current?.cancel();
-      turnBot.current = b;
-      setChip({ label: `to ${BOT_NAMES[b]}`, heard: null, reaction: null });
-      session.current?.setRecipient(b, b);
-      void session.current?.submit(last.text, b, "normal", b);
-    }
-  }
-
-  // Teammate dialogs portal to <body>; this class lets them wear the console's glass.
-  useEffect(() => {
-    document.body.classList.add("gic-console");
-    return () => document.body.classList.remove("gic-console");
-  }, []);
-  // One window open at a time; the choice is remembered on this device.
-  const [win, setWin] = useState<ConsoleWindow>(savedWindow);
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(WINDOW_KEY, win ?? "none");
-    } catch {
-      /* private mode: the choice just isn't remembered */
-    }
-  }, [win]);
-  const toggle = (w: Exclude<ConsoleWindow, null>) => setWin((open) => (open === w ? null : w));
-  // When the robots start talking to each other, unfold their window.
-  const botLines = useRef(channel.botChannel.length);
-  useEffect(() => {
-    if (channel.botChannel.length > botLines.current) setWin("bots");
-    botLines.current = channel.botChannel.length;
-  }, [channel.botChannel.length]);
-  // Log lines that arrived while the log was folded.
-  const [logSeen, setLogSeen] = useState(0);
-  useEffect(() => {
-    if (win === "log") setLogSeen(log.length);
-    else setLogSeen((n) => Math.min(n, log.length));
-  }, [win, log.length]);
-  const logUnseen = win === "log" ? 0 : log.length - logSeen;
 
   const name = (id: string) => sim?.kit.props.find((p) => p.id === id)?.label ?? id;
   const lesson = LESSONS.find((l) => l.id === kitId)!;
   const solved = kit.slots.length > 0 && filled.length === kit.slots.length;
   const sitting = status?.mode === "sitstand";
   const balance = status?.balance ? balanceSnapshot(status.balance) : null;
-  const liveMeasurements: LessonMeasurements = {
-    filledSlots: filled,
-    totalSlots: kit.slots.length,
-    leftMoment: (balance?.weights.find(w => w.side === "left")?.grams ?? 0) * (balance?.weights.find(w => w.side === "left")?.cm ?? 0),
-    rightMoment: (balance?.weights.find(w => w.side === "right")?.grams ?? 0) * (balance?.weights.find(w => w.side === "right")?.cm ?? 0),
-    tiltDeg: balance?.tiltDeg ?? 0,
-  };
+
+  // The objective is met only on the simulator's measurement.
+  useEffect(() => {
+    if (!objective || won || !status) return;
+    let met = false;
+    if (objective === "balance-beam") {
+      if (kitId === "moments" && beamLevel(status)) {
+        levelSince.current ??= performance.now();
+        met = performance.now() - levelSince.current >= LEVEL_HOLD_MS;
+      } else levelSince.current = null;
+    } else if (objective === "build-triangle") met = kitId === "pythagoras" && solved;
+    else met = kitId === "rescue" && !!rescueOutcome?.ok;
+    if (!met) return;
+    const o = OBJECTIVES.find((x) => x.id === objective)!;
+    setWon(true);
+    setConfetti((c) => c + 1);
+    setEarned((e) => new Set(e).add(objective));
+    add("duck", `${o.win} +${o.xp} XP!`, true);
+  }, [objective, won, status, kitId, solved, rescueOutcome, add]);
 
   return (
     <div className={`gic-root ${styles.app}`}>
@@ -595,8 +537,7 @@ export function SandboxApp() {
         <header className={styles.header}>
           <nav className={`gic-nav ${styles.nav}`} aria-label="Lesson">
             <a className={styles.brand} href="/" aria-label="Kestrel home">
-              <Bird size={22} strokeWidth={1.8} aria-hidden="true" />
-              <h1>Kestrel</h1>
+              <KestrelLogo />
             </a>
             <div className={styles.lessons}>
               {LESSONS.map((l) => (
@@ -605,7 +546,7 @@ export function SandboxApp() {
                   type="button"
                   className={styles.lesson}
                   aria-pressed={l.id === kitId}
-                  onClick={() => chooseLesson(l.id)}
+                  onClick={() => pickLesson(l.id)}
                   disabled={!sim}
                 >
                   <small>{l.subject}</small> {l.topic}
@@ -614,18 +555,9 @@ export function SandboxApp() {
             </div>
           </nav>
         </header>
-
-        <section className={styles.stage} aria-label="3D playground">
+        <section ref={stageRef} className={`${styles.stage} ${kitId === "rescue" ? styles.rescueStage : ""}`} aria-label="3D playground">
           {sim ? (
-            <>
-              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} looks={view.equipped} />
-              <Contained label="Speech bubbles">
-                <div className={styles.overlayTokens}>
-                  <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
-                  <CapsuleOverlay beat={pres.beat} state={pres.capsuleState} anchors={ANCHORS} reducedMotion={reducedMotion} paused={paused} speed={1} />
-                </div>
-              </Contained>
-            </>
+            <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={bubble} rescueRoute={rescueRoute} blasts={blasts} />
           ) : (
             <div className={styles.boot} role="status">
               <strong>{error ? "The playground could not start" : "Opening the playground…"}</strong>
@@ -636,101 +568,117 @@ export function SandboxApp() {
             </div>
           )}
 
-          <div className={`gic-toast ${styles.lessonCard}`}>
-            <p className={`heading-sm ${styles.eyebrow}`}>
+          {kitId !== "rescue" && <div className={`gic-toast ${styles.lessonCard}`} data-open={lessonOpen}>
+            <button
+              type="button"
+              className={`heading-sm ${styles.eyebrow} ${styles.lessonHead}`}
+              aria-expanded={lessonOpen}
+              onClick={() => {
+                setLessonOpen(!lessonOpen);
+                remember(LESSON_KEY, lessonOpen ? "0" : "1");
+              }}
+            >
               {lesson.subject} · {lesson.topic}
-            </p>
-            <p className="body">{OBJECTIVE[kitId]}</p>
-            {kit.slots.length > 0 && (
-              <div className={styles.chips}>
-                {kit.slots.map((s) => (
-                  <span key={s.id} className={filled.includes(s.id) ? "gic-tag gic-tag--on" : "gic-tag"}>
-                    {filled.includes(s.id) && <Check size={12} />} {s.label}
-                  </span>
-                ))}
-              </div>
-            )}
-            {solved && <strong className={`body ${styles.solved}`}>Right triangle built: 9 + 16 = 25.</strong>}
-            {kit.id === "pythagoras" && !solved && (
-              <Button variant="solid" className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
-                {status?.task?.kind === "build_squares" ? `Building · ${status.experiment?.phase ?? ""}` : "Build it together"}
-              </Button>
-            )}
-            {balance && (
-              <div className={styles.chips} data-testid="balance">
-                {balance.weights.map((w) => (
-                  <span key={w.id} className="gic-tag">
-                    {w.grams} g · {w.side} · {w.cm} cm
-                  </span>
-                ))}
-                <span className={balance.plank === "released" ? "gic-tag gic-tag--on" : "gic-tag"}>
-                  {balance.plank === "released"
-                    ? balance.lowSide === "level"
-                      ? "Level"
-                      : `${balance.lowSide === "left" ? "Left" : "Right"} side down ${balance.tiltDeg}°`
-                    : balance.plank === "levelling"
-                      ? "Levelling…"
-                      : "Plank locked"}
-                </span>
-                <Button variant="link" className={styles.plankButton} onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}>
-                  {balance.plank === "locked" ? "Release plank" : "Lock plank"}
+              <ChevronDown size={16} aria-hidden="true" className={styles.chevron} />
+            </button>
+            {lessonOpen && (
+              <>
+              <p className="body">{OBJECTIVE[kitId]}</p>
+              {kit.slots.length > 0 && (
+                <div className={styles.chips}>
+                  {kit.slots.map((s) => (
+                    <span key={s.id} className={filled.includes(s.id) ? "gic-tag gic-tag--on" : "gic-tag"}>
+                      {filled.includes(s.id) && <Check size={12} />} {s.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {solved && <strong className={`body ${styles.solved}`}>Right triangle built: 9 + 16 = 25.</strong>}
+              {kit.id === "pythagoras" && !solved && (
+                <Button variant="solid" className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
+                  {status?.task?.kind === "build_squares" ? `Building · ${status.experiment?.phase ?? ""}` : "Build it together"}
                 </Button>
-              </div>
-            )}
-            {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
-            {kitId === "moments" && !adapter && (
-              <p className={styles.lightScope} role="status" data-testid="progress-loading">
-                Loading lab…
-              </p>
-            )}
-            {kitId === "moments" && adapter && (
-              <Contained label="Progress">
-                <section className={styles.lightScope} aria-label="Challenges and progress">
-                  <ProgressHud store={store} paused={paused} speed={1} onWorkshop={() => setWorkshop(true)} />
-                  <ChallengeBar
-                    active={challengeId}
-                    completed={completed}
-                    explained={explained}
-                    onStart={(id) => {
-                      setSetup("busy");
-                      void coordinator.startChallenge(id, challengeById(id)!.setup).then((ok) => setSetup(ok ? "idle" : "failed"));
-                    }}
-                    onExplain={() =>
-                      challengeId &&
-                      labLog.append({ type: "explanation_submitted", challengeId, epoch: coordinator.epoch(), worldVersion: adapterRef.current?.snapshot().version ?? 0 })
-                    }
-                  />
-                  {setup === "busy" && <p role="status" data-testid="setup-status">Setting up the beam…</p>}
-                  {setup === "failed" && <p role="alert" data-testid="setup-failed">Setup did not finish. Try again.</p>}
-                  {coordinator.pushing() && setup !== "busy" && (
-                    <p role="status" data-testid="pushing">{BOT_NAMES[coordinator.pushing()!]} is pushing the weight…</p>
+              )}
+              {balance && (
+                <div className={styles.chips} data-testid="balance">
+                  {balance.weights.map((w) => (
+                    <span key={w.id} className="gic-tag">
+                      {w.grams} g · {w.side} · {w.cm} cm
+                    </span>
+                  ))}
+                  <span className={balance.plank === "released" ? "gic-tag gic-tag--on" : "gic-tag"}>
+                    {balance.plank === "released"
+                      ? balance.lowSide === "level"
+                        ? "Level"
+                        : `${balance.lowSide === "left" ? "Left" : "Right"} side down ${balance.tiltDeg}°`
+                      : balance.plank === "levelling"
+                        ? "Levelling…"
+                        : "Plank locked"}
+                  </span>
+                  <Button variant="link" className={styles.plankButton} onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}>
+                    {balance.plank === "locked" ? "Release plank" : "Lock plank"}
+                  </Button>
+                </div>
+              )}
+              {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
+              {kit.id === "free" && (
+                <div className={styles.fightRow}>
+                  <Button variant="solid" className={styles.runButton} onClick={fighting ? endFight : startFight} disabled={!sim}>
+                    {fighting ? "Stop the fight" : "Pip vs Nova: fight!"}
+                  </Button>
+                  {score.pip + score.nova > 0 && (
+                    <span className="gic-tag gic-tag--on" data-testid="fight-score">
+                      <Zap size={12} aria-hidden="true" /> Pip {score.pip} · Nova {score.nova}
+                    </span>
                   )}
-                  {coordinator.holding() && held.current && (
-                    <PredictionPrompt onChoose={(choice) => void held.current?.commit(choice)} onSkip={() => void held.current?.skip()} />
-                  )}
-                  <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} shows={CONSOLE_LOOKS} />
-                  {demoProfile && <p>Demo profile: progress is not saved.</p>}
-                </section>
-              </Contained>
+                </div>
+              )}
+              </>
             )}
-          </div>
+          </div>}
 
-          <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls">
-            <Keyboard size={15} aria-hidden="true" />
-            {KEYS.map(([k, v]) => (
-              <span key={k}>
-                <kbd>{k}</kbd> {v}
-              </span>
-            ))}
-            <span className={styles.note}>No jump: the base Microduck model has no jump skill.</span>
-          </div>
+          {kitId !== "rescue" && <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls" data-open={controlsOpen}>
+            <button
+              type="button"
+              className={styles.keysHead}
+              aria-expanded={controlsOpen}
+              onClick={() => {
+                setControlsOpen(!controlsOpen);
+                remember(CONTROLS_KEY, controlsOpen ? "0" : "1");
+              }}
+            >
+              <Keyboard size={15} aria-hidden="true" />
+              <span className="label">Controls</span>
+              <ChevronDown size={14} aria-hidden="true" className={styles.chevron} />
+            </button>
+            {controlsOpen && (
+              <>
+                {KEYS.map(([k, v]) => (
+                  <span key={k}>
+                    <kbd>{k}</kbd> {v}
+                  </span>
+                ))}
+                <span className={styles.note}>No jump: the base Microduck model has no jump skill.</span>
+              </>
+            )}
+          </div>}
         </section>
 
-        <aside className={`gic-toast ${styles.console}`} aria-label="Duck console">
+
+        <div className={styles.rail}>
+        <ObjectivesBoard active={objective} won={won} earned={earned} open={boardOpen} onToggle={() => setBoardOpen((o) => !o)} onStart={startObjective} />
+        {kitId === "rescue" ? <aside className={`gic-toast ${styles.console} ${styles.missionConsole}`} aria-label="Mission console">
+          {sim && <RescuePanel sim={sim} outcome={rescueOutcome} onReset={() => {sim.stopAll();sim.reset();setBubble(null);}} onRun={(route) => {
+            session.current?.cancel(); setRescueOutcome(null); setBubble(null); setRescueRoute(route);
+            const refusal = sim.runTask({kind:"rescue_route", route});
+            if (!refusal && window.matchMedia("(max-width: 900px)").matches) stageRef.current?.scrollIntoView({behavior: "auto", block: "start"});
+            return refusal;
+          }} />}
+        </aside> : <aside className={`gic-toast ${styles.console}`} aria-label="Duck console">
           <div className={styles.consoleHead}>
             <p className="heading-sm">
               <span className={styles.dot} />
-              Your duck
+              Your Kestrel
             </p>
             <span className="gic-tag" data-testid="duck-mode">
               {status ? (sitting ? (status.sitting ? "sitting" : "sitting down") : status.mode) : "loading"}
@@ -756,64 +704,55 @@ export function SandboxApp() {
               </div>
             </dl>
           )}
-          {status && nova && (
-            <div className={`label ${styles.crew}`} data-testid="crew">
-              <span>
-                <i className={styles.pipDot} /> Pip · {status.phase ?? (status.task ? "busy" : status.mode)}
-              </span>
-              <span>
-                <i className={styles.novaDot} /> Nova · {nova.phase ?? (nova.task ? "busy" : nova.mode)}
-              </span>
+          <ConsolePane
+            title="You and Pip"
+            dot={<i className={styles.pipDot} />}
+            state={status ? `Pip · ${status.phase ?? (status.task ? "busy" : status.mode)}` : undefined}
+            open={pane === "you"}
+            onToggle={() => togglePane("you")}
+          >
+            <div className={styles.log} role="log" aria-live="polite" ref={logRef}>
+              {log.length === 0 ? (
+                <p className={`body ${styles.empty}`}>
+                  Hold to talk, or ask <em>What is the Pythagorean theorem?</em> I can explain and move the squares to demonstrate. You can also ask me to push a box or drive with the keyboard.
+                </p>
+              ) : (
+                log.map((l) => (
+                  <div key={l.id} className={`body-alt ${l.who === "you" ? styles.fromYou : styles.fromDuck}`}>
+                    {l.ok === false && <span className={styles.warn}>!</span>}
+                    {l.text}
+                  </div>
+                ))
+              )}
             </div>
-          )}
-
-          <div className={styles.windows}>
-            <section className={styles.window} data-open={win === "log"} aria-label="Log">
-              <h2>
-                <button className={styles.fold} aria-expanded={win === "log"} aria-controls="console-log" data-testid="fold-log" onClick={() => toggle("log")}>
-                  Log
-                  {logUnseen > 0 && (
-                    <span className={styles.count}>
-                      {logUnseen}
-                      <span className={styles.srOnly}> new</span>
-                    </span>
-                  )}
-                  <ChevronDown size={16} aria-hidden="true" className={styles.chevron} />
-                </button>
-              </h2>
-              <div className={styles.log} id="console-log" role="log" aria-live="polite" ref={logRef} hidden={win !== "log"}>
-                {log.length === 0 ? (
-                  <p className={`body ${styles.empty}`}>
-                    Hold to talk, or ask <em>What is the Pythagorean theorem?</em> I can explain and move the squares to demonstrate. You can also ask me to push a box or drive with the keyboard.
-                  </p>
-                ) : (
-                  log.map((l) => (
-                    <div key={l.id} className={`body-alt ${l.who === "you" ? styles.fromYou : styles.fromDuck}`}>
-                      {l.ok === false && <span className={styles.warn}>!</span>}
-                      {l.who === "duck" && l.speaker && <strong>{BOT_NAMES[l.speaker]}: </strong>}
-                      {l.text}
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-            <Contained label="Conversation">
-              <ChannelPanel
-                embedded
-                view={channel}
-                threadBot={selected}
-                running={asking || coordinator.holding()}
-                onAsk={(from, to) => {
-                  setWin("bots");
-                  void coordinator.askPeer(from, to);
-                }}
-                onStop={() => coordinator.stop()}
-                open={win === "you" || win === "bots" ? win : null}
-                onToggle={toggle}
-              />
-            </Contained>
-          </div>
-
+          </ConsolePane>
+          <ConsolePane
+            title="Pip and Nova"
+            dot={<i className={styles.novaDot} />}
+            state={nova ? `Nova · ${nova.phase ?? (nova.task ? "busy" : nova.mode)}` : undefined}
+            open={pane === "crew"}
+            onToggle={() => togglePane("crew")}
+            unread={crewLog.filter((l) => l.id > crewSeen).length}
+          >
+            <div className={styles.log} role="log" aria-label="Pip and Nova" aria-live="polite" ref={crewRef}>
+              {crewLog.length === 0 ? (
+                <p className={`body ${styles.empty}`}>
+                  When a job needs both robots, Pip hands Nova its part here and each one reports what the simulator measured.
+                </p>
+              ) : (
+                crewLog.map((l) => (
+                  <div
+                    key={l.id}
+                    className={`body-alt ${styles.fromDuck} ${l.from === "nova" ? styles.fromNova : l.from === "pip" ? styles.fromPip : styles.fromCrew}`}
+                  >
+                    {l.ok === false && <span className={styles.warn}>!</span>}
+                    <span className={styles.crewFrom}>{l.from === "pip" ? "Pip" : l.from === "nova" ? "Nova" : "Together"}</span>
+                    {l.text}
+                  </div>
+                ))
+              )}
+            </div>
+          </ConsolePane>
           {(phase !== "Ready" || status?.task) && (
             <div className={`label ${styles.running}`} role="status">
               <span data-testid="agent-phase">{phase}{status?.task ? ` · ${describe(status.task, name)}` : ""}</span>
@@ -829,27 +768,6 @@ export function SandboxApp() {
               </Button>
             </div>
           )}
-          <div className={styles.picker} role="group" aria-label="Who are you talking to">
-            <span className="label">Talking to</span>
-            {(["pip", "nova"] as const).map((b) => (
-              <button key={b} className="gic-tag" aria-pressed={selected === b} aria-label={`Select ${BOT_NAMES[b]}`} onClick={() => selectBot(b)}>
-                <i className={b === "pip" ? styles.pipDot : styles.novaDot} /> {BOT_NAMES[b]}
-              </button>
-            ))}
-            <button className="gic-tag" aria-pressed={crewSelected} onClick={() => { setCrewSelected(true); selectedSince.current = null; thread.current = null; }}>
-              Both
-            </button>
-            <button className="gic-tag" data-testid="pause" aria-pressed={paused} onClick={() => setPaused((p) => !p)}>
-              {paused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />} {paused ? "Resume" : "Pause"}
-            </button>
-            {chip && (
-              <span className={`caption ${styles.addressChip}`} data-testid="address-chip">
-                {chip.label}
-                {chip.heard && <small> · heard: {chip.heard}</small>}
-                {chip.reaction && <small data-testid="reaction"> · {chip.reaction}</small>}
-              </span>
-            )}
-          </div>
           <form className={`gic-field ${styles.command}`} onSubmit={send}>
             <input
               className="gic-field__input body"
@@ -870,19 +788,27 @@ export function SandboxApp() {
               variant="solid"
               disabled={!sim}
               aria-label="Hold to talk"
+              arrow={false}
+              title="Your voice is sent to ElevenLabs for transcription when you let go."
               aria-pressed={phase === "Listening"}
-              onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); talk(); }}
+              onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); endFight(); void session.current?.startCapture(); }}
               onPointerUp={() => session.current?.endCapture()}
               onPointerCancel={() => session.current?.cancel()}
               onLostPointerCapture={() => session.current?.endCapture()}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) talk(); } }}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
             >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</Button>
-            <button type="button" className="gic-tag" aria-label="Robot reply sound" aria-pressed={robotSound} onClick={() => setRobotSound((enabled) => !enabled)}>
-              {robotSound ? "Robot sound on" : "Robot sound off"}
+            <button
+              type="button"
+              className="gic-social"
+              aria-label="Robot reply sound"
+              aria-pressed={voice}
+              title={voice ? "Mute the robots' chirps" : "Turn the robots' chirps back on"}
+              onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}
+            >
+              {voice ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
             </button>
           </div>
-          <small className={`caption ${styles.providerNote}`}>Claude on Bedrock · ElevenLabs transcription · local robot sound. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
           <div className={styles.skills}>
             <button className="gic-tag" onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
               {sitting ? "Stand" : "Sit"}
@@ -912,49 +838,10 @@ export function SandboxApp() {
               <RotateCcw size={15} />
             </button>
           </div>
-        </aside>
+        </aside>}
+        </div>
       </main>
-      {learningFlow?.step === "book" && (
-        <LessonBookOverlay
-          lesson={learningFlow.lesson}
-          measurements={liveMeasurements}
-          onClose={() => setLearningFlow(null)}
-          onDemonstrate={() => beginDemonstration(learningFlow.lesson)}
-        />
-      )}
-      {learningFlow?.step === "demo" && (
-        <div className={styles.demoStatus} role="status">Pip and Nova are demonstrating in the lab…</div>
-      )}
-      {(learningFlow?.step === "demo-complete" || learningFlow?.step === "demo-incomplete") && (
-        <DemoOutcomeOverlay
-          complete={learningFlow.step === "demo-complete"}
-          lesson={learningFlow.lesson}
-          message={learningFlow.message ?? "No measured result was reported."}
-          onContinue={() => {
-            setQuizQuestions(makeQuizQuestions());
-            setLearningFlow({ step: "quiz", lesson: learningFlow.lesson });
-          }}
-          onRetry={() => {
-            const lessonId = learningFlow.lesson;
-            sim?.reset();
-            beginDemonstration(lessonId);
-          }}
-        />
-      )}
-      {learningFlow?.step === "quiz" && (
-        <QuizOverlay
-          key={`${learningFlow.lesson}-${quizQuestions.map(q => q.id).join("-")}`}
-          questions={quizQuestions}
-          onComplete={(score, total) => { void session.current?.announce(`You got ${score} of ${total} questions right.`, true, false); }}
-          onClose={() => setLearningFlow(null)}
-          onFollowUp={question => {
-            setLearningFlow(null);
-            const bot = turnBot.current ?? selectedRef.current;
-            session.current?.setRecipient(bot, bot);
-            void session.current?.submit(question, bot, "follow-up", bot);
-          }}
-        />
-      )}
+      <Confetti burst={confetti} />
     </div>
   );
 }

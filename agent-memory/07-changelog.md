@@ -134,78 +134,6 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 - **Verified:** the screenshot shows the duck, pivot, tipped plank with the 200 g weight, and the floor weight. Tilt is −11.8°, no page errors, `tsc` clean, 27/27 tests.
 - **Minor:** the duck's bubble can overlap the lesson card when the duck is top-left.
 
-## 2026-10-24 · Cursor · Grid route replaces Seek
-
-- `route` in `grid.ts` plans 0.25 m cells from the duck to the stand point behind a body. `push` and `go_to` walk that list and replan if a cell stalls. Claude still only names the object and the destination.
-- The half-second arc search (`chooseDrive`) is no longer used.
-- Checks: `tasks.test.ts` and `walkScale.test.ts`, 13 passed. Live sandbox, walk 1× and radius 0.25 m: a push of square-5 closed from about 1.48 m to 0.57 m in 12 s without a lap. The square was not in its slot yet. The lab was reset afterward.
-
-## 2026-10-24 · Cursor · Grid route replaces Seek
-
-- `route` in `grid.ts` plans 0.25 m cells from the duck to the stand point behind a body. `push` and `go_to` walk that list and replan if a cell stalls. Seek is no longer used.
-- Live sandbox, sliders at 1× and 0.25 m: pushing square-5, the gap fell 1.48 m → 0.57 m over 12 s. Heading stayed on the approach. The square was not in its slot yet; the trial was stopped there.
-- Checks: `tasks.test.ts` and `walkScale.test.ts`, 13 passed.
-
-## 2026-10-24 · Cursor · Seek replaces the fixed push line
-
-- `chooseDrive` in `tasks.ts` is the mover for `go_to` and `push`. It samples short arcs, drops any that enter a prop or the walls, and keeps the one that ends closest to the goal. A stalled approach flips to the other side of the body. Sliders bound speed and the tightest arc. They no longer rewrite a task's turn into a fixed circle.
-- `apps/web/src/sandbox/course.ts` is a list. Lesson 1 holds the 3-4-5 quiz flips and the student mission. The popup is not wired up.
-- Checks: `tasks.test.ts`, `course.test.ts`, `walkScale.test.ts` — 14 passed. A kinematic run from the spawn gets closer to square-5. No live policy demo this session.
-
-## 2026-10-24 · Cursor · Turn radius slider
-
-- Added a Turn radius slider (0.15–0.60 m, default 0.25 m) under Walk speed. `applyTurnRadius` sets yaw from forward speed ÷ radius for keyboard and tasks. Straight lines are unchanged. Yaw is capped at 2 rad/s.
-- Files: `apps/web/src/simulation/constants.ts`, `duckSim.ts`, `walkScale.test.ts`, `apps/web/src/sandbox/SandboxApp.tsx`.
-- Checks: `walkScale.test.ts` 4/4. Live sandbox: the slider label reads `0.60 m` and writes `sim.turnRadius`. A 2.5 s walking turn measured about 0.39 m at the 0.60 m setting and about 0.15 m at 0.25 m. Mode stayed `walk`.
-
-## 2026-10-24 · Cursor · Walk speed slider
-
-- Added a Walk speed slider (1×–2×) on the sandbox console. `applyWalkScale` multiplies forward speed only; turning stays at the trained rate. Keyboard and Claude tasks both go through it.
-- Files: `apps/web/src/simulation/constants.ts`, `duckSim.ts`, `walkScale.test.ts`, `apps/web/src/sandbox/SandboxApp.tsx`, `Sandbox.module.css`.
-- Checks: `walkScale.test.ts` 2/2. Live sandbox: slider shows `2.00× · 0.50 m/s`; 1.6 s forward covered 37 cm at 2× and 11 cm at 1×, mode stayed `walk`.
-
-## 2026-10-25 · Cursor · Removed the stub from the sandbox
-
-- The balance-beam Pip and Nova drawing was taken off `/sandbox.html`. DESIGN.md keeps the crew in the 3D room. The stub remains only at `/?demo=two-bot`.
-
-## 2026-10-25 · Cursor · Two-bot conversation on the sandbox page
-
-- `/sandbox.html` scrolls to a Pip and Nova section under the 3D lab. It is the same demo that `/?demo=two-bot` opens alone. The balance beam is still the stub, and the mock provider is still scripted. The header link "Pip and Nova" jumps to that section.
-- Checks: not the full e2e suite. The standalone demo URL is unchanged.
-
-## 2026-10-25 · Cursor · Push controller restored again
-
-- `tasks.ts` matches commit `b5d6dea` again. The flank approach and the task speed rewrite are off the push. Keyboard sliders still affect keyboard holds only.
-- Checks: `tasks.test.ts` and `walkScale.test.ts`.
-
-## 2026-10-24 · Cursor · Approach goes behind the square before pushing
-
-- A live push of the 9-square at 1× walked into the tile and slid it sideways (67 cm from the slot down to 55 cm in 48 s, never placed). The approach now steps to the side when the stand-behind point is through the square, and it does not start the push until the duck is actually behind it.
-- Checks: `tasks.test.ts`, 8 passed. Includes a kinematic run that stays outside the square.
-
-## 2026-10-24 · Cursor · Push keeps its lining-up speed at 1×
-
-- Forcing every task command to the slider's flat m/s made the approach walk through the square, so placements missed. `applyTaskDrive` now multiplies the controller's own command. At 1× and 0.25 m the push is unchanged. At 2× the same command is twice as fast, and a wider radius scales the yaw down.
-- Keyboard holds still use the slider speed and radius directly.
-- Checks: `walkScale.test.ts`.
-
-## 2026-10-24 · Cursor · Sliders drive tasks as well as the keyboard
-
-- `applyDrive` makes any forward command the slider speed (0.25–0.50 m/s) and a full turn the slider radius (0.15–0.60 m). Keyboard and Claude tasks both go through it. A partial yaw stays a fraction of that turn so a small aim correction is wider than the slider arc. At 0.50 m/s, yaw is capped at 2 rad/s, so the tightest arc is 0.25 m.
-- Checks: `walkScale.test.ts`.
-
-## 2026-10-24 · Cursor · Floor check before the duck finishes
-
-- A square that was in its slot and is then knocked out is listed on the next tool result as `outOfSlot`. The session will not run a different push, and will not accept a closing summary, until that square is pushed back or the 6-action budget is used. The prompt tells Claude the same rule.
-- Voice defaults to off. The bubble and the chat are the reply. Speech still runs only when Voice is on.
-- Checks: `agentSession.test.ts` and `tasks.test.ts`, 13 passed.
-
-## 2026-10-24 · Cursor · Restored the push that placed the squares
-
-- `tasks.ts` matches commit `b5d6dea` again. Push is beside, behind, face the outline, then walk in. Done at 4 cm. `grid.ts` and Seek are gone.
-- Keyboard sliders still scale manual driving only. A running push is not passed through the turn-radius rewrite.
-- Checks: `tasks.test.ts` and `walkScale.test.ts`, 11 passed.
-
 ## 2026-10-24 · Claude Code · Remaining-steps backlog
 
 - Added `11-remaining-steps.md`: 26 items in six groups (finish the slice, multiple bots, quality and tests, merge into the product, safety/cost/deployment, longer term), each tagged with acceptance checks where relevant. It's linked from `README.md` (with an update-protocol line) and from `06-handoff.md`.
@@ -221,67 +149,115 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 - **Merge:** merged `origin/main` (PR #2, the Microduck sandbox) into `feat/two-bot-demo` with no conflicts. Contracts `index.ts` exports both sets. The coordinator is **not** wired to `duckSim` yet; that is a separate task.
 - **Checks:** `pnpm check` green after the merge (19 test files, 147 tests, build and API health OK).
 
-## 2026-10-25 · Cursor · Pip and Nova in a larger room
+## 2026-10-24 · Claude Code (for the owner) · Moments: weights the duck physically pushes, on branch `moments-floor-push`
 
-- The sandbox room is 5.2 m across (`ROOM_HALF` 2.6). The camera frames that floor. Furniture sits near the walls.
-- Pythagoras tiles stay 0.12 m, 0.16 m and 0.20 m. Slot centers and the triangle outline are 3× farther from the right angle, and each tile starts 0.55 m past its slot edge.
-- Pip (teal) is still the physics duck. Nova (coral) is a second rig in the room: she faces the lesson, turns her head, and shifts. She is not a MuJoCo body.
-- Files: `apps/web/src/simulation/constants.ts`, `apps/web/src/sandbox/SandboxScene.tsx`, `packages/contracts/src/lab.ts`, `packages/contracts/src/lab.test.ts`.
-- Checks: `lab.test.ts`, `tasks.test.ts`, `walkScale.test.ts`, 17 passed. Live sandbox at 50 Hz: both name plates visible, squares at their spread starts, room walls in frame.
+- **What:** the Moments lesson is now a working experiment in the sandbox. It ports the owner's floor-balance work (weights on rails, paddles, a locked beam, and a driver tuned to the walking policy) into this lab's `PropSpec` / `buildSceneXml` / `DuckSim` / `TaskRunner` model, at real scale. Pythagoras and Free play are unchanged.
+- **Files:**
+  - `packages/contracts/src/lab.ts` (`PropSpec` mount fields, the `slide` joint, `MOMENTS`, `railAt`, the new `momentsKit`, three task kinds, grammar) and `agent.ts` (`world.balance`).
+  - `apps/web/src/simulation/mjcf.ts` (nested bodies, slide joints, excludes, depth-first keyframe), `duckSim.ts` (lock pin and brakes), `tasks.ts` (balance tasks) and the new `moments.ts` (`Driver`, `PlaceWeight`).
+  - `apps/web/src/sandbox/` (plank ruler, balance chips, Release/Lock button, measured balance in the agent snapshot, paddles hidden from Claude).
+  - `apps/api/src/agent.ts` (tool kinds, `cm`, Moments prompt, target check).
+  - Tests: `lab.test.ts` (+2), `tasks.test.ts` (+5), `tests/sandbox.spec.ts` (+1 mocked-Claude Moments spec).
+- **Fixed along the way:** the route planner let the final leg ignore the target's own paddle, so a diagonal route walked through it (one push took 31.5 s); it now only exempts a leg that stays behind the paddle (17 s). A refusal said "Try 8 cm" when 7 was right (float rounding).
+- **Checks:** `pnpm check` pass (154 tests); `pnpm test:e2e` 120/120 desktop + mobile; fast-stepped physics harness (24 random placements: 22 exact in 11–18 s, 1 refusal, 1 already there, 0 falls); live in the app, a 20 → 10 cm push then a level release. Not yet run: live Claude or voice.
 
-## 2026-10-25 · Cursor · Slots sit on the larger triangle
+## 2026-10-24 · Claude Code (for the owner) · Live Claude check of Moments on `moments-floor-push`
 
-- The triangle stays enlarged. Each slot is the tile's own size again and its inner edge lies on the matching side. The loose tiles start just outside those slots.
-- Files: `packages/contracts/src/lab.ts`, `packages/contracts/src/lab.test.ts`.
-- Checks: `lab.test.ts` and `tasks.test.ts`, 13 passed. Live sandbox: the three slot marks sit on the triangle sides.
+- Ran this branch's API (Bedrock credentials from the owner's local `.env`) behind the sandbox page, Moments lesson, voice off, and typed "Can you balance the plank?".
+- Claude: worked out 4000 vs 2000 g·cm, called `place_weight {weight-200, 10}` (measured: moved from 20 cm to 10 cm), then `release_plank` (measured: stayed level, 0.0°), then a closing explanation consistent with the measurement. 3 model turns, 1.3–2.2 s each, no errors, no page errors.
+- Not checked: spoken input and replies for Moments; "what are moments?".
 
-## 2026-10-25 · Cursor · Squares match the triangle sides
+## 2026-10-24 · Claude Code (for the owner) · Two robots, faster navigation, cooperative experiments (`two-duck-lab`, uncommitted)
 
-- Each Pythagoras tile and its slot now has the same length as the side it sits on. The 3× enlargement applies to the triangle and the squares together: 0.36 m, 0.48 m and 0.60 m. The grids stay 9, 16 and 25.
-- Files: `packages/contracts/src/lab.ts`, `packages/contracts/src/lab.test.ts`.
-- Checks: `lab.test.ts` and `tasks.test.ts`, 13 passed. Live sandbox: the slot marks and the tiles match the three sides.
+- **Measured the walking policy first.** Dead zones: forward 0.10–0.20, backward −0.15 to −0.30, pure turns ≤ 1.0, and lateral entirely. Top safe forward command is about 0.6 (0.27 m/s); 1.0 falls. Pivots work at 1.6–4.0. Full table in `04-status.md`.
+- **Root causes fixed:** the old controllers commanded inside those dead zones (turn creep 0.1, push 0.12–0.20, back-up −0.2), and pushes ignored placed squares. A new `Navigator` replaced them: twice as fast, final error 6.2 → 2.6 cm, path 1.94× → 1.34× straight line.
+- **Two robots in one MjModel/MjData**, after ROSClaw Duckverse's composer and runtime, with a cross-talk check.
+- **Duckverse-style per-substep contact ledger.** Two binding bugs found and fixed along the way:
+  - stale WASM typed-array views;
+  - `mj_contactForce` needs a `DoubleBuffer` out-parameter.
+- **Moments:**
+  - The rail clamp no longer eases a carriage onto the mark; it only holds it where the robot left it.
+  - The pin was raised to 8 cm, the pivot narrowed, and the paddles stiffened.
+  - Added `set_balance`, the two-robot experiment, with a learner prediction panel.
+- **Pythagoras:** `build_squares` (two stages, two robots). Pushes withdraw off the square and detour around other props.
+- **Claude:** `set_balance` and `build_squares` tools, plus crew guidance in the prompt.
+- **Attribution:** `apps/web/src/simulation/THIRD_PARTY.md`. The mesh-licence caution (CC BY-SA-NC per Duckverse) is in `PROVENANCE.md`.
+- **Checks:**
+  - `pnpm check` pass (159 tests).
+  - `pnpm test:e2e` 121 passed and 1 skipped by design. The new UI spec runs the real two-robot experiment.
+  - Benchmarks in `scripts/bench/`.
+  - REA 6.7.0 `list-browser-targets` and `inspect-web-page` against the running sandbox reported no workers, and the changed modules are served.
+- **Not run:** a spoken (voice) or live-Claude run on this branch.
 
-## 2026-10-25 · Codex · Stabilize sequential Pythagoras pushes
+## 2026-10-25 · Claude Code (side session for the owner) · Real `SimAdapter` for the two-bot demo (`two-bot-real-sim`)
 
-- Pushes now stop at the shared 20%-of-slot-side tolerance, re-align if Pip drifts off the push line, and use bounded MuJoCo centerline forces. After a square lands, Pip follows a forward obstacle-cleared retreat. During later pushes, bounded spring-damper forces hold tiles near their slots to prevent corner collisions from knocking them out.
-- Pythagoras spawn begins clear of the loose 3×3. The 3-4-5 square dimensions are unchanged. Box mass/size was not increased.
-- Full live typed Claude check passed once in 203 seconds with no browser errors: center errors 0.20 cm (3×3), 0.04 cm (4×4), 3.33 cm (5×5); tolerances 7.2, 9.6 and 12 cm. Earlier full runs failed, so repeatability remains unverified.
-- `pnpm check` passed: typecheck, 162 tests, web/API builds, and compiled API health smoke. Node 22.23.1 emits the repo's Node 24 engine warning.
-- Files changed: `apps/web/src/simulation/tasks.ts`, `duckSim.ts`, `tasks.test.ts`, `packages/contracts/src/lab.ts`, `lab.test.ts`, `apps/api/src/agent.ts`, `scripts/live-pythagoras-check.mjs`, `README.md`, `agent-memory/03-codebase-map.md`, `04-status.md`, `06-handoff.md`, `07-changelog.md`, `08-current-scope.md`, `10-voice-agent-design.md`, `11-remaining-steps.md`.
+- **Seam:** `SimAdapter.apply(task, version, signal?)` is async. It settles when the physical action lands, fails (new `reason: "failed"`) or the signal aborts it, and holds the per-object lock until then. Results carry an optional `summary`. Stub: `apply` became `async`, nothing else.
+- **Coordinator:** `act` awaits the sim with an abort signal (chain + new `actTimeoutMs`, 60 s). The chain cap counts talk time and pauses while a bot acts. A failed action shows the sim's summary (the old notice is the fallback); a measured summary is added after the reply, before a handback.
+- **Adapter:** `apps/web/src/simulation/real/index.ts` over the two-robot `DuckSim`:
+  - `left-weight` → `weight-200` (Pip), `right-weight` → `weight-100` (Nova);
+  - rails 5–30 cm;
+  - snapshots are measured rail positions (0.1 cm, 100 ms poll, version bump on change);
+  - abort cancels the owner's task and the clamp holds the weight where it stands.
+  `real/load.ts` boots DuckSim on the Moments kit.
+- **Demo:** `?demo=two-bot&sim=mujoco` lazily loads the real lab, with a loading banner, falling back to the stub on failure. The banner says which sim runs.
+- **Files:** `apps/web/src/simulation/{types.ts,fake/index.ts,fake/sim.test.ts,real/*}`, `apps/web/src/coordinator/{index.ts,types.ts,coordinator.test.ts}`, `apps/web/src/demo/TwoBotDemo.tsx`, `tests/two-bot-real-sim.spec.ts`.
+- **Checks:**
+  - `pnpm check` pass (183 tests, 159 before).
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - `tests/two-bot-real-sim.spec.ts` 2/2 on desktop: "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)."; readout "Left 10.1 cm · Right 20 cm" equals the sim's measured rail; Pip's paddle contact in the contact ledger; Stop mid-push keeps the weight where it stood.
+- **Not changed:** Moments physics, navigation, contracts.
+- **Not run:** live provider or voice with the real sim; the mobile project for the real-sim spec (skipped by design).
 
-### Repeatability check: 4x4 stall (2026-10-25)
+## 2026-10-25 · Claude Code (side session for the owner) · Live Claude for Pip and Nova in the two-bot demo (`two-bot-real-sim`)
 
-- The next full typed Claude/MuJoCo check did not pass. 3x3 stayed within its slot; 4x4 moved 27 cm then stalled 19 cm short. Claude retried the push, and the run was stopped for diagnosis.
-- The earlier successful run is not repeatable yet. Diagnose the 4x4 close-in push failure before more full-board runs.
+- **API:** `POST /api/two-bot/respond` (`apps/api/src/twoBot.ts`), registered in `live.ts`. It makes one Bedrock call per bot turn (`AnthropicBedrock`, `BEDROCK_MODEL_ID`, `AWS_REGION`), uses a persona per bot, forces a flat `respond` tool, maps it onto `Respond` and validates with Zod. A peer turn can never ask again. Keys stay server-side.
+- **Web:** `provider/live.ts` sits behind the existing `Provider`. It is labelled `live`; any API or contract failure falls back to the mock, labelled `mock`; an abort rejects. The demo uses it only for `?provider=live` when `/api/health` reports `liveAi`. The banner and hint say so. The default (`/?demo=two-bot`) is unchanged.
+- **Contracts:** `SourceSchema` gains `live`. The ledger test now rejects an unknown label instead of `live`.
+- **Checks:**
+  - `pnpm check` pass.
+  - New tests: 3 API with mocked Bedrock, 3 live provider with mocked fetch.
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - Live check `scripts/two-bot-live-check.mjs` (paid, cents): Pip handed off to Nova, Nova pushed the right weight 20 → 24.9 cm (measured), then a live handback, 15.7 s in all.
 
-### Handoff review and main server restart (2026-10-25)
+## 2026-10-25 · Claude Code (for the owner) · Moments: rail end-stop bug, tilt prediction, settling (`moments-floor-push`)
 
-- Confirmed the local as-kestrel source tree is at e4c5d87, matching fetched origin/main; preserved agent-memory during refresh and pushed nothing.
-- Restarted pnpm dev (session 5898). Browser loaded /console and verified both Pip and Nova initialize; local routes and API health returned HTTP 200.
-- Reconciled actual code with root handoff-kestrel.md; root README contains older conflicting capability claims. Updated status and handoff to record the two-lesson quiz/book, concise-output, beep-bop and skill-indicator roadmap. No application source changed.
-### Finalized lesson, recipient and output requirements (2026-10-25)
+- **CI failure on PR #7 (my Moments e2e):** 200 g at 15 cm against 100 g at 30 cm read "level" by moments (29.44 vs 29.47 N·cm), but the plank measured "left side down 1°".
+- **Root cause, measured:** the push stopped 0.4 mm past the 30 cm mark, which was also the rail's joint limit. The soft limit kept pressing the carriage back, and its reaction acts 5.4 cm below the pivot pin, so it tilted a balanced plank: 0° at 30.00 cm, 1.14° at 30.04 cm, 3.7° at 30.10 cm. The same happened at the 5 cm end.
+- **Fix:** each rail now travels 5 mm past its 5 cm and 30 cm marks (`MOMENTS.railTravel`), and the plank is 66 cm long. Regression e2e: equal moments with a weight at or just past each end mark stays level. It fails on the old geometry (1.14°) and passes now.
+- **Second cause of the same flakiness:** "level" was predicted within 2% of the moments, but measured "level" meant under 0.5°. A real 2 mm placement error tilts the plank about 1°.
+  - Now the stiffness is measured from MuJoCo: k = m·g·h from the plank subtree's mass and centre of mass, and the hinge anchor, giving 0.226 N·m/rad.
+  - The tilt is predicted from the net moment, with one `LEVEL_DEG` (0.5°) threshold for both prediction and measurement.
+  - A static probe matched the prediction within 0.14°.
+  - Large tilts (over about 4°) are under-predicted by up to about 1° by this linear model.
+- **Settling:** a slow creep under 0.015 rad/s used to count as "settled", so small tilts were read early: 0.3° measured vs 0.6° predicted. It is now under about 0.001 rad/s for 0.5 s (cap 6 s), and near-balance readings match the prediction to 0.1°.
+- **e2e:** the cooperative spec now checks that both weights are within 0.3 cm of their marks, that the measured tilt is within 0.4° of the predicted tilt, and that the feedback is truthful. It no longer requires a perfect landing.
+- **Checks:**
+  - `pnpm check` pass (160 tests);
+  - e2e 123 passed, 1 skipped by design;
+  - 10-case balance bench: all completed, 0 falls, directions all match.
 
-- Pythagoras definition requests should yield one concise definition, a coordinated demo, and one measured conclusion; suppress per-square narration.
-- Add selectable recipients Pip, Nova or Both, with safe concurrent group tasks and one shared measured outcome.
-- Finalized book and quiz overlays for Pythagoras and Moments; beep-bop output option; skill-tray indicators with no skill narration.
-- Background and level-design changes remain excluded. No application source changed.
+## 2026-10-25 · Claude Code (side session for the owner) · End-stop fix brought into PR #7 (`two-bot-real-sim`)
 
-### Lesson-book-to-quiz flow clarified (2026-10-25)
+- Reverted `a28d829` (`d715923`). That commit loosened the Moments e2e to accept tilt when the moments said level, and recorded the wrong diagnosis. The real cause was the rail end-stop bug, fixed on `moments-floor-push` (`1b8eea1`).
+- Merged `origin/moments-floor-push` (merge `e0f70f7`). The only conflict was in this changelog, where both sides' entries were kept. The two-bot code builds no `ExperimentPorts` and does not call `momentsFor`, so the new stiffness parameter needed no changes.
+- Checks: `pnpm check` pass (190 tests); e2e (sandbox, two-bot-real-sim, two-bot-demo, pacing, integration): 118 passed, 3 skipped, 1 failed. The failure is `sandbox.spec.ts:54` ("Claude balances the plank"), which still expects exactly "stayed level"; a ~10.1 cm landing measured 0.6° left, as the stiffness predicts. That assertion comes from `1b8eea1` and is reported to the session fixing `moments-floor-push`.
+- Fixed a flaky Stop timing in `tests/two-bot-real-sim.spec.ts`: CI run `40165539290` stopped at 27.8 cm because `expect.poll` backs off to 1 s; it now polls every 100 ms and stops at > 20.5 cm (4/4 locally). `tests/lab.spec.ts` "stop interrupts a pending exchange" failed once on mobile CI in the same run; its files are untouched by this branch and it passed on the two runs before (flake, not fixed here)..
+- Merged `fb8140b` from `moments-floor-push` (merge `3819b27`): the "Claude balances the plank" spec now checks a near-balanced, truthfully reported release instead of exactly level. `pnpm check` pass. Sandbox specs: 9 passed, 1 skipped in a full run, and the balance spec passed 2/2 alone. One earlier full run failed that spec once on a boolean assertion (trace overwritten). The suspected cause is the 0.5° boundary: classification uses the unrounded angle but the report rounds to 0.1°, so 0.45–0.5° reads "level (0.5°)" and fails `reported < 0.5`. Reported to the `moments-floor-push` session.
+- Merged `b09fdf0` from `moments-floor-push`: tilt is rounded to 0.1° before it is called level, in the release task, `BalanceExperiment.finish()` and `balanceSnapshot()`. `pnpm check` pass (191 tests); sandbox specs 18 passed, 2 skipped across two full runs with 2 workers.
 
-- Asking about the current lesson/level briefly introduces it and opens the book; finishing the pages leads into a mixed maths/physics quiz. Saying quiz me opens the selected lesson quiz directly.
-- Recorded exact one-definition / quiet coordinated demonstration / one measured conclusion behavior and Pip, Nova or Both recipient targeting.
-- No application source changed.
+## 2026-10-25 — Codex: sandbox glass windows and pill buttons
 
-### Lesson flow, recipients and reply sound implemented locally (2026-10-25)
+- On `glass-windows`, restyled Sandbox.module.css with noir/amethyst/silver tokens, smoked-glass panels, light primary pills, translucent secondary controls, 44px targets, hover lift, focus and reduced-motion/transparency fallbacks. Scope excludes simulation, voice behavior and 3D materials.
+- Updated DESIGN.md and memory status/decisions/handoff/backlog. Installed the user-requested design skill locally, not included in product files.
+- Checks: pnpm check passed, 147 tests; sandbox Playwright 4/4 desktop/mobile; Prettier and git diff --check passed. Production visual inspection at 1440/768/390 passed with one secondary-label-size warning; requested glass/purple/floating shadows exempted. Before/after screenshots reviewed.
+- Initial checks encountered missing local Bedrock SDK and occupied port 5191. Restored frozen dependencies without lockfile changes; tested own preview on 5200 via a temporary config, removed afterward.
 
-- Pulled main baseline remains `e4c5d87`; no push. Preserved the owner handoff and agent-memory folder.
-- Added broad introductory lesson-book and quiz agent tools, concise Bedrock guidance, Pip/Nova/Both contracts, and shared build/balance routing.
-- Added lesson content/live graphs and book/quiz overlays. Sequence is intro → book → coordinated demo → measured conclusion → quiz → follow-up; quiz me opens the selected quiz directly.
-- Added hold-to-talk/Space wiring through the existing ElevenLabs STT route, recipient targeting, skill tray-only output, concise agent display, and optional local beep-bop sound.
-- Installed owner MP3 at `apps/web/public/audio/bd1-reply.mp3`.
-- `pnpm typecheck` passed; `git diff --check` clean. Dev server restarted (`pnpm dev`, session 22399). Fresh browser initialization and live provider/speech flow have not been retested; prior hot reload logged MuJoCo binding errors. No tests or paid provider calls were run.
+## 2026-10-25 — Codex: integrate landing and actual console
 
-### Robot sound timing and browser playback fix (2026-10-25)
+- Owner authorized main integration. Imported only welcome components/art/font from the existing landing worktree; preserved its local changes. All Open console actions enter `/console`; Home returns to `/`. Legacy console URLs remain.
+- Removed old scripted App/scene/store and their obsolete tests. Preserved shared contracts and separate teammate demo. Changed glass tint to dark purple. Updated misleading landing AI/voice copy and public route/setup documentation.
+- Added routing regression tests; saw them fail on the old root view, then pass. `pnpm check` passed (139 tests); welcome/entry/sandbox Playwright 16/16 desktop/mobile passed. Inspected production desktop/mobile screenshots: no page errors or overflow.
+- Read-only code review found a stale original-root integration expectation; corrected it. Integration checks and PR CI are the remaining merge gates.
 
 Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.
 
@@ -309,41 +285,87 @@ Applied owner-selected palette to console and rebuilt Workshop; added studioMate
 - Performance: headless SwiftShader measured 1.0 fps full scene, 2.0 fps without the playground, unchanged by removing grass, blur or panels; machine load average ~20. Added a software-renderer low-power path (no shadows, no grass, half resolution, `?hq` override) and a 120 s file timeout to the camera spec, matching `sandbox.spec.ts`.
 - Checks: `pnpm check` passed twice (185 tests, typecheck, web/API builds, API smoke). Playwright camera + console-entry: 11 passed, 1 intentional skip; sandbox spec after the final scene: 9 passed, 1 skipped. Desktop 1440×900 and iPhone 13 screenshots of Pythagoras and Moments inspected (follow, zoomed out, experiment frame). `git diff --check` clean. No paid AI calls. Not committed, pushed or merged.
 
-## 2026-10-25 — Claude Code: crew windows and main merge
+## 2026-10-25 — Codex: simple Robot Rescue Navigation
 
-- New branch `crew-windows` in a separate worktree (the main checkout holds Codex's in-flight `rescue-navigation`). Merged `origin/main` (merge commit); resolved `SandboxApp.tsx` from main's logic plus the playground layout, and `Sandbox.module.css` from the playground stylesheet plus main's picker/overlay/progress scopes.
-- Teammate rail: `ChannelPanel` gained opt-in accordion props; console shows Log / You and Pip / Pip and Nova as one-open-at-a-time glass windows with unread counts, persisted choice, auto-open on robot talk, Ask/Stop in the robots' header. Demo markup unchanged. Progress (XP, challenges, Workshop) moved to the lesson card.
-- Checks: `pnpm check` 316 tests, typecheck, builds, API smoke. Visual: desktop and iPhone 13 after Ask Nova and after unfolding the learner thread. Playwright results recorded below.
+- Created `rescue-navigation` from the current playground branch; preserved the newer playground and floating-panel design.
+- Added one deterministic grade 6–8 mission: blocked 200 cm shortcut, clear A/B routes (280 cm), distance prediction/check, optional Nova hint, physical Pip execution, stop/retry and evidence reflection. No battery clock or AI calls.
+- Shared route geometry/clearance drives validation and a fixed MuJoCo barrier. Rescue task uses existing Navigator, settles at each authored point, checks physical arrival/contact and measures trunk travel. No automatic detours or visual teleporting.
+- Added mission panel/map and matching 3D route/dock markers; unrelated voice/manual controls are unavailable in rescue. Existing lessons remain available.
+- Validation and final review results are recorded in current status/handoff below. Local-only skill/config folders remain untracked; no push or main merge.
+- Final validation: `pnpm check` passed (192 tests); final typecheck after mobile-scroll/copy refinement passed. Final Playwright run passed 2/2 (desktop route A, touch mobile route B), including actual physical arrival, prediction invalidation, active-tab reselect regression, reflection, retry, stop and lesson exit. Screenshots inspected. First mobile run was interrupted by source-formatting HMR; clean rerun and final combined run passed. No paid requests observed. Review's stale-tab approval finding fixed. Changes left local for owner review.
 
-- Replaced late-created HTMLAudio playback with a reusable Web Audio context/buffer primed during the user's mic, text-submit or demo-button gesture to address autoplay blocking. Playback failures now log instead of disappearing silently.
-- First concise reply sound is awaited before the lesson book opens. A second sound starts alongside the coordinated robot action; measured demo conclusion and quiz score are silent, giving the learning flow two sound cues.
-- `pnpm typecheck` passes. Console and MP3 return HTTP 200. Audible browser playback and fresh MuJoCo boot remain unverified; no live provider calls or browser tests were run.
+## 2026-10-25 — Codex: replace rescue worksheet with spoken obstacle course
 
-### Preserve settled squares during coordinated demo (2026-10-25)
+- Owner clarified player speaks directions; removed arithmetic gate, equal A/B choices and Pythagoras hint. Added three physical barriers and genuinely unequal named passages.
+- Existing STT endpoint now accepts explicit learner recordings; conservative landmark parser plus typed fallback. Ambiguous and negated speech asks for clarification.
+- Physical travel drains a game battery. Failure shows “Battery died!” in Pip's bubble, then resets after 2.5 simulation seconds. Shorter path succeeds through physical arrival checks.
+- Reviewer caught stale recordings surviving reset and curly-apostrophe negation. Added reset version guard/media cancellation and apostrophe normalization, with regressions. Bubble positioning clamped to scene bounds.
+- Live provider requests were mocked in browser verification; real MuJoCo navigation, battery exhaustion, auto-reset and arrival were exercised. No paid model/voice calls made.
+- Final verification: `pnpm check` passed (193 tests, typecheck, web/API builds and health smoke). Desktop/mobile end-to-end voice-course tests passed (2/2), including delayed transcript rejected after reset, long-route battery death, automatic reset, shorter-route physical success and lesson exit. Additional desktop pass verified the visibly anchored death bubble using a physics-paused screenshot, then resumed and verified reset/success. Removed the stray reset-reason bubble and hid bubbles until anchored. Screenshot inspected. No push/merge; changes remain local.
 
-- Latest measured full run showed the final 3x3 push knocked the previously placed squares out: only 1/3 remained in slots after settling, despite each task's near-target summary. Quiz stayed gated and did not open.
-- Added a capped spring-damper force toward the slot for already-seated squares while other squares are pushed; active push targets are excluded. This uses applied physics force rather than teleporting positions.
-- pnpm typecheck passes. Live port 5180 responds HTTP 200. The new fixture has not yet been validated in a full physical/browser demo; repeatability and end-to-end spoken flow remain unverified.
 
-### ElevenLabs 400 diagnostics (2026-10-25)
+## 2026-10-25 — Zigzag rescue refinement
 
-- Clarified that robot beep-bop playback uses the local MP3; ElevenLabs is called by microphone transcription. The visible 400 therefore came from /api/voice/transcribe (unless another caller is added), and the PowerShell message was simply pasted as a command.
-- API now parses and surfaces ElevenLabs' bounded validation message for provider failures without logging or returning credentials. pnpm typecheck passes.
+Researched Blockly maze source and Bebras robot-path excerpts. Replaced two passage choices with staggered walls and ordered blue/orange/mint checkpoints. All six orders clear geometry; only efficient 7.6 m order fits 9 m battery (closest wrong order 9.3 m). Replaced underlined disclosure with keyboard button and focused multiline form. Browser tests passed: desktop physical death/reset/success (2 min), mobile typing smoke (24.6 sec). Screenshots checked; corrected positive charge rounding and outdated passage copy, allowed stop-at speech. pnpm check passed before final copy/parser refinement; final validation recorded below.
 
-- Live retry: POSTed local beep-bop MP3 to /api/voice/transcribe; ElevenLabs returned HTTP 200 and an empty transcript as expected for non-speech. Confirms credentials + MP3 request path. Browser microphone capture/WebM request remains to be retested.
+Final validation after parser/copy/charge-display refinements: pnpm check passed (193 tests / 23 files, typecheck, web/API builds, API health smoke). git diff --check clean. Browser physics checks preceded only these small refinements; no physics geometry or battery threshold changed afterward.
 
-## 2026-10-25 — Claude Code: fold Rayyan's #15 and #17 into the playground console
 
-- Branch `fold-in-rayyan` from `lab-workshop-camera`; merged `feat/3d-looks` (#17, which already contains #15). Conflicts in `SandboxApp.tsx` and `SandboxScene.tsx` resolved by keeping the playground layout and applying his edits; `route()` and `selectBot()` verified identical to his branch.
-- #15: typed unaddressed lines go to the selected robot's agent; only "move this/it" asks which weight; only spoken turns can be redirected by tapping the other robot. This fixes the sandbox/real-console failures on main.
-- #17: Workshop looks (shell colour, antenna, party hat, backpack) on the 3D robots via `cosmetics/rig3d.ts`; console Workshop offers only what the robots can show.
-- Workshop dialog portals to `<body>`; the console now marks `body.gic-console` while mounted so the dialog wears GIC glass, tags and solid selection above the floating panels. Demo page unaffected.
-- Camera spec budget 120 s → 180 s: CI's software WebGL ran past 120 s at the last click on #16.
-- Checks: `pnpm check` 316 tests, typecheck, builds, API smoke. Workshop and looks checked in screenshots (Pip sky shell applied on the 3D rig).
+## 2026-10-25 — Four-path network
 
-## 2026-10-25 — Claude Code: lighter low-power scene for CI
+Owner corrected the puzzle topology: changed zigzag into four distinct directed paths matching supplied diagram. Added shared graph, adjacency schema/parser, visible floor paths/arrows and SVG map with distance labels. Shortest 3.096 m; other paths 4.970, 5.320, 5.959 m; game budget 4.2 m. Unit geometry check caught a supply-island clearance overlap; relocated islands before browser validation. No commits or main changes.
 
-- #14's CI (19.2 min vs 8.7–9.4 min on Rayyan's branches) failed the camera spec at 180 s and a 5 s Moments wait. The CI trace showed every Playwright action taking 3–20 s: the page was saturated on the runner's software WebGL.
-- Low-power mode (software GL) now draws `SimpleCanopies` (one solid low-poly ball per canopy, one draw call) instead of alpha-cut leaf cards, and skips clouds and rose foliage. On this Mac's many-core SwiftShader the frame rate was unchanged (≈2 fps either way), so the CI gain is expected, not measured locally.
-- Camera spec budget 180 s → 300 s; the sequence reached its last click at 172 s on CI.
-- `sandbox.spec` natural text still fails on main, #15 and #17 alike (#13's agent session no longer logs the pre-action line); not addressed here.
+Validation complete: pnpm check passed (194 tests / 23 files, typecheck, web/API builds and health smoke). Desktop browser verified real-physics shortest success and next-shortest failure/reset with mocked STT; mobile entry/focus/stop/reset and overflow checks passed. Inspected desktop/mobile screenshots, enlarged 3D checkpoint letters, then reran mobile browser smoke and typecheck successfully. git diff --check clean. Remains local on rescue-navigation.
+
+
+2026-10-25: Created four preview-only duck material colorways in docs/previews/duck-colorways using actual rigs and simplified playground-colored stage. Production materials unchanged. Await user selection before applying. See README for exact colors and mapping scope.
+
+
+2026-10-25: Owner selected dark grey and navy. Applied Pip #454B54 and Nova #244267 to sandbox shell/foot accents, with neutral #E4E6E5 panels; crew dots match. Existing non-tinted rig materials remain unchanged. Typecheck passed. Selected material render in docs/previews/duck-colorways/selected. Still rescue-navigation, no main push.
+
+
+2026-10-25: Added white lower-head trim (jaw/bottom head shell) to the selected charcoal/navy rigs. Increased NAV cruise .55→.65, approach .30→.35, spin 3→3.6, near spin 1.8→2.1. New scripts/bench/speed-bench.mjs compares six real MuJoCo/ONNX runs per preset: baseline 6/6, mean 5.2 s, 2.5 cm error, 0 falls; faster 6/6, mean 4.2 s, 2.4 cm error, 0 falls. Manual forward now .65, reverse -.4 (outside dead zone), pivot 3.6; moving turns use .35 forward and 1.2 yaw. Physics timestep and simulation clock unchanged. Final rescue/check results recorded below.
+
+Final verification: pnpm check passed (194 tests, typecheck, builds, API health smoke); desktop real-physics rescue test passed with faster rates (shortest arrival, longer-route battery death, reset, stale transcription guard). White head trim inspected in native rig render. git diff --check clean. No main push.
+
+
+2026-10-25: Reproduced owner command “go to B then E then H” returning null with a failing regression. Parser unnecessarily required speaking A despite Pip already starting there. Parser now prepends only known origin A; it never fills missing intermediate nodes. Updated input guidance and browser voice/typed test phrases to omit A. Invalid skips (B→H, C→E→H), negatives and missing junctions remain rejected; task live-pose origin guard remains intact.
+
+Omitted-start fix verified: regression failed before fix, then pnpm check passed (195 tests, typecheck, builds/health smoke). Desktop real-physics browser passed with A omitted in mocked voice transcript and exact typed “go to B then E then H”; Pip physically reached charger. No live STT provider call made. git diff --check clean.
+
+## 2026-10-25 · Claude Code · rescue-main: robot sound, objectives with XP, console windows
+
+- Made rescue-navigation the base (`ba2ccc7`, `-s ours` merge of main). `8d8041c`: robot sound instead of TTS (`agentSession.say`), one-sentence prompt, `normalizeTask` in `apps/api/src/agent.ts` (+6 tests).
+- `55bef60`: `sandbox/objectives.ts` (+5 tests), `ObjectivesBoard.tsx`, right rail in `Sandbox.module.css`, wiring in `SandboxApp.tsx`.
+- `c4b9914`: `ConsolePane.tsx`, `crewChannel.ts` (+3 tests), You and Pip / Pip and Nova accordion (`kestrel.console.window` in localStorage).
+- Live checks (browser, real MuJoCo, 5212): Balance the beam tipped the plank 5.8° left; the experiment with 200 g at 10 cm (and again at 15 cm with 100 g at 30 cm) read level at 0.4° and filled the bar to 100 XP. The crew window showed Pip's handoff, each robot's measured move and the joint result, with an unread count while closed. A live Claude turn on 5220 walked Pip 20 cm, played the robot clip twice and made no `/voice/speak` call.
+- Checks: `pnpm check` passed (typecheck, unit tests, builds, API health smoke).
+- `b0ea98b`: `runTask` emits a `plan` event for set_balance and build_squares; the Pip and Nova window uses it for Pip's handoff. Polling `status().task` missed build_squares because each robot's own push masks the crew task.
+- Local desktop e2e on the dev server: sandbox, console-entry and integration passed (11). The rescue spec timed out once while `duckSim.ts` hot-reloaded mid-run, then passed alone (5.8 min).
+
+## 2026-10-25 · Claude Code · Polish, confetti, pixel bubbles, Pip vs Nova fight (`4cdc4ca`, rescue-main)
+
+- Console: a collapsed Controls pill (`kestrel.controls.open`), "Your Kestrel", the provider note removed (the mic disclosure is now the Hold-to-talk tooltip), and a speaker/mute icon for robot sound.
+- `Confetti.tsx` (canvas, no dependency) fires on every objective win. The bubble is pixel art (`@fontsource/pixelify-sans` 500).
+- Fight: `fight.ts` (+3 tests) holds the face/charge/recoil controller and `isClash`; `Explosion.tsx` and `sfx.ts` (a Web Audio boom) handle the effects; `DuckSim.knock` is the scripted shove for the random loser.
+- Measured live in a visible browser: charges close at 0.6–0.76 m/s over 300 ms. A 50 ms two-sample rule fired 17 false clashes in 36 s from gait sway, so the rule now uses a 300 ms window and one clash per approach. After that: 9 clashes in 40 s, each knocking exactly one robot over, Pip 5 to Nova 4, and every robot got back up.
+- `e5ba375`: the lesson card folds to its title row (`kestrel.lesson.open`). Then the Kestrel eyes logo replaced the bird in the console nav (`KestrelLogo.tsx`, reusing `/welcome/fonts/grandstander-latin-900.woff2`), and the CI job limit went 12 → 25 min. PR #21's first CI run was cancelled at the 12-minute limit, not by a failing test.
+- Verified headlessly: a beam win fired confetti (374 painted samples 1.8 s after XP hit 100); a close-up of the pixel bubble; the logo nav. E2E: sandbox, console-entry and integration passed. One Moments run failed while a source edit hot-reloaded the page; it passed on rerun.
+
+## 2026-10-25 · Claude Code · Landing hero rebuilt in GIC style (branch `landing-redesign`)
+
+- `apps/web/src/welcome/WelcomePage.tsx` and `.module.css` replaced: one 1440×1280 frame scaled by `--u = 100vw/1440`; one still plate (`LANDING.plate`, placeholder `public/landing/hero.jpg`; now the owner's Midjourney art: `hero-wide.jpg` 16:9 for desktop, `hero.jpg` 9:8 for phones) with an optional aligned loop (`LANDING.video`, null for now); Grandstander kicker and two-line headline; GIC solid and glass pills; three objective cards linking to `/console`; one Web Animations entrance timeline, cancelled under reduced motion; phone layout at ≤820px. Removed the old balance demo, FAQ, companion picker and `welcome/arc/`.
+- Tests: `tests/welcome.spec.ts` rewritten for the new hero (the old content is gone); `console-entry.spec.ts` heading updated. Both specs passed on desktop and mobile (10/10) against a dev server.
+- To swap art: replace `public/landing/hero.jpg` (2160×1920 fills the frame exactly) and the card paths in `LANDING`.
+
+## 2026-10-25 · Claude Code · Landing redesign folded into PR #21
+
+- Merged `landing-redesign` (PR #22) into `rescue-main` (`f8afb2e`); the only conflict was this changelog, and both entries are kept. `tests/integration.spec.ts` still expected the old landing heading, so it now expects "Real robots.Real physics.".
+- Checks: `pnpm check` passed (212 tests, builds, API smoke). welcome, console-entry and integration e2e passed on desktop and mobile (18).
+
+## 2026-10-25 · Claude Code · CI budget for rescue-main (PR #21)
+
+- CI on #21 failed 2 of 144 on timing: the rescue route never reached "Battery died!" in 170 s, and the camera spec ran out of its 120 s budget. Main's `e13e51d` (lighter low-power scene, camera budget 300 s) had been dropped when rescue's tree replaced main's, so it is cherry-picked back (`1578f95`).
+- Rescue spec: each route gets 480 s, the respawn 120 s, and the test 20 min. The CI job limit is now 40 min.
+- CI then failed 3 of 142 on timing. (1) The rescue death bubble expired (12 s of real time) before the test's next check on the slow runner. The rescue result bubble is now sticky until the next reset or run, which is also better for kids. (2) Two Moments tests gave the lesson switch 5 s; that wait is now 30 s, since the switch waits on the physics loop.
+- CI on `399d396` was 137 passed, 1 failed: the rescue spec's bubble-position poll. The CI trace shows the bubble correctly positioned (`transform: translate(741.5px, 467.8px)…`); the poll's first read had not returned within the 5 s default. The rescue spec now gives every default wait 30 s (`expect.configure`).

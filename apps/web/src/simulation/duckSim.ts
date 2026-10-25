@@ -26,7 +26,9 @@ export type SimEvent =
   | { type: "reset"; reason: string }
   | { type: "fell"; duck: BotId }
   | { type: "recovered"; duck: BotId }
-  | { type: "experiment"; result: BalanceResult };
+  | { type: "experiment"; result: BalanceResult }
+  /** A two-robot plan (set_balance, build_squares) has started. */
+  | { type: "plan"; task: DuckTask };
 
 export type SimStatus = {
   mode: DuckMode | "recovering" | "fallen";
@@ -73,7 +75,6 @@ export class DuckSim {
   private standKey = 0;
   private propBodies = new Map<string, number>();
   private propOfBody = new Map<number, string>();
-  private slotHolds = new Map<string, { body: number; dof: number; slot: LabKit["slots"][number] }>();
   private geomBody: ArrayLike<number> = [];
   private robots: Robot[] = [];
   private byId = new Map<BotId, Robot>();
@@ -101,6 +102,9 @@ export class DuckSim {
   private lastExperiment: BalanceResult | null = null;
   private results = new Map<BotId, { ok: boolean; summary: string }>();
   private pendingReset: string | null = null;
+  private rescueRespawnAt: number | null = null;
+  /** Invalidates in-flight user commands whenever the physical world resets. */
+  resetVersion = 0;
   /** The balance's restoring stiffness about its pin (N·m/rad), measured from the model at rest. */
   private balanceK = 0;
 
@@ -181,17 +185,11 @@ export class DuckSim {
     this.duckOfBody = new Map(this.robots.flatMap((r) => [...r.bodies].map((b) => [b, r.id] as const)));
     this.propBodies = new Map(kit.props.map((p) => [p.id, m.mj_name2id(this.model, BODY, p.id)]));
     this.propOfBody = new Map([...this.propBodies].map(([id, b]) => [b, id]));
-    const joint = (name: string) => this.model.jnt(name);
-    this.slotHolds = new Map(kit.slots.flatMap((slot) => {
-      const prop = kit.props.find((p) => p.id === slot.forProp && p.joint === "free");
-      if (!prop) return [];
-      const body = this.propBodies.get(prop.id)!;
-      return [[prop.id, { body, dof: joint(`${prop.id}_free`).dofadr, slot }] as const];
-    }));
     // Copy, don't keep the view: typed arrays over WASM memory go stale
     // (detached, every read undefined) whenever the WASM heap grows.
     this.geomBody = Int32Array.from(this.model.geom_bodyid as ArrayLike<number>);
     const plank = kit.props.find((p) => p.role === "plank" && p.joint === "hinge");
+    const joint = (name: string) => this.model.jnt(name);
     this.pin = plank
       ? { q: joint(`${plank.id}_hinge`).qposadr, v: joint(`${plank.id}_hinge`).dofadr, state: "locked" }
       : null;
@@ -222,6 +220,7 @@ export class DuckSim {
 
   private onRobot(id: BotId, e: RobotEvent) {
     if (e.type === "task-done") {
+      if (e.task.kind === "rescue_route" && !e.ok) this.rescueRespawnAt = this.data.time + 2.5;
       this.results.set(id, { ok: e.ok, summary: e.summary });
       this.listener({ type: "task-done", duck: id, task: e.task, ok: e.ok, summary: e.summary });
     } else if (e.type === "fell" || e.type === "recovered") this.listener({ type: e.type, duck: id });
@@ -230,10 +229,13 @@ export class DuckSim {
 
   /** Swap the subject kit. Applied between control steps. */
   setKit(kit: LabKit) {
+    this.stopAll();
     this.pendingKit = kit;
   }
 
   reset(reason = "Reset") {
+    this.resetVersion++;
+    this.rescueRespawnAt = null;
     for (const r of this.robots) r.reset();
     this.apparatus.cancel();
     this.experiment = null;
@@ -276,6 +278,7 @@ export class DuckSim {
    * always moved by the robot that owns it; plank tasks belong to the lab.
    */
   runTask(task: DuckTask, id: BotId = "pip"): string | null {
+    if (task.kind === "rescue_route" && this.rescueRespawnAt !== null) return "Pip is returning to the start.";
     if (task.kind === "release_plank" || task.kind === "lock_plank") {
       if (this.experiment) return "The experiment is running. Stop it first.";
       if (task.kind === "release_plank" && [...this.rails.values()].some((r) => r.brake === null))
@@ -291,6 +294,7 @@ export class DuckSim {
       this.results.clear();
       this.experiment = exp;
       this.experimentPhase = exp.phase;
+      this.listener({ type: "plan", task });
       return null;
     }
     if (task.kind === "build_squares") {
@@ -307,6 +311,7 @@ export class DuckSim {
         const all = filled.length === this.kit.slots.length;
         return { ok: all, summary: all ? "All three squares are on the triangle: 9 + 16 = 25." : `${filled.length} of ${this.kit.slots.length} squares are on their sides.` };
       });
+      this.listener({ type: "plan", task });
       return null;
     }
     const owner = task.kind === "place_weight" ? MOMENTS.weights.find((w) => w.id === task.target)?.owner ?? id : id;
@@ -315,7 +320,7 @@ export class DuckSim {
 
   private startOn(id: BotId, task: DuckTask): string | null {
     const robot = this.robot(id);
-    const moves = ["move", "turn", "go_to", "push", "place_weight", "kick", "peck", "roll"].includes(task.kind);
+    const moves = ["rescue_route", "move", "turn", "go_to", "push", "place_weight", "kick", "peck", "roll"].includes(task.kind);
     if (moves && robot.mode === "sitstand") return "The duck is sitting. Ask it to stand up first.";
     if (robot.recovery) return "The duck is getting back on its feet.";
     if (robot.tasks.active && robot.tasks.active !== task) {
@@ -328,6 +333,7 @@ export class DuckSim {
 
   /** Cancel every robot's task and the experiment (Stop). */
   stopAll() {
+    this.rescueRespawnAt = null;
     for (const r of this.robots) {
       r.tasks.cancel();
       r.manual = { vx: 0, wz: 0 };
@@ -345,7 +351,7 @@ export class DuckSim {
     return {
       world: (id) => this.world(id),
       start: (id, task) => this.startOn(id, task),
-      busy: (id) => this.robot(id).tasks.active !== null || this.robot(id).recovery !== null,
+      busy: (id) => this.robot(id).tasks.active !== null,
       clearFor: () => this.data.time - this.lastApparatusContact,
       stiffness: () => this.balanceK,
     };
@@ -460,30 +466,6 @@ export class DuckSim {
       qpos[r.q] = r.brake;
       qvel[r.v] = 0;
     }
-    // Once a tile is seated, give it a gentle spring toward its slot while
-    // another tile is being pushed. This counters incidental contact without
-    // teleporting the tile or constraining the active push target.
-    const activePushes = new Set(this.robots.flatMap((r) => {
-      const task = r.tasks.active;
-      return task?.kind === "push" ? [task.target] : [];
-    }));
-    const pushing = activePushes.size > 0;
-    const applied = this.data.xfrc_applied as Float64Array;
-    for (const [id, hold] of this.slotHolds) {
-      const offset = hold.body * 6;
-      applied[offset] = 0;
-      applied[offset + 1] = 0;
-      if (!pushing || activePushes.has(id)) continue;
-      const pos = this.data.xpos as Float64Array;
-      const vel = this.data.qvel as Float64Array;
-      const dx = hold.slot.pos[0] - pos[hold.body * 3]!;
-      const dy = hold.slot.pos[1] - pos[hold.body * 3 + 1]!;
-      if (!slotFilled([pos[hold.body * 3]!, pos[hold.body * 3 + 1]!], hold.slot)) continue;
-      const fx = Math.max(-1.2, Math.min(1.2, 3 * dx - 0.35 * vel[hold.dof]!));
-      const fy = Math.max(-1.2, Math.min(1.2, 3 * dy - 0.35 * vel[hold.dof + 1]!));
-      applied[offset] = fx;
-      applied[offset + 1] = fy;
-    }
   }
 
   /** Every-substep contact ledger: robot ↔ prop and robot ↔ robot, with force and penetration. */
@@ -526,6 +508,7 @@ export class DuckSim {
   }
 
   private async controlStep() {
+    if (this.rescueRespawnAt !== null && this.data.time >= this.rescueRespawnAt) this.reset("Rescue retry");
     const t0 = performance.now();
     const { mujoco, model, data } = this;
     // 1. Tasks and manual input → each robot's twist; collect apparatus instructions.
@@ -614,6 +597,32 @@ export class DuckSim {
     out.pos[0] = q[f]; out.pos[1] = q[f + 1]; out.pos[2] = q[f + 2];
     out.quat[0] = q[f + 3]; out.quat[1] = q[f + 4]; out.quat[2] = q[f + 5]; out.quat[3] = q[f + 6];
     return out;
+  }
+
+  /**
+   * Free play fights only, and not physics from the clash itself: a scripted
+   * shove that knocks a robot over. It adds trunk velocity away from the
+   * other robot and a spin that tips its top the same way; the robot's own
+   * fall detection and get-up policy take over from there.
+   */
+  knock(id: BotId, away: [number, number], push = 0.8, lift = 0.4, spin = 8) {
+    const r = this.robot(id);
+    const { qpos, qvel } = this.data;
+    const n = Math.hypot(away[0], away[1]) || 1;
+    const ax = away[0] / n;
+    const ay = away[1] / n;
+    qvel[r.freeV] += ax * push;
+    qvel[r.freeV + 1] += ay * push;
+    qvel[r.freeV + 2] += lift;
+    // Tipping axis in world axes is up × away. A free joint takes angular
+    // velocity in the body's axes, so rotate it by the inverse trunk rotation.
+    const f = r.freeQ;
+    const [qw, qx, qy, qz] = [qpos[f + 3]!, -qpos[f + 4]!, -qpos[f + 5]!, -qpos[f + 6]!];
+    const v = [-ay * spin, ax * spin, 0];
+    const t = [2 * (qy * v[2]! - qz * v[1]!), 2 * (qz * v[0]! - qx * v[2]!), 2 * (qx * v[1]! - qy * v[0]!)];
+    qvel[r.freeV + 3] = v[0]! + qw * t[0]! + (qy * t[2]! - qz * t[1]!);
+    qvel[r.freeV + 4] = v[1]! + qw * t[1]! + (qz * t[0]! - qx * t[2]!);
+    qvel[r.freeV + 5] = v[2]! + qw * t[2]! + (qx * t[1]! - qy * t[0]!);
   }
 
   /** Body pose of a prop in MuJoCo coordinates, quat as [w, x, y, z]. */

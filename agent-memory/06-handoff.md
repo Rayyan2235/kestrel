@@ -1,64 +1,16 @@
-# Current handoff — everything folded into #14
+# Current handoff — rescue-main
 
-`lab-workshop-camera` (PR #14) now carries the playground UI, crew windows (#16), Rayyan's routing fix (#15) and 3D looks (#17), each merged with a merge commit. When #14 merges into main, GitHub marks #15 and #17 merged too. Codex's `rescue-navigation` (main checkout, uncommitted) must merge the updated `lab-workshop-camera` next.
+Branch `rescue-main` (worktree `kestrel-crew-windows`). The owner chose the rescue-navigation code as the new main: it keeps rescue's tree, and `main` is recorded as merged with `-s ours`, so none of #11–#17 is in it except what was re-added below.
 
-# Earlier handoff — crew windows
+Done on this branch:
+- Robots answer with a short robot sound (`/audio/bd1-reply.mp3`, owner-supplied) instead of ElevenLabs speech; their words stay in the think bubble and log. The system prompt asks for one short sentence.
+- `normalizeTask` folds a stray `direction` into the sign and drops extra fields, so a `move` with `direction: "forward"` no longer fails the strict schema (this was why Pip ignored commands on main).
+- Objectives board with XP: Balance the beam loads Moments and releases the plank so it tips left; the bar fills only when the released plank reads level for 1 s with no robot working. Build the triangle and Rescue Pip reuse the slot and charger measurements.
+- Collapsible You and Pip / Pip and Nova windows. Pip and Nova shows the simulator's real crew handoffs (set_balance, build_squares, Nova's weight) and each robot's measured result. It is not a second language model.
 
-Branch `crew-windows` (worktree `../kestrel-crew-windows`) = `lab-workshop-camera` + main (#11, #12) + collapsible Pip/Nova windows. Its PR targets `lab-workshop-camera`; merging it clears PR #14's conflicts with main. Codex's `rescue-navigation` (main checkout, uncommitted) also edits `SandboxApp.tsx` and will need a merge after this lands.
+- Polish: a Controls pill, "Your Kestrel", no provider note, a mute icon, confetti on wins, and pixel-art think bubbles.
+- Free play fight: Pip and Nova charge in rounds. A fast clash means an explosion plus a random loser knocked over by `DuckSim.knock` (scripted, not crash physics).
 
-# Earlier handoff — playground console
+Not ported (owner said it did not work): main's coordinator, the two-bot LLM conversation, and the progress store and levels.
 
-Continue on `lab-workshop-camera`. Work from the 2026-10-25 Claude Code session is **uncommitted** in the working tree (the owner reviews before any commit; no push or merge).
-
-The owner turned the classroom into a bright playground: full-screen 3D scene, open court with no furniture (physics too: `roomProps()` is empty), a storybook garden picket fence on the boundary wall, swings, slide, seesaw, sandpit, bench, bunting, a lesson chalkboard, Folio-technique trees and grass, and clouds. All panels float over it as General Intelligence Company glass from the owner's design-system artifact (Inter, ArrowPill, solid/link buttons, light toast glass for legibility over the sunny scene). The Home button is gone; the Kestrel mark links home. Details: `DESIGN.md` (Playground console), `apps/web/src/sandbox/PROVENANCE.md`, `03-codebase-map.md`.
-
-Next:
-1. Owner reviews in the browser (`pnpm dev`, `/console`) and decides on committing.
-2. Open options the owner raised: fence styling is now the garden picket; a gate arch or hedge variant is possible.
-3. Check frame time on a real phone GPU; software WebGL uses the low-power path (`?hq` forces full quality).
-
-Untracked local-only: `.agents/`, `skills-lock.json` (taste skill install), `tests/.probe-*.mjs` (gitignored probes).
-
-﻿# Handoff
-
-_Updated 2026-10-25. Pulled baseline is `origin/main` at `e4c5d87`; current application and memory changes are uncommitted on `as-kestrel`. No push was made._
-
-## Owner's goal
-
-Make the live console a voice-and-text learning assistant for Pythagoras and Moments. A novice introductory question about the selected lesson starts the complete learning sequence. Keep visible robot communication concise and grounded in measured results. The owner supplied a BD-1 MP3 for optional short reply sounds. Background artwork, room dressing and level design are out of scope.
-
-## Required learner sequence
-
-1. A broad novice question about the selected lesson (for example “What is the Pythagorean theorem?” or “Can you tell me about this?”) gets one concise intro and opens the relevant scrollable book. Avoid relying on one exact trigger phrase.
-2. The book teaches formulas and graphs tied to current simulation values.
-3. Finishing the book lets the learner start the demonstration. Both robots coordinate the lesson task. For Pythagoras, Pip pushes 5×5 while Nova pushes 4×4, then Pip pushes 3×3. For Moments, the existing shared experiment moves the two weights.
-4. Once the complete demo finishes, show one concise measured conclusion and open the mixed Maths + Physics quiz.
-5. After the quiz, the learner can ask either robot about mistakes or concepts. “Quiz me” opens the selected lesson quiz directly.
-
-## Output and controls
-
-- Support hold-to-talk and Space; release submits the recording for ElevenLabs transcription. Typed text also reaches Claude when it is not handled as a supported local action.
-- Claude on Bedrock chooses whether to respond, open a lesson overlay or request a bounded physical task. Use current room state and measured tool results.
-- Keep concise useful replies in chat and the bubble. Do not publish hidden reasoning, routine micro-movement, repeated task descriptions or every action tool call. Summarize meaningful failures/milestones and final measured outcomes once.
-- Optional robot sound uses Web Audio and is primed on the learner's click/key gesture to avoid autoplay rejection. In the lesson flow it plays at exactly two points: with the first concise response (before the book opens) and at demo start (while the robots begin moving). The measured conclusion and quiz score stay silent. STT remains ElevenLabs; server TTS route remains available.
-- Address Pip, Nova or Both. Both may coordinate safe simultaneous work. Avoid assigning two robots to push the same object.
-- Skill-only actions (roll, peck, kick, sit, stand) light their tray controls and create no chat/bubble line.
-
-## Current implementation paths
-
-- Agent prompt, Bedrock tool schemas and validation: `apps/api/src/agent.ts`.
-- Provider routes and private credentials: `apps/api/src/live.ts`, `apps/api/src/voice.ts`.
-- Shared request/response/action contracts: `packages/contracts/src/agent.ts`.
-- Recording, STT request, agent/tool loop, task execution, robot sound and cancellation: `apps/web/src/sandbox/agentSession.ts`.
-- Recipient dropdown, chat, speech controls, skill tray and book→demo→quiz orchestration: `apps/web/src/sandbox/SandboxApp.tsx`.
-- Robot-specific bubble placement and console styles: `apps/web/src/sandbox/SandboxScene.tsx`, `Sandbox.module.css`.
-- Lesson and quiz content: `apps/web/src/lessons/lessonContent.ts`.
-- Lesson and quiz overlays: `apps/web/src/lessons/LessonBookOverlay.tsx`, `QuizOverlay.tsx`, `Lessons.module.css`.
-- Existing physics/coordinator: `apps/web/src/simulation/duckSim.ts`, `tasks.ts`, `moments.ts`.
-- MP3 asset: `apps/web/public/audio/bd1-reply.mp3`.
-
-## Latest validation and next action
-
-`pnpm typecheck` passes. The dev server was restarted again after HMR reproduced MuJoCo binding errors; current session is 9762 at `http://127.0.0.1:5180/console`, API at `http://127.0.0.1:5181`. Both console HTML and MP3 returned HTTP 200 before this restart. Browser simulation startup and audible playback have not yet been rechecked in a fresh browser. Live provider flow and real speech round trip have not been run after these changes, so report them as unverified until actually observed.
-
-Next: verify fresh browser boot, then perform one manual speech round trip and the complete book→coordinated demo→quiz→follow-up flow. Do not make background/level-design changes.
+PR #21 (`rescue-main` to `main`) is open. The owner said not to merge yet. Re-run CI after each push; merge only on the owner's word.

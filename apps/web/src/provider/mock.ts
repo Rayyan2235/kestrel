@@ -59,22 +59,5 @@ export const createMockProvider = (options: MockProviderOptions): Provider => {
       signal.throwIfAborted();
       return { respond: script(req), source: "mock" };
     },
-    async crew(req, signal) {
-      signal.throwIfAborted();
-      await sleep(options.delayMs, signal);
-      signal.throwIfAborted();
-      const other = req.bot === "pip" ? "nova" : "pip";
-      return {
-        crew: {
-          lead: {
-            bot: req.bot,
-            say: "Compare mass × distance on each side. What do you predict?",
-            action: null,
-          },
-          second: { bot: other, say: "I'll watch which way it tips." },
-        },
-        source: "mock" as const,
-      };
-    },
   };
 };
