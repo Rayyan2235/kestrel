@@ -60,3 +60,7 @@ Current authority for `/console`, `/lab`, and `/sandbox.html`: warm stone `#E8E2
 The room uses original oak floor/worktop maps, plaster walls, a flush stone experiment inlay, recessed cabinet fronts, brass fittings, shelves/books/jars, curved leaf geometry, window mullions and a task lamp. Offline AO maps add contact/corner shading to static surfaces; they are not full global-illumination bakes. Moving robots and apparatus retain real-time shadows, with a filtered studio environment for material highlights. The wall monitor shows measured robot positions. Reduced motion stops fan/dust animation.
 
 Reference implementation studied using REA and direct source inspection: `brunosimon/my-room-in-3d` at 5d00b3f. No reference assets are redistributed. See `apps/web/public/workshop/PROVENANCE.md`. Preserve the existing camera controls and fixed angle. Physically reachable apparatus geometry and all simulator state remain authoritative.
+
+### Classroom refinement
+
+The owner retained Botanical Studio and asked for a shared classroom character. The room now prioritizes a lesson-specific teaching board, chalk tray, organized equipment labels, and an open learning station over decorative studio shelving. Preserve daylight and tactile materials. Diagrams explain concepts; only simulation-backed displays report measurements. See `docs/handoffs/claude-code-classroom-redesign.md` for the Claude Code continuation workflow.

@@ -146,6 +146,108 @@ function Label({
     </mesh>
   );
 }
+/** Lesson diagram, deliberately separate from live measured experiment results. */
+function TeachingBoard({ lesson }: { lesson: string }) {
+  const texture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1400;
+    canvas.height = 650;
+    const g = canvas.getContext("2d")!;
+    g.fillStyle = "#293d35";
+    g.fillRect(0, 0, 1400, 650);
+    g.fillStyle = "#b9c9ad";
+    g.font = "28px sans-serif";
+    g.fillText("KESTREL CLASSROOM  /  TODAY'S INVESTIGATION", 60, 65);
+    g.fillStyle = "#f3eee3";
+    g.font = "52px sans-serif";
+    g.fillText(
+      lesson === "moments"
+        ? "What makes a beam balance?"
+        : lesson === "pythagoras"
+          ? "How do the squares fit together?"
+          : "What will you discover?",
+      60,
+      145,
+    );
+    g.strokeStyle = "#f3eee3";
+    g.lineWidth = 7;
+    g.lineJoin = "round";
+    g.beginPath();
+    if (lesson === "moments") {
+      g.moveTo(120, 320);
+      g.lineTo(610, 320);
+      g.moveTo(365, 325);
+      g.lineTo(320, 410);
+      g.lineTo(410, 410);
+      g.closePath();
+      g.stroke();
+      g.fillStyle = "#b9c9ad";
+      g.fillRect(170, 255, 60, 60);
+      g.fillStyle = "#d4b470";
+      g.fillRect(490, 255, 60, 60);
+      g.font = "32px sans-serif";
+      g.fillText("force × distance", 750, 300);
+      g.fillStyle = "#f3eee3";
+      g.fillText("= turning moment", 750, 350);
+    } else if (lesson === "pythagoras") {
+      g.moveTo(170, 410);
+      g.lineTo(170, 240);
+      g.lineTo(440, 410);
+      g.closePath();
+      g.stroke();
+      g.strokeRect(170, 385, 25, 25);
+      g.font = "32px sans-serif";
+      g.fillText("a", 125, 335);
+      g.fillText("b", 300, 455);
+      g.fillText("c", 335, 310);
+      g.font = "64px sans-serif";
+      g.fillText("a² + b² = c²", 740, 340);
+    } else {
+      g.font = "42px sans-serif";
+      g.fillText("Ask a question. Test an idea.", 120, 330);
+    }
+    g.fillStyle = "#b9c9ad";
+    g.font = "30px sans-serif";
+    g.fillText(
+      "01  PREDICT      →      02  TRY      →      03  OBSERVE & EXPLAIN",
+      60,
+      565,
+    );
+    const map = new THREE.CanvasTexture(canvas);
+    map.colorSpace = THREE.SRGBColorSpace;
+    map.anisotropy = 8;
+    return map;
+  }, [lesson]);
+  useEffect(() => () => texture.dispose(), [texture]);
+  return (
+    <group>
+      <Box
+        at={[-0.43, 1.472, 0.83]}
+        size={[1.66, 0.04, 0.79]}
+        color="#a78559"
+      />
+      <mesh position={[-0.43, 1.446, 0.83]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[1.6, 0.743]} />
+        <meshBasicMaterial map={texture} />
+      </mesh>
+      <Box
+        at={[-0.43, 1.405, 0.44]}
+        size={[1.68, 0.13, 0.025]}
+        color="#a78559"
+      />
+      <Box
+        at={[-0.86, 1.4, 0.463]}
+        size={[0.11, 0.045, 0.025]}
+        color="#ded7c3"
+      />
+      <Box
+        at={[-0.62, 1.4, 0.459]}
+        size={[0.065, 0.012, 0.012]}
+        color="#f3eee3"
+      />
+    </group>
+  );
+}
 function Plant({ at, scale = 1 }: { at: V3; scale?: number }) {
   const leaf = useMemo(() => {
     const s = new THREE.Shape();
@@ -527,84 +629,26 @@ export function Workshop({
           />
         </group>
       ))}
-      {/* Wall shelves and equipment stay above the robot walking volume. */}
-      <Box
-        at={[-0.62, 1.39, 0.65]}
-        size={[1.05, 0.2, 0.025]}
-        material={materials.oak}
+      {/* A shared teaching wall leaves the walking and experiment space clear. */}
+      <TeachingBoard lesson={kit.id} />
+      <Label
+        text="CLASS EQUIPMENT"
+        at={[0.83, 1.469, 0.83]}
+        width={0.57}
+        height={0.1}
+        back
       />
-      <Box
-        at={[-0.62, 1.39, 0.97]}
-        size={[1.05, 0.2, 0.025]}
-        material={materials.oak}
-      />
-      {[-1.03, -0.22].map((x) => (
-        <Box
-          key={x}
-          at={[x, 1.46, 0.8]}
-          size={[0.014, 0.014, 0.4]}
-          color="#b99250"
-          metal
+      {["GEOMETRY", "WEIGHTS", "TOOLS"].map((text, i) => (
+        <Label
+          key={text}
+          text={text}
+          at={[i * 0.3, 1.174, 0.065]}
+          width={0.22}
+          height={0.038}
+          back
+          dark={false}
         />
       ))}
-      {Array.from({ length: 7 }, (_, i) => (
-        <group
-          key={i}
-          position={[-1 + i * 0.07, 1.405, 0.76]}
-          rotation={[0, ((i % 3) - 1) * 0.06, 0]}
-        >
-          <Box
-            at={[0, 0, 0]}
-            size={[0.045, 0.12, 0.19 + (i % 3) * 0.015]}
-            color={["#536d58", "#b99250", "#bc816b", "#e8e2d6"][i % 4]}
-          />
-          <Box
-            at={[0, -0.062, -0.04]}
-            size={[0.031, 0.002, 0.006]}
-            color="#ded6bd"
-          />
-        </group>
-      ))}
-      <Plant at={[-0.35, 1.39, 0.988]} scale={0.8} />
-      {[0, 1, 2].map((i) => (
-        <group key={i} position={[-0.98 + i * 0.14, 1.38, 1.04]}>
-          <mesh rotation={[Math.PI / 2, 0, 0]} castShadow>
-            <cylinderGeometry args={[0.043, 0.043, 0.115, 32]} />
-            <meshStandardMaterial
-              color={["#d5ceb7", "#b0bda4", "#bc816b"][i]}
-              roughness={0.5}
-            />
-          </mesh>
-          <Cylinder at={[0, 0, 0.06]} radius={0.045} height={0.009} />
-        </group>
-      ))}
-      <Box
-        at={[0.48, 1.482, 0.99]}
-        size={[0.7, 0.025, 0.19]}
-        color="#b99250"
-        metal
-      />
-      <Label
-        text="Kestrel field laboratory"
-        at={[0.48, 1.465, 0.99]}
-        width={0.67}
-        height={0.16}
-        back
-      />
-      <Label
-        text={
-          kit.id === "moments"
-            ? "moment = mass × distance"
-            : kit.id === "pythagoras"
-              ? "a² + b² = c²"
-              : "Observe. Try. Discover."
-        }
-        at={[0.4, 1.477, 0.81]}
-        width={1.13}
-        height={0.14}
-        back
-        dark={false}
-      />
       <LiveDisplay sim={sim} />
       {/* Task lamp: a real light and visible shade, not an unexplained glow strip. */}
       <Cylinder at={[0.67, 1.31, 0.19]} radius={0.05} height={0.015} />
@@ -667,7 +711,7 @@ export function Workshop({
           <meshBasicMaterial color={hover ? "#496f51" : "#9b8452"} />
         </mesh>
         <Label
-          text={hover ? "Focus experiment" : "EXPERIMENT"}
+          text={hover ? "Focus experiment" : "LEARNING STATION"}
           at={[0, -0.12, 0]}
           width={0.32}
           height={0.065}

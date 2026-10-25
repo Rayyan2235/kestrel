@@ -268,3 +268,10 @@ Created `lab-workshop-camera` from main. Added LabCamera, camera math/tests, Wor
 ## 2026-10-25 — Codex: Botanical Studio
 
 Applied owner-selected palette to console and rebuilt Workshop; added studioMaterials, StudioLighting, original AO maps and bake script/provenance. Bevelled box visuals retain original dimensions/science face textures; material disposal added. Added live measured-position screen, botanical furnishings and physically separate decorative detail. Updated DESIGN, design tokens, plan and shared memory. Checks: pnpm check 185 pass/builds/API smoke; relevant Playwright 7 pass/1 intentional skip. Final screenshots inspected and Moments output contrast corrected. Independent review found no significant correctness issues. Static shading is AO, not a full GI bake. No paid requests, push or merge.
+
+## 2026-10-25 — Codex: classroom cues and Claude Code handoff
+
+- Replaced decorative back-wall shelves/sign with a lesson-aware teaching board, diagram, chalk tray/eraser, equipment labels and learning-station marker in Workshop.tsx. Kept Botanical palette, open floor, both bots and physics/camera behavior.
+- Added docs/handoffs/claude-code-classroom-redesign.md with source revisions/findings, REA reproduction workflow, taste skill, palette, file map, constraints and checks. Updated DESIGN and shared status/handoff.
+- Validation: pnpm check passed: 185 tests, typecheck, web/API builds and API health smoke. Browser screenshot run exited 0; inspected Pythagoras and Moments on desktop and mobile. Moments output contrast remains rgb(243,238,227). git diff --check passed. No new behavior tests needed for decorative geometry/labels.
+- Stayed on lab-workshop-camera; no push/merge. Owner will launch Claude Code on the same branch.

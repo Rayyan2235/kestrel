@@ -161,3 +161,7 @@ On `lab-workshop-camera`: palette-aligned workshop, independent pan/pinch/wheel 
 ## Botanical Studio — 2026-10-25
 
 On `lab-workshop-camera`, console and room now use the owner-selected warm stone/forest/sage/brass palette. Richer original materials, furniture detail, fixed-surface AO, dynamic shadows and live wall display replace the initial dark room. Landing, camera behavior and MuJoCo actions unchanged. pnpm check: 185 tests/builds/API smoke pass. Browser: 7 pass, 1 intentional skip. Independent review: no significant findings. Final desktop/mobile screenshots inspected. Not merged.
+
+## Classroom refinement (2026-10-25)
+
+On `lab-workshop-camera`, Botanical room now has a lesson-specific teaching board, chalk tray and labeled equipment storage. Claude Code continuation guide is in `docs/handoffs/claude-code-classroom-redesign.md`. `pnpm check` passes (185 tests); both lessons rendered and screenshots inspected at desktop 1440×1000 and touch mobile 390×844. Existing mobile lesson card scroll and small in-world labels remain; use zoom for board details. No physics/camera logic changes, no paid AI calls, no push/merge.
