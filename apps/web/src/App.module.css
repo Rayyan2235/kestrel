@@ -262,6 +262,43 @@
 .verdict[data-hidden="true"] {
   opacity: 0;
 }
+.verdict[data-state="measured"] {
+  background: var(--noir);
+  color: var(--white);
+}
+.pivotControls {
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+.lockButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--amethyst);
+  color: #ffffff;
+  font-size: var(--fs-small);
+  font-weight: 700;
+  pointer-events: auto;
+  box-shadow: var(--float-shadow);
+}
+.lockButton:hover:not(:disabled) {
+  background: var(--amethyst-hover);
+}
+.lockButton[aria-pressed="true"] {
+  background: var(--noir);
+}
+.lockButton:disabled {
+  background: #8e8e92;
+  cursor: default;
+}
 .position {
   display: inline-flex;
   align-items: baseline;
@@ -353,8 +390,8 @@
   box-shadow: 0 0 0 4px var(--glass-card);
 }
 .statusDot[data-status="Walking"],
-.statusDot[data-status="Docking"],
-.statusDot[data-status="Operating"] {
+.statusDot[data-status="Lining up"],
+.statusDot[data-status="Pushing"] {
   background: var(--amethyst-soft);
 }
 .statusDot[data-status="Done"] {

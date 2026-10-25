@@ -24,9 +24,9 @@ export function verdictText(state: "left" | "right" | "balanced") {
 }
 
 const phaseText = {
-  approach: "walking to the bench",
-  dock: "lining up at the control",
-  operate: "turning the weight control",
+  approach: "walking to the weight",
+  dock: "lining up behind it",
+  operate: "pushing the weight",
   done: "finishing",
 } as const;
 

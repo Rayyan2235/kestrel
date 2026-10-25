@@ -1,4 +1,7 @@
 import { BOT_NAMES, type BotId, type World } from "@kestrel/contracts";
+import { Lock, LockOpen } from "lucide-react";
+import { physics } from "../microduck/instance";
+import { useBalance } from "../microduck/status";
 import { follow } from "../world/anchors";
 import { formatInt, formatNm, turning, verdictText } from "./measure";
 import styles from "../App.module.css";
@@ -26,7 +29,13 @@ export function WorldLabels({
   onOpenWeight: (side: "left" | "right") => void;
   weightButtons: React.MutableRefObject<Record<"left" | "right", HTMLButtonElement | null>>;
 }) {
-  const t = turning(world);
+  const balance = useBalance();
+  // With the physics running, the tags show the carriages' measured positions.
+  const shown = balance.available ? { ...world, leftCm: Math.round(balance.leftCm * 2) / 2, rightCm: Math.round(balance.rightCm * 2) / 2 } : world;
+  const t = turning(shown);
+  const released = balance.available && !balance.locked;
+  const tilt = (balance.angle * 180) / Math.PI;
+  const measured = Math.abs(tilt) < 0.6 ? "The beam stayed level" : tilt > 0 ? "The right side went down" : "The left side went down";
   return (
     <div className={styles.overlay}>
       {(["pip", "nova"] as const).map((id) => (
@@ -67,8 +76,8 @@ export function WorldLabels({
         );
       })}
       {(["left", "right"] as const).map((side) => {
-        const grams = side === "left" ? world.leftGrams : world.rightGrams;
-        const cm = side === "left" ? world.leftCm : world.rightCm;
+        const grams = side === "left" ? shown.leftGrams : shown.rightGrams;
+        const cm = side === "left" ? shown.leftCm : shown.rightCm;
         const product = side === "left" ? t.left : t.right;
         const nm = side === "left" ? t.leftNm : t.rightNm;
         const Side = side === "left" ? "Left" : "Right";
@@ -102,13 +111,23 @@ export function WorldLabels({
           </button>
         );
       })}
-      <div
-        ref={follow("pivot", "translate(-50%, -50%)")}
-        className={styles.verdict}
-        data-state={t.state}
-        data-hidden={Boolean(activeBot)}
-      >
-        {verdictText(t.state)}
+      <div ref={follow("pivot", "translate(-50%, 0)")} className={styles.pivotControls}>
+        <div className={styles.verdict} data-state={released ? "measured" : t.state} data-hidden={Boolean(activeBot) && !released} role="status">
+          {released ? `${measured} (${Math.abs(tilt).toFixed(1)}°)` : verdictText(t.state)}
+        </div>
+        {balance.available ? (
+          <button
+            type="button"
+            className={styles.lockButton}
+            aria-pressed={released}
+            disabled={Boolean(activeBot) && !released}
+            title={activeBot && !released ? "Wait for the push to finish" : undefined}
+            onClick={() => (released ? physics.world?.balance.lock() : physics.world?.balance.release())}
+          >
+            {released ? <Lock size={15} aria-hidden="true" /> : <LockOpen size={15} aria-hidden="true" />}
+            {released ? "Lock beam" : "Release beam"}
+          </button>
+        ) : null}
       </div>
     </div>
   );

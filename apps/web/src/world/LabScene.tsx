@@ -3,9 +3,8 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrthographicCamera, Vector3 } from "three";
 import type { BotId } from "@kestrel/contracts";
 import { anchorPositions, followers } from "./anchors";
-import { Apparatus } from "./Apparatus";
 import { palette } from "./palette";
-import { Lanes } from "./Lanes";
+import { FloorBalance } from "./FloorBalance";
 import { MicroduckBots } from "../microduck/MicroduckBots";
 import { Robot } from "./Robot";
 import { Room } from "./Room";
@@ -28,15 +27,15 @@ const DIRECTION = new Vector3(
   Math.sin(ELEVATION),
   Math.cos(ELEVATION) * Math.cos(AZIMUTH),
 );
-const TARGET = new Vector3(0, 0.55, 0.2);
+const TARGET = new Vector3(0, 0.3, 0.9);
 
 function regionFor(width: number) {
   // The experiment (bench, beam, both docking lanes) must always fit.
   const wide = width >= 900;
-  const xs = wide ? [-2.35, 2.35] : [-1.9, 1.9];
-  const zs = wide ? [-1.35, 1.95] : [-1.15, 1.85];
+  const xs = wide ? [-2.2, 2.2] : [-1.75, 1.75];
+  const zs = wide ? [-0.55, 2.45] : [-0.4, 2.35];
   const pts: Vector3[] = [];
-  for (const x of xs) for (const z of zs) for (const y of [0, 1.7]) pts.push(new Vector3(x, y, z));
+  for (const x of xs) for (const z of zs) for (const y of [0, 1.2]) pts.push(new Vector3(x, y, z));
   return pts;
 }
 
@@ -144,8 +143,7 @@ export function LabScene({ selected, reduced, insets, onPickBot, onPickWeight, o
       <CameraRig insets={insets} />
       <Lights />
       <Room />
-      <Apparatus reduced={reduced} onPickWeight={onPickWeight} />
-      <Lanes reduced={reduced} />
+      <FloorBalance onPickWeight={onPickWeight} />
       <MicroduckBots
         selected={selected}
         onPick={onPickBot}

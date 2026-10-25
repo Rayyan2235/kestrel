@@ -18,7 +18,7 @@ import styles from "./App.module.css";
 const LabScene = lazy(() => import("./world/LabScene").then((m) => ({ default: m.LabScene })));
 
 const BUBBLE_MS = 7000;
-const phaseShort = { approach: "Walking", dock: "Lining up", operate: "Operating", done: "Done" } as const;
+const phaseShort = { approach: "Walking", dock: "Lining up", operate: "Pushing", done: "Done" } as const;
 
 function useWide() {
   const query = "(min-width: 900px)";
@@ -152,7 +152,7 @@ export function App() {
   };
   const capability =
     physics.state === "running"
-      ? "Robots: Microduck bodies in MuJoCo, walked by its trained policy in your browser. Station action and replies are scripted; live AI is not connected."
+      ? "Robots: Microduck bodies in MuJoCo, walked by their trained policy, push the weights with real contact. Replies are scripted; live AI is not connected."
       : physics.state === "failed"
         ? `Microduck physics could not start (${physics.error}); placeholder robots use authored movement. Replies are scripted.`
         : physics.state === "disabled"

@@ -115,6 +115,21 @@ test.describe("desktop agent windows", () => {
     await expect(win(page, "Pip").getByText(/Measured 4,000 g·cm left and 4,000 g·cm right: balanced/)).toBeVisible();
   });
 
+  test("releasing the beam lets MuJoCo tip it toward the heavier turning effect, before and after a push", async ({ page }) => {
+    test.skip(!!process.env.CI, "Microduck physics needs a GPU; CI renders WebGL in software");
+    test.setTimeout(150_000);
+    await ready(page);
+    await expect(page.getByText(/Robots: Microduck bodies in MuJoCo/)).toBeVisible({ timeout: 45_000 });
+    await page.getByRole("button", { name: "Release beam" }).click();
+    await expect(page.getByText(/The left side went down/)).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Lock beam" }).click();
+    await expect(page.getByRole("button", { name: "Release beam" })).toBeVisible({ timeout: 10_000 });
+    await moveWith(page, "Right", "40");
+    await expect(dockStatus(page)).toHaveText("Pip moved the right weight to 40 cm.", { timeout: 90_000 });
+    await page.getByRole("button", { name: "Release beam" }).click();
+    await expect(page.getByText(/The beam stayed level/)).toBeVisible({ timeout: 10_000 });
+  });
+
   test("bot-to-bot turns are labelled sender → recipient in both windows", async ({ page }) => {
     await ready(page);
     await page.getByRole("button", { name: "Select Pip" }).click();

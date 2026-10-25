@@ -180,7 +180,7 @@ runtime.subscribe((event) => {
         speaker: action.request.botId,
         recipient: "you",
         text: link.ready
-          ? "Walking to the balance station to operate its weight control."
+          ? `Walking over to push the ${action.request.objectId === "left-weight" ? "left" : "right"} weight to ${action.request.parameters.positionCm} cm.`
           : "I’ll approach the balance station and operate its weight control. (Game-controlled fixture.)",
       });
     if (action?.status === "completed" && action.result) {
@@ -193,12 +193,15 @@ runtime.subscribe((event) => {
         text: `The ${side} weight is now ${cm} cm from the pivot. Measured mass × distance: ${action.result.leftGramCentimeters} g·cm left and ${action.result.rightGramCentimeters} g·cm right. What changed?`,
       });
     }
-    if (action?.status === "failed" || action?.status === "cancelled")
+    if (action?.status === "failed" || action?.status === "cancelled") {
+      // A physical push the body could not do says why, in the bot's words.
+      const reason = action.status === "failed" ? link.push[action.request.botId]?.reason : null;
       messages.push({
         speaker: action.request.botId,
         recipient: "you",
-        text: action.error?.message ?? "The action did not finish.",
+        text: reason ?? action.error?.message ?? "The action did not finish.",
       });
+    }
     return {
       simulation: event.snapshot,
       world: event.snapshot.world,

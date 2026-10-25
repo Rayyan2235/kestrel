@@ -5,8 +5,8 @@ import { formatInt, peerOf } from "./measure";
 import styles from "../App.module.css";
 
 const who = (id: Message["speaker"]) => (id === "you" ? "You" : BOT_NAMES[id]);
-const phaseText = { approach: "Walking to the bench", dock: "Lining up at the control", operate: "Turning the weight control", done: "Finishing" } as const;
-const phaseShort = { approach: "Walking", dock: "Docking", operate: "Operating", done: "Finishing" } as const;
+const phaseText = { approach: "Walking to the weight", dock: "Lining up behind it", operate: "Pushing the weight", done: "Finishing" } as const;
+const phaseShort = { approach: "Walking", dock: "Lining up", operate: "Pushing", done: "Finishing" } as const;
 
 /** One bot's current action, or its last measured outcome. */
 export function botActivity(id: BotId, sim: SimulationSnapshot) {

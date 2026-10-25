@@ -12,3 +12,7 @@ export const physicsDisabled = () => {
   }
 };
 export const useMicroduck = create<MicroduckStatus>(() => ({ state: physicsDisabled() ? "disabled" : "loading", hz: 0, falls: 0 }));
+
+/** The floor balance as the interface shows it, sampled from the physics loop. */
+export type BalanceStatus = { available: boolean; locked: boolean; angle: number; leftCm: number; rightCm: number };
+export const useBalance = create<BalanceStatus>(() => ({ available: false, locked: true, angle: 0, leftCm: 20, rightCm: 20 }));
