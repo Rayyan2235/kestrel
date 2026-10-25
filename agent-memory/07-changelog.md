@@ -332,3 +332,12 @@ Final verification: pnpm check passed (194 tests, typecheck, builds, API health 
 2026-10-25: Reproduced owner command “go to B then E then H” returning null with a failing regression. Parser unnecessarily required speaking A despite Pip already starting there. Parser now prepends only known origin A; it never fills missing intermediate nodes. Updated input guidance and browser voice/typed test phrases to omit A. Invalid skips (B→H, C→E→H), negatives and missing junctions remain rejected; task live-pose origin guard remains intact.
 
 Omitted-start fix verified: regression failed before fix, then pnpm check passed (195 tests, typecheck, builds/health smoke). Desktop real-physics browser passed with A omitted in mocked voice transcript and exact typed “go to B then E then H”; Pip physically reached charger. No live STT provider call made. git diff --check clean.
+
+## 2026-10-25 · Claude Code · rescue-main: robot sound, objectives with XP, console windows
+
+- Made rescue-navigation the base (`ba2ccc7`, `-s ours` merge of main). `8d8041c`: robot sound instead of TTS (`agentSession.say`), one-sentence prompt, `normalizeTask` in `apps/api/src/agent.ts` (+6 tests).
+- `55bef60`: `sandbox/objectives.ts` (+5 tests), `ObjectivesBoard.tsx`, right rail in `Sandbox.module.css`, wiring in `SandboxApp.tsx`.
+- `c4b9914`: `ConsolePane.tsx`, `crewChannel.ts` (+3 tests), You and Pip / Pip and Nova accordion (`kestrel.console.window` in localStorage).
+- Live checks (browser, real MuJoCo, 5212): Balance the beam tipped the plank 5.8° left; the experiment with 200 g at 10 cm (and again at 15 cm with 100 g at 30 cm) read level at 0.4° and filled the bar to 100 XP. The crew window showed Pip's handoff, each robot's measured move and the joint result, with an unread count while closed. A live Claude turn on 5220 walked Pip 20 cm, played the robot clip twice and made no `/voice/speak` call.
+- Checks: `pnpm check` passed (typecheck, unit tests, builds, API health smoke).
+- `b0ea98b`: `runTask` emits a `plan` event for set_balance and build_squares; the Pip and Nova window uses it for Pip's handoff. Polling `status().task` missed build_squares because each robot's own push masks the crew task.
