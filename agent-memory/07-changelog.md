@@ -384,3 +384,6 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - Console on 5180 (API 5181 restarted via `tsx watch` so it loaded `TIGER_DATABASE_URL`; health `progress: true`). Balance the beam: 200 g at 10 cm, 100 g at 20 cm, run with both robots; won in about 12 s ("1 / 3 done"). The browser sent `POST /api/progress` (201), and Tiger stored `balance-beam ok=true tilt_deg=0.2 left_cm=10 right_cm=20`.
 - Removed the localStorage `earned` copy (kept the learner ID) and reloaded: `GET /api/progress/:learner` (200) restored Balance the beam as done on the board, so progress came back from the database alone.
+
+- CI then failed 3 of 142 on timing. (1) The rescue death bubble expired (12 s of real time) before the test's next check on the slow runner. The rescue result bubble is now sticky until the next reset or run, which is also better for kids. (2) Two Moments tests gave the lesson switch 5 s; that wait is now 30 s, since the switch waits on the physics loop.
+- CI on `399d396` was 137 passed, 1 failed: the rescue spec's bubble-position poll. The CI trace shows the bubble correctly positioned (`transform: translate(741.5px, 467.8px)…`); the poll's first read had not returned within the 5 s default. The rescue spec now gives every default wait 30 s (`expect.configure`).
