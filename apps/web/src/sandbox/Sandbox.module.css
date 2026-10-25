@@ -605,3 +605,151 @@
   .rescueStage { height: 440px; }
   .rescueStage .sceneWrap { top: 0; }
 }
+
+/* Right rail: the objectives on top, the console under them. */
+.rail {
+  position: absolute;
+  z-index: 3;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rail .console {
+  position: relative;
+  inset: auto;
+  width: auto;
+  flex: 1;
+  min-height: 0;
+}
+.objectives {
+  flex: none;
+  max-height: 50%;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.objectivesHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.objectivesCount {
+  margin-left: auto;
+  color: var(--ink-muted);
+}
+.chevron {
+  transition: transform 250ms;
+}
+.objectivesHead[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.activeObjective {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.activeObjective p {
+  margin: 0;
+}
+.objectiveBrief,
+.xpText {
+  color: var(--ink-secondary);
+}
+.xpTrack {
+  position: relative;
+  height: 12px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: #ffffff8c;
+  box-shadow: var(--shadow-ring);
+  transition: box-shadow 400ms;
+}
+.xpTrack i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f6c453, #f29f3d);
+  transition: width 1200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.xpWon {
+  box-shadow: 0 0 0 1px #f2b13d, 0 0 14px #f6c45399;
+}
+.objectiveList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.objectiveItem {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 8px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: #ffffff59;
+  color: var(--ink);
+  font: 500 13px/18.2px var(--font-sans);
+  letter-spacing: -0.13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 250ms, color 250ms;
+}
+.objectiveItem small {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--ink-muted);
+}
+.objectiveItem > :last-child {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.objectiveItem:hover {
+  background: #ffffff99;
+}
+.objectiveItem[aria-pressed="true"] {
+  border-color: var(--control-solid-border);
+  background-color: var(--control-solid);
+  background-image: linear-gradient(180deg, var(--sheen-solid-from), var(--sheen-solid-to));
+  color: var(--white);
+}
+.objectiveItem[aria-pressed="true"] small {
+  color: #ffffffb3;
+}
+@media (prefers-reduced-motion: reduce) {
+  .xpTrack i,
+  .chevron {
+    transition: none;
+  }
+}
+@media (max-width: 900px) {
+  .rail {
+    position: static;
+    width: auto;
+    margin: 0 12px;
+  }
+  .rail .console {
+    margin: 0;
+  }
+  .objectives {
+    max-height: none;
+  }
+}

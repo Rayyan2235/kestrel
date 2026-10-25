@@ -7,6 +7,8 @@ import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
 import { RescuePanel, type RescueOutcome } from "./RescuePanel";
 import { ExperimentPanel } from "./ExperimentPanel";
+import { ObjectivesBoard } from "./ObjectivesBoard";
+import { LEVEL_HOLD_MS, OBJECTIVES, beamLevel, type ObjectiveId } from "./objectives";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 import { ArrowPill, Button } from "./gic";
@@ -88,6 +90,14 @@ export function SandboxApp() {
   const [voice, setVoice] = useState(true);
   const [rescueRoute, setRescueRoute] = useState<RescueRoute | null>(null);
   const [rescueOutcome, setRescueOutcome] = useState<RescueOutcome | null>(null);
+  const [objective, setObjective] = useState<ObjectiveId | null>(null);
+  const [won, setWon] = useState(false);
+  const [earned, setEarned] = useState<ReadonlySet<ObjectiveId>>(new Set());
+  const [boardOpen, setBoardOpen] = useState(true);
+  const simRef = useRef<DuckSim | null>(null);
+  // Set when the balance-beam objective starts: release the plank once the lab has loaded.
+  const tipOnLoad = useRef(false);
+  const levelSince = useRef<number | null>(null);
 
   const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => {
     const id = nextId.current++;
@@ -105,6 +115,13 @@ export function SandboxApp() {
   const onEvent = useCallback(
     (e: SimEvent) => {
       session.current?.event(e);
+      if (e.type === "reset" && tipOnLoad.current) {
+        tipOnLoad.current = false;
+        // A beat on the level, locked beam first, so the learner sees it tip.
+        window.setTimeout(() => {
+          if (simRef.current?.kit.id === "moments") simRef.current.runTask({ kind: "release_plank" });
+        }, 900);
+      }
       if (e.type === "task-done" && e.task.kind === "rescue_route") {
         setRescueOutcome({ok:e.ok, summary:e.summary});
         setBubble({id:nextId.current++,text:e.summary}); return;
@@ -129,6 +146,7 @@ export function SandboxApp() {
         created = s;
         if (!live) return;
         s.start();
+        simRef.current = s;
         setSim(s);
         session.current = new AgentSession(s, add, setPhase);
         // Dev-only handle for browser tests and debugging.
@@ -167,6 +185,33 @@ export function SandboxApp() {
     setFilled([]);
     sim?.setKit(next);
     if(id !== "rescue") add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
+  }
+
+  /** Start (or restart) an objective from a fresh lab, its XP bar empty. */
+  function startObjective(id: ObjectiveId) {
+    if (!sim) return;
+    const o = OBJECTIVES.find((x) => x.id === id)!;
+    setObjective(id);
+    setWon(false);
+    setBoardOpen(false);
+    levelSince.current = null;
+    tipOnLoad.current = id === "balance-beam";
+    if (o.kit !== kitId) chooseLesson(o.kit);
+    else {
+      session.current?.cancel(true);
+      setFilled([]);
+      setBubble(null);
+      sim.reset();
+    }
+  }
+
+  /** Picking another lesson from the nav leaves the objective. */
+  function pickLesson(id: KitId) {
+    if (objective && OBJECTIVES.find((o) => o.id === objective)!.kit !== id) {
+      setObjective(null);
+      setWon(false);
+    }
+    chooseLesson(id);
   }
 
   /** A two-robot plan or experiment, started by the learner. */
@@ -274,6 +319,24 @@ export function SandboxApp() {
   const sitting = status?.mode === "sitstand";
   const balance = status?.balance ? balanceSnapshot(status.balance) : null;
 
+  // The objective is met only on the simulator's measurement.
+  useEffect(() => {
+    if (!objective || won || !status) return;
+    let met = false;
+    if (objective === "balance-beam") {
+      if (kitId === "moments" && beamLevel(status)) {
+        levelSince.current ??= performance.now();
+        met = performance.now() - levelSince.current >= LEVEL_HOLD_MS;
+      } else levelSince.current = null;
+    } else if (objective === "build-triangle") met = kitId === "pythagoras" && solved;
+    else met = kitId === "rescue" && !!rescueOutcome?.ok;
+    if (!met) return;
+    const o = OBJECTIVES.find((x) => x.id === objective)!;
+    setWon(true);
+    setEarned((e) => new Set(e).add(objective));
+    add("duck", `${o.win} +${o.xp} XP!`, true);
+  }, [objective, won, status, kitId, solved, rescueOutcome, add]);
+
   return (
     <div className={`gic-root ${styles.app}`}>
       <main className={styles.workspace}>
@@ -290,7 +353,7 @@ export function SandboxApp() {
                   type="button"
                   className={styles.lesson}
                   aria-pressed={l.id === kitId}
-                  onClick={() => chooseLesson(l.id)}
+                  onClick={() => pickLesson(l.id)}
                   disabled={!sim}
                 >
                   <small>{l.subject}</small> {l.topic}
@@ -368,6 +431,8 @@ export function SandboxApp() {
         </section>
 
 
+        <div className={styles.rail}>
+        <ObjectivesBoard active={objective} won={won} earned={earned} open={boardOpen} onToggle={() => setBoardOpen((o) => !o)} onStart={startObjective} />
         {kitId === "rescue" ? <aside className={`gic-toast ${styles.console} ${styles.missionConsole}`} aria-label="Mission console">
           {sim && <RescuePanel sim={sim} outcome={rescueOutcome} onReset={() => {sim.stopAll();sim.reset();setBubble(null);}} onRun={(route) => {
             session.current?.cancel(); setRescueOutcome(null); setBubble(null); setRescueRoute(route);
@@ -507,6 +572,7 @@ export function SandboxApp() {
             </button>
           </div>
         </aside>}
+        </div>
       </main>
     </div>
   );
