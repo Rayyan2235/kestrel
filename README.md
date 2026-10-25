@@ -19,6 +19,8 @@ Open http://127.0.0.1:5180 for the landing page, then choose **Open console** to
 
 The landing page loads without starting the simulator. The console runs Microduck physics locally; live conversation and voice need the server credentials documented in `.env.example`. Keep credentials in the root `.env` (never commit it). Each teammate supplies their own local configuration.
 
+To run it on one Ubuntu server behind Caddy, follow [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## What is implemented
 
 - Illustrated landing page, an independent interactive balance example, companion concepts and **Open console** navigation.
