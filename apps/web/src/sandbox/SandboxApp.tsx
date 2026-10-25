@@ -26,6 +26,11 @@ import { consoleSim, createConversation, threadOf } from "./conversation";
 import { crewLead, OWNER, pressStart, resolveAddressees, type AddressContext, type Resolution } from "../addressing/resolve.js";
 import { Contained } from "./Contained";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
+import type { LessonId } from "../lessons/lessonContent";
+import { makeQuizQuestions } from "../lessons/lessonContent";
+import { LessonBookOverlay, type LessonMeasurements } from "../lessons/LessonBookOverlay";
+import { DemoOutcomeOverlay } from "../lessons/DemoOutcomeOverlay";
+import { QuizOverlay } from "../lessons/QuizOverlay";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
@@ -33,7 +38,8 @@ import { ExperimentPanel } from "./ExperimentPanel";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 
-type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
+type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean; speaker?: BotId };
+type LearningFlow = { step: "book" | "demo" | "demo-complete" | "demo-incomplete" | "quiz"; lesson: LessonId; message?: string } | null;
 
 /** Bubble anchors near each duck, as a percentage of the 3D stage. */
 const ANCHORS: Anchors = { pip: { x: 30, y: 60 }, nova: { x: 70, y: 60 } };
@@ -118,8 +124,12 @@ export function SandboxApp() {
   const nextId = useRef(0);
   const logRef = useRef<HTMLDivElement>(null);
   const session = useRef<AgentSession | null>(null);
+  const demoAttempt = useRef(0);
   const [phase, setPhase] = useState<AgentPhase>("Ready");
-  const [voice, setVoice] = useState(true);
+  const [robotSound, setRobotSound] = useState(true);
+  const [crewSelected, setCrewSelected] = useState(false);
+  const [learningFlow, setLearningFlow] = useState<LearningFlow>(null);
+  const [quizQuestions, setQuizQuestions] = useState(() => makeQuizQuestions());
   const conv = useMemo(createConversation, []);
   const events = useSyncExternalStore(conv.subscribe, conv.events);
   const selected = useSyncExternalStore(conv.subscribe, conv.selected);
@@ -142,7 +152,7 @@ export function SandboxApp() {
 
   const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean, bot?: BotId, source: "built-in" | "live" = "built-in") => {
     const id = nextId.current++;
-    setLog((l) => [...l, { id, who, text: line, ok }].slice(-40));
+    setLog((l) => [...l, { id, who, text: line, ok, ...(who === "duck" ? { speaker: bot ?? turnBot.current ?? selectedRef.current } : {}) }].slice(-40));
     // Every line also enters the conversation: the learner to the selected robot, a reply from a robot to the learner.
     if (who === "you") conv.record("you", turnBot.current ?? selectedRef.current, "learner", line, "built-in");
     else conv.record(bot ?? turnBot.current ?? selectedRef.current, "you", "say", line, source);
@@ -150,15 +160,19 @@ export function SandboxApp() {
     if (who === "duck" && line.trim().endsWith("?")) thread.current = { bot: bot ?? turnBot.current ?? selectedRef.current, at: Date.now() };
   }, [conv]);
   /** The agent's own lines are the Claude agent's (live); the rest are built in. */
-  const agentAdd = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => add(who, line, ok, undefined, who === "duck" && ok !== false ? "live" : "built-in"), [add]);
+  const agentAdd = useCallback((who: LogEntry["who"], line: string, ok?: boolean, speaker?: BotId) => add(who, line, ok, speaker, who === "duck" && ok !== false ? "live" : "built-in"), [add]);
 
   const onEvent = useCallback(
     (e: SimEvent) => {
       relay.current.forEach((fn) => fn(e));
-      session.current?.event(e);
-      if (e.type === "task-done") add("duck", e.summary, e.ok, e.duck === "lab" ? undefined : e.duck);
+      if (session.current?.event(e)) return;
+      if (e.type === "task-done") {
+        if (e.task.kind === "push" && e.task.toward === "slot") return;
+        if (["kick", "sit", "stand", "peck", "roll"].includes(e.task.kind)) return;
+        add("duck", e.summary, e.ok, e.duck === "lab" ? undefined : e.duck);
+      }
       else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false, e.duck);
-      else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true, e.duck);
+      else if (e.type === "recovered") return;
       else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset") add("duck", e.reason, false);
     },
     [add],
@@ -173,7 +187,14 @@ export function SandboxApp() {
         if (!live) return;
         s.start();
         setSim(s);
-        session.current = new AgentSession(s, agentAdd, setPhase);
+        session.current = new AgentSession(s, agentAdd, setPhase, (action, lesson) => {
+          if (action === "book") setLearningFlow({ step: "book", lesson });
+          else {
+            setQuizQuestions(makeQuizQuestions());
+            setLearningFlow({ step: "quiz", lesson });
+          }
+        });
+        session.current.setRobotSound(robotSound);
         session.current.onTranscript = (heard) => routeRef.current(heard, pressed.current ?? currentRef.current());
         // Dev-only handle for browser tests and debugging.
         if (import.meta.env.DEV) (window as unknown as { kestrelSim: DuckSim }).kestrelSim = s;
@@ -186,10 +207,10 @@ export function SandboxApp() {
     };
   }, [onEvent, agentAdd]);
 
-  // The session can be created after the learner already turned spoken replies off.
+  // The session can be created after the learner already changed the reply sound.
   useEffect(() => {
-    session.current?.setVoice(voice);
-  }, [voice, sim]);
+    session.current?.setRobotSound(robotSound);
+  }, [robotSound, sim]);
 
   // Ask Pip / Ask Nova: the labelled mock hands off between the robots and back to the learner.
   // On the Moments lesson the coordinator drives the real robots through the SimAdapter
@@ -277,6 +298,8 @@ export function SandboxApp() {
   }, [log]);
 
   function chooseLesson(id: KitId) {
+    demoAttempt.current++;
+    setLearningFlow(null);
     session.current?.cancel(true);
     coordinator.endChallenge();
     // The adapter polls the balance, which only exists on the Moments lesson.
@@ -316,6 +339,24 @@ export function SandboxApp() {
     },
     [sim, add],
   );
+
+  function beginDemonstration(lessonId: LessonId) {
+    const attempt = ++demoAttempt.current;
+    setLearningFlow({ step: "demo", lesson: lessonId });
+    void session.current?.demonstrate(lessonId).then(async result => {
+      if (attempt !== demoAttempt.current) return;
+      await session.current?.announce(result.summary, result.ok, false);
+      if (attempt !== demoAttempt.current) return;
+      setLearningFlow({ step: result.ok ? "demo-complete" : "demo-incomplete", lesson: lessonId, message: result.summary });
+    }).catch(error => {
+      if (attempt !== demoAttempt.current) return;
+      const message = (error as Error).name === "AbortError"
+        ? "The demonstration was interrupted before its measurements were complete. Reset the lab and try again."
+        : "The demonstration stopped before its measurements were complete. Reset the lab and try again.";
+      add("duck", message, false);
+      setLearningFlow({ step: "demo-incomplete", lesson: lessonId, message });
+    });
+  }
 
   // Keyboard: held keys drive the walking command; letters fire skills.
   useEffect(() => {
@@ -400,6 +441,7 @@ export function SandboxApp() {
   }
 
   function currentContext(): AddressContext {
+    if (crewSelected) return { selected: null, thread: null };
     const open = thread.current && Date.now() - thread.current.at < 30_000 ? thread.current.bot : null;
     return { selected: selectedSince.current, thread: open };
   }
@@ -451,16 +493,10 @@ export function SandboxApp() {
     }
     if (crew) {
       const lead = crewLead(move?.side ?? r.side, coordinator.lastTrial(), null);
-      void coordinator.crewTurn(
-        cmd,
-        lead,
-        move
-          ? {
-              lead: { bot: OWNER[move.side], say: `Moving the ${move.side} weight to ${move.cm} cm.`, action: move },
-              second: { bot: other(OWNER[move.side]), say: "I'll watch the tilt." },
-            }
-          : null,
-      );
+      turnBot.current = lead;
+      lastRoute.current = { text: r.body, bot: lead, at: Date.now() };
+      session.current?.setRecipient("both", lead);
+      void session.current?.submit(r.body, "both", "normal", lead);
       return;
     }
     // Wrong rail: the named robot answers, then hands the push to the weight's owner.
@@ -474,12 +510,14 @@ export function SandboxApp() {
       return;
     }
     turnBot.current = bot;
-    lastRoute.current = { text: cmd, bot, at: Date.now() };
-    void session.current?.submit(cmd, bot);
+    lastRoute.current = { text: r.body, bot, at: Date.now() };
+    session.current?.setRecipient(bot, bot);
+    void session.current?.submit(r.body, bot, "normal", bot);
   }
 
   /** Tapping the other robot within 3 s, before anything moves, sends the turn to it instead. */
   function selectBot(b: BotId) {
+    setCrewSelected(false);
     conv.select(b);
     selectedSince.current = b;
     const last = lastRoute.current;
@@ -488,7 +526,8 @@ export function SandboxApp() {
       session.current?.cancel();
       turnBot.current = b;
       setChip({ label: `to ${BOT_NAMES[b]}`, heard: null, reaction: null });
-      void session.current?.submit(last.text, b);
+      session.current?.setRecipient(b, b);
+      void session.current?.submit(last.text, b, "normal", b);
     }
   }
 
@@ -497,6 +536,13 @@ export function SandboxApp() {
   const solved = kit.slots.length > 0 && filled.length === kit.slots.length;
   const sitting = status?.mode === "sitstand";
   const balance = status?.balance ? balanceSnapshot(status.balance) : null;
+  const liveMeasurements: LessonMeasurements = {
+    filledSlots: filled,
+    totalSlots: kit.slots.length,
+    leftMoment: (balance?.weights.find(w => w.side === "left")?.grams ?? 0) * (balance?.weights.find(w => w.side === "left")?.cm ?? 0),
+    rightMoment: (balance?.weights.find(w => w.side === "right")?.grams ?? 0) * (balance?.weights.find(w => w.side === "right")?.cm ?? 0),
+    tiltDeg: balance?.tiltDeg ?? 0,
+  };
 
   return (
     <div className={styles.app}>
@@ -654,6 +700,7 @@ export function SandboxApp() {
               log.map((l) => (
                 <div key={l.id} className={l.who === "you" ? styles.fromYou : styles.fromDuck}>
                   {l.ok === false && <span className={styles.warn}>!</span>}
+                  {l.who === "duck" && l.speaker && <strong>{BOT_NAMES[l.speaker]}: </strong>}
                   {l.text}
                 </div>
               ))
@@ -678,6 +725,7 @@ export function SandboxApp() {
                 {BOT_NAMES[b]}
               </button>
             ))}
+            <button aria-pressed={crewSelected} onClick={() => { setCrewSelected(true); selectedSince.current = null; thread.current = null; }}>Both</button>
             {chip && (
               <span className={styles.chip} data-testid="address-chip">
                 {chip.label}
@@ -751,11 +799,11 @@ export function SandboxApp() {
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) talk(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
             >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</button>
-            <button type="button" aria-label="Spoken replies" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
-              {voice ? "Voice on" : "Voice off"}
+            <button type="button" aria-label="Robot reply sound" aria-pressed={robotSound} onClick={() => setRobotSound((enabled) => !enabled)}>
+              {robotSound ? "Robot sound on" : "Robot sound off"}
             </button>
           </div>
-          <small className={styles.providerNote}>Claude on Bedrock · ElevenLabs voice. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
+          <small className={styles.providerNote}>Claude on Bedrock · ElevenLabs transcription · local robot sound. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
           <div className={styles.skills}>
             <button onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
               {sitting ? "Stand" : "Sit"}
@@ -789,6 +837,47 @@ export function SandboxApp() {
         <ChannelPanel embedded view={channel} threadBot={selected} running={asking || coordinator.holding()} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
         </Contained>
       </main>
+      {learningFlow?.step === "book" && (
+        <LessonBookOverlay
+          lesson={learningFlow.lesson}
+          measurements={liveMeasurements}
+          onClose={() => setLearningFlow(null)}
+          onDemonstrate={() => beginDemonstration(learningFlow.lesson)}
+        />
+      )}
+      {learningFlow?.step === "demo" && (
+        <div className={styles.demoStatus} role="status">Pip and Nova are demonstrating in the lab…</div>
+      )}
+      {(learningFlow?.step === "demo-complete" || learningFlow?.step === "demo-incomplete") && (
+        <DemoOutcomeOverlay
+          complete={learningFlow.step === "demo-complete"}
+          lesson={learningFlow.lesson}
+          message={learningFlow.message ?? "No measured result was reported."}
+          onContinue={() => {
+            setQuizQuestions(makeQuizQuestions());
+            setLearningFlow({ step: "quiz", lesson: learningFlow.lesson });
+          }}
+          onRetry={() => {
+            const lessonId = learningFlow.lesson;
+            sim?.reset();
+            beginDemonstration(lessonId);
+          }}
+        />
+      )}
+      {learningFlow?.step === "quiz" && (
+        <QuizOverlay
+          key={`${learningFlow.lesson}-${quizQuestions.map(q => q.id).join("-")}`}
+          questions={quizQuestions}
+          onComplete={(score, total) => { void session.current?.announce(`You got ${score} of ${total} questions right.`, true, false); }}
+          onClose={() => setLearningFlow(null)}
+          onFollowUp={question => {
+            setLearningFlow(null);
+            const bot = turnBot.current ?? selectedRef.current;
+            session.current?.setRecipient(bot, bot);
+            void session.current?.submit(question, bot, "follow-up", bot);
+          }}
+        />
+      )}
     </div>
   );
 }

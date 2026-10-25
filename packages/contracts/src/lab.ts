@@ -85,8 +85,9 @@ export function tile(
   pos: Vec2,
   color: string,
   yaw = 0,
+  physicalScale = 1,
 ): PropSpec {
-  const side = units * UNIT;
+  const side = units * UNIT * physicalScale;
   return {
     id,
     label: `${units}×${units} square`,
@@ -133,10 +134,11 @@ export function pythagorasSlots(
   b: number,
   origin: Vec2,
   ids: { a: string; b: string; c: string },
+  physicalScale = 1,
 ): { slots: SlotSpec[]; outline: Vec2[]; c: number } {
   const c = Math.hypot(a, b);
   const [ox, oy] = origin;
-  const u = UNIT;
+  const u = UNIT * physicalScale;
   const hyp = Math.atan2(b, -a); // direction of the edge from (a,0) to (0,b)
   // Outward normal of the hypotenuse, away from the right angle.
   const n: Vec2 = [b / c, a / c];
@@ -176,11 +178,11 @@ export function pythagorasSlots(
   return { slots, outline, c };
 }
 
-/** A square counts as placed when its center lies within `tolerance` of the slot. */
+/** A square counts as placed when its center lies within 20% of the slot side. */
 export function slotFilled(
   propXY: Vec2,
   slot: SlotSpec,
-  tolerance = UNIT,
+  tolerance = slot.side * 0.22,
 ): boolean {
   return (
     Math.hypot(propXY[0] - slot.pos[0], propXY[1] - slot.pos[1]) <= tolerance
@@ -191,11 +193,14 @@ export function pythagorasKit(): LabKit {
   const ids = { a: "square-3", b: "square-4", c: "square-5" };
   // The triangle's legs: 4 units along +x and 3 along +y, so the squares
   // are 4×4 below, 3×3 to the left and 5×5 on the hypotenuse.
+  // Keep the established 3-4-5 tile scale; placement logic handles settling
+  // and drift instead of enlarging the props to mask inaccurate pushes.
+  const physicalScale = 1;
   const { slots, outline } = pythagorasSlots(4, 3, [0.35, -0.1], {
     a: ids.b,
     b: ids.a,
     c: ids.c,
-  });
+  }, physicalScale);
   return {
     id: "pythagoras",
     focus: [0.45, -0.05],
@@ -205,9 +210,9 @@ export function pythagorasKit(): LabKit {
     props: [
       // Each tile starts outside its own side of the triangle, so pushing it
       // straight in never sweeps across a slot that is already filled.
-      tile(ids.a, 3, [-0.25, 0.35], "#5caca4"),
-      tile(ids.b, 4, [0.43, -0.8], "#dc8060"),
-      tile(ids.c, 5, [0.95, 0.62], "#d2b54c"),
+      tile(ids.a, 3, [-0.25, 0.35], "#5caca4", 0, physicalScale),
+      tile(ids.b, 4, [0.43, -0.8], "#dc8060", 0, physicalScale),
+      tile(ids.c, 5, [0.27, 0.75], "#d2b54c", 0, physicalScale),
     ],
     slots,
     outline,

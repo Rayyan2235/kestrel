@@ -366,7 +366,8 @@ function Duck({
     // Anchor the speech bubble just above the duck's head, in screen space.
     const el = bubble.current;
     if (el) {
-      head.set(pose.pos[0], pose.pos[2] + 0.2, -pose.pos[1]).project(camera);
+      const speaking = el.dataset.speaker === "nova" ? other.pos : pose.pos;
+      head.set(speaking[0], speaking[2] + 0.2, -speaking[1]).project(camera);
       const x = ((head.x + 1) / 2) * size.width;
       const y = ((1 - head.y) / 2) * size.height;
       el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
@@ -420,7 +421,7 @@ export function SandboxScene({
   looks?: Record<BotId, BotLook>;
   onProgress: (filled: string[]) => void;
   /** Latest public reply from the duck, shown next to it. */
-  bubble: { id: number; text: string } | null;
+  bubble: { id: number; text: string; speaker: BotId } | null;
 }) {
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [rigs, setRigs] = useState<Record<BotId, DuckRig> | null>(null);
@@ -489,7 +490,7 @@ export function SandboxScene({
       {rigs && <Duck sim={sim} bubble={bubbleRef} focus={kit.focus} />}
     </Canvas>
       {bubble && (
-        <div key={bubble.id} ref={bubbleRef} className={styles.bubble} role="status">
+        <div key={bubble.id} ref={bubbleRef} data-speaker={bubble.speaker} className={styles.bubble} role="status">
           {bubble.text}
         </div>
       )}

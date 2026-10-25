@@ -1,4 +1,14 @@
-# Voice and agent design (proposed, not built)
+# Voice and agent design
+
+_This page records initial proposals. The implemented path and current limits are described first below; historical provider alternatives remain background only._
+
+## Implemented single-duck path (2026-10-25)
+
+- Browser `MediaRecorder` captures while Hold to talk or Space is held. Release sends the audio to the local API; the app does not persist it. Natural typed prompts use the same agent path.
+- Fastify receives audio in memory at `/api/voice/transcribe`, calls ElevenLabs Scribe v2, and returns transcript text. `/api/voice/speak` calls ElevenLabs Flash 2.5. `/api/agent/turn` validates the request, calls Claude Sonnet 4.6 on Bedrock, and validates its single tool action.
+- The sandbox session captures the lesson/world, runs the requested action through `DuckSim`, reads measured results and prop positions, and returns them before Claude's next decision. Actions, time and calls are bounded; new input, Stop, reset and manual movement abort pending work.
+- Replies appear in chat and the duck bubble; speech is optional. Keys stay on the API server.
+- The speech loop and simple movement passed live using synthesized speech delivered through browser capture. One full typed Pythagoras run placed all three squares; further consecutive runs are needed to establish repeatability. The two-bot coordinator and mock remain separate.
 
 ## Layering: the LLM does not replace the Microduck weights
 
@@ -46,7 +56,7 @@ speech ──STT──▶ transcript (bound to the selected bot at capture start
 ## Model selection (2026-10-24, not yet decided)
 
 - **Local Qwen on this machine.** It runs in **Ollama 0.40.8**, which is already running at `http://127.0.0.1:11434` (OpenAI-compatible endpoint `/v1`). The only chat model installed is `qwen2.5:1.5b` (Q4_K_M, about 1.2 GB, loads on the RX 6550M). The other models are embeddings (`qwen3-embedding:0.6b`, `snowflake-arctic-embed`).
-- **Hardware.** Ryzen 5 7535HS, 23 GB RAM, RX 6550M with 4 GB VRAM, and **only 3.1 GB of disk free**. Models of 7B and up don't fit.
+- **Hardware.** Ryzen 5 7535HS, 23 GB RAM, RX 6550M with 4 GB VRAM. Last checked C: free space was about 23 GB; disk availability can change.
 - **Benchmark.** `node scripts/agent-bench.mjs <baseURL> <model>` runs 6 cases with the real tool list. qwen2.5:1.5b scored **4/6**. It passes single push, refusal, hint-not-answer and explain. It fails multi-step (writes the steps as text) and the demonstration (pushes nothing). Warm calls take 0.2–0.9 s; a cold load takes 9.7 s.
 - **Recommendation (pending the teammate and owner).**
   - Keep the deterministic parser as a fast path.

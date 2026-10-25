@@ -516,6 +516,8 @@ export class CrewPlan {
   private stage = -1;
   private readonly lines: string[] = [];
   private failed = false;
+  private stageResults = new Map<BotId, { ok: boolean; summary: string }>();
+  private retries = new Map<BotId, number>();
   constructor(
     readonly task: DuckTask,
     private readonly stages: CrewStage[],
@@ -527,12 +529,37 @@ export class CrewPlan {
   }
 
   step(ports: ExperimentPorts, results: Map<BotId, { ok: boolean; summary: string }>): { done?: { ok: boolean; summary: string }; phase: string } {
-    if ((["pip", "nova"] as BotId[]).some((id) => ports.busy(id))) return { phase: this.phase() };
-    for (const [id, r] of results) {
-      this.lines.push(`${id === "pip" ? "Pip" : "Nova"}: ${r.summary}`);
-      if (!r.ok) this.failed = true;
-    }
+    const jobs = this.stages[this.stage];
+    for (const [id, result] of results) this.stageResults.set(id, result);
     results.clear();
+    if (jobs) {
+      const failed = jobs.find(job => this.stageResults.get(job.id)?.ok === false && !ports.busy(job.id));
+      if (failed) {
+        const attempts = this.retries.get(failed.id) ?? 0;
+        if (attempts < 1) {
+          this.retries.set(failed.id, attempts + 1);
+          this.stageResults.delete(failed.id);
+          const refusal = ports.start(failed.id, failed.task);
+          if (refusal) this.stageResults.set(failed.id, { ok: false, summary: refusal });
+          else return { phase: this.phase() };
+        } else this.failed = true;
+      }
+      if ((["pip", "nova"] as BotId[]).some(id => ports.busy(id))) return { phase: this.phase() };
+      if (this.failed) {
+        for (const job of jobs) {
+          const result = this.stageResults.get(job.id);
+          if (result) this.lines.push(`${job.id === "pip" ? "Pip" : "Nova"}: ${result.summary}`);
+        }
+      } else {
+        if (jobs.some(job => !this.stageResults.has(job.id))) return { phase: this.phase() };
+        for (const job of jobs) {
+          const result = this.stageResults.get(job.id)!;
+          this.lines.push(`${job.id === "pip" ? "Pip" : "Nova"}: ${result.summary}`);
+        }
+      }
+      this.stageResults.clear();
+      this.retries.clear();
+    }
     if (this.failed || this.stage + 1 >= this.stages.length) {
       const end = this.describe();
       return { done: { ok: !this.failed && end.ok, summary: `${this.lines.join(" ")} ${end.summary}`.trim() }, phase: "done" };
