@@ -64,6 +64,7 @@ export class AgentSession {
     this.version++;
     this.pending?.resolve({ ok: false, summary: "Interrupted by the learner." });
     this.pending = null;
+    this.sim.stopAll?.();
     this.sim.tasks.cancel();
     this.sim.manual = { vx: 0, wz: 0 };
     this.silence();

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { BotId } from "./bot.js";
 
 // Modular lab props. One spec drives both the MuJoCo body and its render
 // mesh, so a subject kit (Pythagoras tiles, Moments plank and weights) is
@@ -44,6 +45,8 @@ export type PropSpec = {
   damping?: number;
   /** Slide position at rest, metres along the axis from the body origin. */
   rest?: number;
+  /** Contact stiffness (MuJoCo solref: time constant, damping ratio); stiffer means less penetration. */
+  solref?: Vec2;
   /** Side length in Pythagoras units, drawn as an n × n grid on tiles. */
   units?: number;
 };
@@ -68,6 +71,8 @@ export type LabKit = {
   outline?: Vec2[];
   /** Where the lesson's apparatus is; the camera keeps it in view with the duck. */
   focus: Vec2;
+  /** Where each robot starts: x, y and heading (rad). */
+  spawns: Record<BotId, Vec3>;
 };
 
 /** One Pythagoras unit, in metres. The duck stands about 0.25 m tall. */
@@ -194,6 +199,7 @@ export function pythagorasKit(): LabKit {
   return {
     id: "pythagoras",
     focus: [0.45, -0.05],
+    spawns: { pip: [-0.6, 0, 0], nova: [-0.6, -0.45, 0] },
     subject: "Maths",
     topic: "Pythagorean theorem",
     props: [
@@ -227,6 +233,8 @@ export type MomentsWeight = {
   label: string;
   grams: number;
   side: BalanceSide;
+  /** The robot that moves this weight. Pip works the left rail, Nova the right. */
+  owner: BotId;
   /** Starting distance from the pivot. */
   cm: number;
   size: number;
@@ -236,11 +244,13 @@ export type MomentsWeight = {
 export const MOMENTS = {
   pivot: PIVOT,
   /** Pivot wedge footprint on the floor: x and y half-extents. */
-  pivotHalf: [0.03, 0.04] as Vec2,
+  pivotHalf: [0.02, 0.04] as Vec2,
   plank: PLANK,
   paddle: PADDLE,
   /** Furthest the plank tips either way, radians. */
   tilt: 0.1,
+  /** Height of the pivot pin above the plank's centre, metres. */
+  pinHeight: 0.08,
   minCm: 5,
   maxCm: 30,
   laneX: LANE_X,
@@ -250,8 +260,8 @@ export const MOMENTS = {
   minGap: 0.14,
   /** Left is −y, as the learner sees it on screen. */
   weights: [
-    { id: "weight-200", label: "200 g weight", grams: 200, side: "left", cm: 20, size: 0.04, color: "#72aeb4" },
-    { id: "weight-100", label: "100 g weight", grams: 100, side: "right", cm: 20, size: 0.035, color: "#db8769" },
+    { id: "weight-200", label: "200 g weight", grams: 200, side: "left", owner: "pip", cm: 20, size: 0.04, color: "#72aeb4" },
+    { id: "weight-100", label: "100 g weight", grams: 100, side: "right", owner: "nova", cm: 20, size: 0.035, color: "#db8769" },
   ] as MomentsWeight[],
 };
 
@@ -267,6 +277,8 @@ export function momentsKit(): LabKit {
   return {
     id: "moments",
     focus: PIVOT,
+    // Both robots start on the walkway, each beside its own rail.
+    spawns: { pip: [0, -0.3, 0], nova: [0, 0.3, 0] },
     subject: "Physics",
     topic: "Moments and balance",
     props: [
@@ -289,11 +301,12 @@ export function momentsKit(): LabKit {
         shape: { type: "box", size: [PLANK.width, PLANK.length, PLANK.thick] },
         joint: "hinge",
         axis: [1, 0, 0],
-        // Hinged ~2 cm above the loaded plank's centre of mass, like a beam
-        // balance, so equal moments rest level instead of on a knife edge.
-        anchor: [0, 0, 0.04],
+        // Pivot pin 8 cm above the plank: like a beam balance's pivot above its
+        // centre of mass, equal moments rest level, and a small imbalance
+        // settles at a small tilt instead of tipping off a knife edge.
+        anchor: [0, 0, MOMENTS.pinHeight],
         range: [-MOMENTS.tilt, MOMENTS.tilt],
-        damping: 0.6,
+        damping: 0.15,
         pos: [PIVOT[0], PIVOT[1], plankZ],
         yaw: 0,
         mass: 0.08,
@@ -330,6 +343,8 @@ export function momentsKit(): LabKit {
             yaw: 0,
             mass: PADDLE.mass,
             color: w.color,
+            // A firm push face: MuJoCo's default soft contact let a pushing robot sink ~5 mm in.
+            solref: [0.005, 1],
           },
         ];
       }),
@@ -342,6 +357,7 @@ export function freeKit(): LabKit {
   return {
     id: "free",
     focus: [0.1, 0],
+    spawns: { pip: [-0.6, 0, 0], nova: [-0.6, -0.5, 0] },
     subject: "Sandbox",
     topic: "Free play",
     props: [
@@ -385,9 +401,15 @@ export const DuckTaskSchema = z.discriminatedUnion("kind", [
     .object({ kind: z.literal("push"), target: PropRef, toward: PropRef.optional(), direction: z.enum(["left", "right", "forward", "backward"]).optional(), meters: z.number().min(0.05).max(1).optional() })
     .strict(),
   z.object({ kind: z.literal("kick"), foot: z.enum(["left", "right"]) }).strict(),
-  /** Push a balance weight along its rail to a distance from the pivot. */
+  /** Push a balance weight along its rail to a distance from the pivot (its owner robot does it). */
   z.object({ kind: z.literal("place_weight"), target: PropRef, cm: z.number().min(5).max(30) }).strict(),
-  z.object({ kind: z.enum(["sit", "stand", "peck", "roll", "stop", "release_plank", "lock_plank"]) }).strict(),
+  /**
+   * The cooperative experiment: both robots push their own weights to these
+   * marks, step clear, and the plank is released and measured.
+   */
+  z.object({ kind: z.literal("set_balance"), left_cm: z.number().min(5).max(30), right_cm: z.number().min(5).max(30) }).strict(),
+  /** Both robots push the three squares onto the triangle, in stages that keep their paths apart. */
+  z.object({ kind: z.enum(["sit", "stand", "peck", "roll", "stop", "release_plank", "lock_plank", "build_squares"]) }).strict(),
 ]);
 export type DuckTask = z.infer<typeof DuckTaskSchema>;
 

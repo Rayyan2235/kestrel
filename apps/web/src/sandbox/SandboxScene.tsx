@@ -2,6 +2,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
+  MOMENTS,
   roomProps,
   slotFilled,
   type LabKit,
@@ -9,7 +10,8 @@ import {
   type SlotSpec,
 } from "@kestrel/contracts";
 import { CAMERA_OFFSET, ROOM_HALF, WALL_H, WALL_T } from "../simulation/constants";
-import type { DuckSim } from "../simulation/duckSim";
+import type { BotId } from "@kestrel/contracts";
+import { BOTS, type DuckSim } from "../simulation/duckSim";
 import { buildDuckRig, poseDuckRig, type DuckRig } from "../simulation/rig";
 import styles from "./Sandbox.module.css";
 
@@ -146,6 +148,12 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
     if (!m || !sim.readProp(spec.id, pose)) return;
     m.position.set(pose.pos[0], pose.pos[1], pose.pos[2]);
     m.quaternion.set(pose.quat[1], pose.quat[2], pose.quat[3], pose.quat[0]);
+    // A push face glows only while MuJoCo reports a robot touching it.
+    if (spec.role === "paddle" && !Array.isArray(material)) {
+      const f = sim.touchForce(spec.id);
+      (material as THREE.MeshStandardMaterial).emissive.set(f > 0.05 ? "#7e49b3" : "#000000");
+      (material as THREE.MeshStandardMaterial).emissiveIntensity = Math.min(0.9, f / 6);
+    }
   });
   return (
     <mesh
@@ -156,7 +164,61 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
       receiveShadow
       position={spec.pos}
       rotation={[0, 0, spec.yaw]}
-    />
+    >
+      {spec.role === "plank" && <PlankHanger />}
+    </mesh>
+  );
+}
+
+/** The hanger from the plank up to its pivot pin (moves with the plank; drawn, not simulated). */
+function PlankHanger() {
+  const h = MOMENTS.pinHeight;
+  return (
+    <group>
+      <mesh position={[0, 0, h / 2 + 0.003]} castShadow>
+        <boxGeometry args={[0.006, 0.012, h]} />
+        <meshStandardMaterial color="#3a3a3e" roughness={0.5} metalness={0.3} />
+      </mesh>
+    </group>
+  );
+}
+
+/**
+ * Moments dressing: the floor walkway the robots stand on (mechanically
+ * separate from the beam), the stand that carries the pivot pin at the
+ * hinge axis, and the lock collar, red while locked and green while free.
+ * Visual only; the hinge, pin lock and rails are what MuJoCo simulates.
+ */
+function MomentsDressing({ sim }: { sim: DuckSim }) {
+  const collar = useRef<THREE.MeshStandardMaterial>(null);
+  const [px, py] = MOMENTS.pivot;
+  const pinZ = 0.06 + 0.001 + MOMENTS.plank.thick / 2 + MOMENTS.pinHeight;
+  const walk0 = MOMENTS.transitX - 0.09;
+  const walk1 = MOMENTS.laneX + 0.03;
+  useFrame(() => {
+    const state = sim.pinState();
+    collar.current?.color.set(state === "free" ? "#4f9d69" : state === "levelling" ? "#d2b54c" : "#c0453a");
+  });
+  return (
+    <MjFrame>
+      <mesh position={[(walk0 + walk1) / 2, py, 0.0012]} receiveShadow>
+        <planeGeometry args={[walk1 - walk0, MOMENTS.plank.length + 0.3]} />
+        <meshStandardMaterial color="#cfcfcf" roughness={0.95} transparent opacity={0.55} />
+      </mesh>
+      {/* Stand on the far side of the beam, carrying the pin over the plank. */}
+      <mesh position={[px + 0.045, py, pinZ / 2]} castShadow>
+        <boxGeometry args={[0.012, 0.03, pinZ]} />
+        <meshStandardMaterial color="#141414" roughness={0.6} />
+      </mesh>
+      <mesh position={[px + 0.02, py, pinZ]} rotation={[0, 0, Math.PI / 2]} castShadow>
+        <cylinderGeometry args={[0.004, 0.004, 0.055, 12]} />
+        <meshStandardMaterial color="#cfcfcf" metalness={0.6} roughness={0.3} />
+      </mesh>
+      <mesh position={[px + 0.034, py, pinZ]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.008, 0.008, 0.008, 16]} />
+        <meshStandardMaterial ref={collar} color="#c0453a" />
+      </mesh>
+    </MjFrame>
   );
 }
 
@@ -253,36 +315,48 @@ function Room({ kit }: { kit: LabKit }) {
   );
 }
 
+/** One robot, posed from MuJoCo each frame. Rendering only reads physics state. */
+function Robot({ sim, id, rig }: { sim: DuckSim; id: BotId; rig: DuckRig }) {
+  const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
+  const angles = useMemo(() => new Float32Array(14), []);
+  useFrame(() => {
+    sim.readTrunk(pose, id);
+    poseDuckRig(rig, pose.pos, pose.quat, sim.readJoints(angles, id));
+  });
+  return <primitive object={rig.placer} />;
+}
+
 function Duck({
   sim,
-  rig,
   bubble,
   focus,
 }: {
   sim: DuckSim;
-  rig: DuckRig;
   bubble: React.RefObject<HTMLDivElement | null>;
-  /** The lesson's apparatus, kept in frame together with the duck. */
+  /** The lesson's apparatus, kept in frame together with the ducks. */
   focus: [number, number];
 }) {
   const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
-  const angles = useMemo(() => new Float32Array(14), []);
+  const other = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const { camera } = useThree();
   const target = useMemo(() => new THREE.Vector3(), []);
   const head = useMemo(() => new THREE.Vector3(), []);
   const { size } = useThree();
   useFrame(() => {
-    sim.readTrunk(pose);
-    poseDuckRig(rig, pose.pos, pose.quat, sim.readJoints(angles));
-    // Isometric follow: centre between the duck and the lesson apparatus,
-    // zooming out as they separate, so the experiment stays on screen.
-    const mx = (pose.pos[0] + focus[0]) / 2;
-    const my = (pose.pos[1] + focus[1]) / 2;
+    sim.readTrunk(pose, "pip");
+    sim.readTrunk(other, "nova");
+    // Isometric follow: centre on both ducks and the lesson apparatus,
+    // zooming out as they spread, so the experiment stays on screen.
+    const mx = (pose.pos[0] + other.pos[0] + 2 * focus[0]) / 4;
+    const my = (pose.pos[1] + other.pos[1] + 2 * focus[1]) / 4;
     target.lerp(new THREE.Vector3(mx, 0.1, -my), 0.06);
     camera.position.set(target.x + CAMERA_OFFSET[0], target.y + CAMERA_OFFSET[1], target.z + CAMERA_OFFSET[2]);
     camera.lookAt(target);
-    const spread = Math.hypot(pose.pos[0] - focus[0], pose.pos[1] - focus[1]);
-    const zoom = Math.min(420, Math.max(240, 470 - 170 * spread));
+    const spread = Math.max(
+      Math.hypot(pose.pos[0] - focus[0], pose.pos[1] - focus[1]),
+      Math.hypot(other.pos[0] - focus[0], other.pos[1] - focus[1]),
+    );
+    const zoom = Math.min(420, Math.max(220, 470 - 190 * spread));
     if (Math.abs(camera.zoom - zoom) > 0.5) {
       camera.zoom += (zoom - camera.zoom) * 0.05;
       camera.updateProjectionMatrix();
@@ -296,8 +370,11 @@ function Duck({
       el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
     }
   });
-  return <primitive object={rig.placer} />;
+  return null;
 }
+
+/** Pip in Nox Noir graphite, Nova in Royal Amethyst. */
+export const BOT_TINTS: Record<BotId, string> = { pip: "#3a3a3e", nova: "#7e49b3" };
 
 function Slots({ kit, sim, onProgress }: { kit: LabKit; sim: DuckSim; onProgress: (filled: string[]) => void }) {
   const [filled, setFilled] = useState<string[]>([]);
@@ -341,11 +418,14 @@ export function SandboxScene({
   bubble: { id: number; text: string } | null;
 }) {
   const bubbleRef = useRef<HTMLDivElement>(null);
-  const [rig, setRig] = useState<DuckRig | null>(null);
+  const [rigs, setRigs] = useState<Record<BotId, DuckRig> | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let live = true;
-    buildDuckRig(tint).then((r) => live && setRig(r), (e) => live && setError(String(e?.message ?? e)));
+    Promise.all(BOTS.map((id) => buildDuckRig(BOT_TINTS[id] ?? tint))).then(
+      (r) => live && setRigs(Object.fromEntries(BOTS.map((id, i) => [id, r[i]!])) as Record<BotId, DuckRig>),
+      (e) => live && setError(String(e?.message ?? e)),
+    );
     return () => {
       live = false;
     };
@@ -376,12 +456,14 @@ export function SandboxScene({
       />
       <Room kit={kit} />
       <Slots kit={kit} sim={sim} onProgress={onProgress} />
+      {kit.id === "moments" && <MomentsDressing sim={sim} />}
       <MjFrame>
         {[...furniture, ...kit.props].map((p) => (
           <PropMesh key={`${kit.id}-${p.id}`} spec={p} sim={sim} />
         ))}
       </MjFrame>
-      {rig && <Duck sim={sim} rig={rig} bubble={bubbleRef} focus={kit.focus} />}
+      {rigs && BOTS.map((id) => <Robot key={id} sim={sim} id={id} rig={rigs[id]} />)}
+      {rigs && <Duck sim={sim} bubble={bubbleRef} focus={kit.focus} />}
     </Canvas>
       {bubble && (
         <div key={bubble.id} ref={bubbleRef} className={styles.bubble} role="status">
