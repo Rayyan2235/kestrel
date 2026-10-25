@@ -5,5 +5,6 @@
 - [Burrow](https://github.com/jerryjlwang/Burrow): prior art for conversational embodied interaction, not a runtime dependency.
 - Font: Plus Jakarta Sans, supplied through its Fontsource package; its license is included in `apps/web/public/licenses/PlusJakartaSans-OFL.txt` and copied to the built site.
 - All room and robot geometry in the scaffold is newly authored procedural placeholder geometry. It is not a BD-1 asset or a recovered practice export.
+- Gamification patterns (MIT sources, code written fresh, no files copied): CodeCombat (`AchievementPopup.js` two-segment XP bar, `earned_achievement.js` award record shape) informs `apps/web/src/progress/barSegments.ts` and the award `triggeredBy` field; DiceBear (slot constraints and contrast ordering, seeded PRNG pattern) informs `apps/web/src/cosmetics/constraints.ts` and `apps/web/src/progress/rng.ts`; Open Space (`parseLook` per-field fallback, Workshop dialog layout) informs `parseBotLook` and `WorkshopDialog.tsx`. Habitica, Moodle block_xp and Exercism (GPL/AGPL) are ideas only: no code is copied or translated.
 
 Installed dependencies retain their respective licenses. Public repository visibility does not automatically grant a license to original project code; the owner can choose that license separately.
