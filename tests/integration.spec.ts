@@ -27,12 +27,14 @@ test.use({
   },
 });
 
-test("the original lab page loads", async ({ page }) => {
+test("the landing page loads without paid or external requests", async ({
+  page,
+}) => {
   const w = watch(page);
   await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Kestrel", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Big questions.Little robots.",
+  );
   expect(w.errors).toEqual([]);
   expect(w.external).toEqual([]);
   expect(w.api).toEqual([]);
@@ -56,12 +58,12 @@ test("the two-bot demo loads, runs a chain, and makes no /api or external reques
   expect(w.api).toEqual([]);
 });
 
-test("the Microduck sandbox page loads and makes no /api or external request until the learner acts", async ({
+test("the console boots real physics without /api or external requests until the learner acts", async ({
   page,
 }) => {
   test.setTimeout(120000);
   const w = watch(page);
-  await page.goto("/sandbox.html");
+  await page.goto("/console");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", {
     timeout: 90000,
   });

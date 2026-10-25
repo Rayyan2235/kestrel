@@ -7,3 +7,7 @@
 - All room and robot geometry in the scaffold is newly authored procedural placeholder geometry. It is not a BD-1 asset or a recovered practice export.
 
 Installed dependencies retain their respective licenses. Public repository visibility does not automatically grant a license to original project code; the owner can choose that license separately.
+
+- Welcome controls: adapted from Arc UI (MIT), © 2026 Elia Kuratli; license in `apps/web/src/welcome/arc/LICENSE`.
+- Grandstander 900: self-hosted display font from Google Fonts, SIL OFL 1.1; notice in `apps/web/public/welcome/fonts/OFL-Grandstander.txt`.
+- Welcome artwork: owner-supplied concept illustrations, used as editorial stills, not simulation footage. Meadowbell informed composition and button styling; its media and source are not bundled.

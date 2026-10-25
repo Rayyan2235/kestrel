@@ -13,7 +13,7 @@ test("natural text explains, moves the real duck, and returns measured results",
       { type: "tool_use", id: "move1", name: "duck_task", input: { kind: "move", meters: 0.2 } },
     ] : [{ type: "text", text: "That distance came from the simulator." }] } });
   });
-  await page.goto("/sandbox.html");
+  await page.goto("/console");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
   await page.getByRole("button", { name: "Spoken replies" }).click();
   await page.getByLabel("Task for your duck").fill("Can you demonstrate moving a little?");

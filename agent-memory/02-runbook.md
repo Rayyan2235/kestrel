@@ -108,3 +108,7 @@ Requirements: `pnpm dev` running and `.env` with `ELEVENLABS_API_KEY`, the AWS k
 | "Stop" | Stops immediately |
 
 Paid checks: `node scripts/live-voice-check.mjs` (voice round trip plus demo). The temporary probes `tests/.probe-demo.mjs` and `tests/.probe-right.mjs` run the typed flows.
+
+## Product routes — 2026-10-25
+
+Run `pnpm dev` and open port 5180: the landing page is `/`, and Open console leads to `/console`. Old `/lab` and `/sandbox.html` links also open the real console. The original scripted preview is removed. Live AI/voice need each teammate's root `.env` (see `.env.example`); never copy or commit credentials. The standalone mock teammate demo remains `/?demo=two-bot`.

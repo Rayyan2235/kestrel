@@ -44,3 +44,7 @@ This is an initial visual foundation, not final art. Robots are original procedu
 The `/sandbox.html` windows and controls use the owner-selected Nox Noir `#141414`, Royal Amethyst `#7E49B3`, and Steel Mist `#CFCFCF`. Soft white `#F5F3F7` is the implementation choice for text and primary pill buttons; pale amethyst supports readable focus and state labels. These tokens are scoped to the sandbox. The earlier preview and 3D materials retain their existing styling.
 
 Lesson, console and speech surfaces use dense smoked glass, subtle silver edges and offset shadows, informed by Open Space. Primary buttons are light pills with amethyst text; secondary buttons use translucent neutral fills. The supplied button reference informed the pill shape and 2px hover lift. Controls have 44px minimum height, visible focus, disabled states and reduced-motion support. Glass has an opaque fallback and a reduced-transparency treatment.
+
+## Integrated product entry — October 25, 2026
+
+The illustrated welcome page is the root route. Every Open console action leads directly to `/console`, the existing real Microduck lab. Home returns to the welcome page; the old scripted preview screen is removed. The console glass now uses a dark purple tint (`rgb(34 23 45 / 80%)`) and lavender-lit silver edges; brand colors stay unchanged. Welcome display lettering is self-hosted Grandstander; body text is Plus Jakarta Sans. Owner-supplied concept art remains distinct from runtime physics.

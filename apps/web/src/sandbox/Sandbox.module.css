@@ -8,9 +8,9 @@
   --on-dark-muted: #cfcfcf;
   --accent: #7e49b3;
   --accent-light: #d9b7f5;
-  --glass: rgb(20 20 20 / 86%);
-  --glass-edge: rgb(207 207 207 / 24%);
-  --glass-highlight: rgb(245 243 247 / 12%);
+  --glass: rgb(34 23 45 / 80%);
+  --glass-edge: rgb(207 191 223 / 28%);
+  --glass-highlight: rgb(223 199 245 / 16%);
   --control: rgb(207 207 207 / 9%);
   --control-hover: rgb(207 207 207 / 17%);
   --shadow: inset 0 1px 0 var(--glass-highlight), 0 16px 40px rgb(0 0 0 / 24%);
@@ -477,8 +477,8 @@
 .bubble {
   border: 1px solid var(--glass-edge);
   box-shadow: var(--shadow);
-  -webkit-backdrop-filter: blur(18px) saturate(0.7);
-  backdrop-filter: blur(18px) saturate(0.7);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
 }
 .consoleHead {
   min-height: 36px;
@@ -625,14 +625,14 @@
   .lessonCard,
   .console,
   .bubble {
-    background: #202020;
+    background: #241a2e;
   }
 }
 @media (prefers-reduced-transparency: reduce) {
   .lessonCard,
   .console,
   .bubble {
-    background: #202020;
+    background: #241a2e;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

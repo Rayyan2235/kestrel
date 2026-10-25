@@ -155,3 +155,12 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 - Updated DESIGN.md and memory status/decisions/handoff/backlog. Installed the user-requested design skill locally, not included in product files.
 - Checks: pnpm check passed, 147 tests; sandbox Playwright 4/4 desktop/mobile; Prettier and git diff --check passed. Production visual inspection at 1440/768/390 passed with one secondary-label-size warning; requested glass/purple/floating shadows exempted. Before/after screenshots reviewed.
 - Initial checks encountered missing local Bedrock SDK and occupied port 5191. Restored frozen dependencies without lockfile changes; tested own preview on 5200 via a temporary config, removed afterward.
+
+## 2026-10-25 — Codex: integrate landing and actual console
+
+- Owner authorized main integration. Imported only welcome components/art/font from the existing landing worktree; preserved its local changes. All Open console actions enter `/console`; Home returns to `/`. Legacy console URLs remain.
+- Removed old scripted App/scene/store and their obsolete tests. Preserved shared contracts and separate teammate demo. Changed glass tint to dark purple. Updated misleading landing AI/voice copy and public route/setup documentation.
+- Added routing regression tests; saw them fail on the old root view, then pass. `pnpm check` passed (139 tests); welcome/entry/sandbox Playwright 16/16 desktop/mobile passed. Inspected production desktop/mobile screenshots: no page errors or overflow.
+- Read-only code review found a stale original-root integration expectation; corrected it. Integration checks and PR CI are the remaining merge gates.
+
+Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.

@@ -32,3 +32,7 @@ Sources: `build-order.md` ("Settled"), `adr/README.md`, `codebase-architecture.m
 ## 2026-10-25 — UI treatment
 
 Owner requested a separate UI branch from main, to merge later: `glass-windows`. Owner selected Nox Noir #141414, Royal Amethyst #7E49B3 and Steel Mist #CFCFCF, Open Space-inspired glass windows, and rounded buttons from the supplied visual prompt. This pass applies to the sandbox panels and controls; wider scene art remains outside this pass.
+
+## 2026-10-25 — Main product entry and merge authorization
+
+Owner directs deletion of the original scripted view, landing Open console navigation to the existing real voice/physics lab, dark-purple glass windows, and merging landing plus console to main for teammates. Canonical console URL is `/console`; `/lab` and `/sandbox.html` retain compatibility. The separate teammate demo and unrelated two-robot integration branches are outside this merge. This supersedes the earlier freeze on main for this specific integration.

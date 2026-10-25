@@ -15,35 +15,34 @@ pnpm install --frozen-lockfile
 pnpm dev
 ```
 
-Open http://127.0.0.1:5180. API health: http://127.0.0.1:5181/api/health. Both servers bind to loopback. No API key is needed for the scaffold.
+Open http://127.0.0.1:5180 for the landing page, then choose **Open console** to enter the real lab at `/console`. `/lab` and `/sandbox.html` also open the console for existing bookmarks. The old scripted preview screen has been removed. API health: http://127.0.0.1:5181/api/health. Both servers bind to loopback.
 
-Try **right weight to 40 cm**, **left weight to 10 cm**, or **hint**. Select Pip or Nova to choose a recipient. **Ask the crew** plays a bounded, two-turn scripted exchange using the current balance state. Stop and reset invalidate pending turns.
+The landing page loads without starting the simulator. The console runs Microduck physics locally; live conversation and voice need the server credentials documented in `.env.example`. Keep credentials in the root `.env` (never commit it). Each teammate supplies their own local configuration.
 
 ## What is implemented
 
-- Responsive React interface, isometric Three.js room and two original procedural placeholder robots.
-- Analytic mass × distance balance preview, sliders and a small supported typed-command grammar.
-- Addressed messages, explicit bot-to-bot recipients, a two-turn exchange limit, stop/reset and a 30-message display cap.
-- Shared Zod contracts, Fastify health/command skeleton, unit/integration tests and browser checks.
+- Illustrated landing page, an independent interactive balance example, companion concepts and **Open console** navigation.
+- Real MuJoCo/ONNX Microduck simulation in the console, with keyboard driving, Pythagoras squares, a Moments setup and free play.
+- Typed conversation and actions through Claude on Bedrock, hold-to-talk and spoken replies through ElevenLabs when configured. Stop and Reset cancel pending actions.
+- Purple-tinted glass windows, noir/amethyst/silver colors, pill controls, responsive layouts and reduced-motion support.
+- The separate teammate conversation demo remains at `/?demo=two-bot`; it is experimental and uses a mock provider/stub simulation. It is not the console entry point.
 
-## What is not integrated yet
+## Current boundaries
 
-Live LLM conversation, microphone/STT, MuJoCo physics, ONNX walking, final Kestrel assets, navigation, physical manipulation, accounts and deployment. MuJoCo/ONNX/OpenAI dependencies are pinned integration foundations; package presence is not runtime capability. `/api/commands` validates requests and returns an explicit `501 PROVIDER_NOT_CONNECTED`.
-
-The beam is an **ideal massless model** and its visual tilt is illustrative. Direct apparatus changes in this scaffold do not demonstrate a robot physically moving a weight. The UI explicitly labels scripted behavior.
+The console on main has one Microduck. Two-robot physics and cooperative experiment work remain on their separate branches. Landing artwork depicts the intended companions, not runtime footage. The landing balance illustration uses an ideal mass × distance model; the console uses simulated physics. Physical lifting, final robot art, accounts and production hosting remain separate work.
 
 ## Workspace
 
 ```text
-apps/web/             React/Vite, CSS Modules, room, preview state, integration boundary
-apps/api/             Fastify routes and future server-side provider integration
+apps/web/             React/Vite landing page, real console, CSS Modules and simulation
+apps/api/             Fastify routes, Bedrock agent and ElevenLabs voice integration
 packages/contracts/   Types, Zod validation and deterministic preview model
 PRODUCT.md            Intent, differentiators and unresolved product decisions
 DESIGN.md             Visual reference, tokens and interaction requirements
 docs/                 Architecture, build roadmap and Claude context-audit prompt
 ```
 
-Core stack: TypeScript, React 19, Fiber 9, Three.js, Zustand, Radix Primitives, Motion, Fastify and Zod. Exact versions are in `pnpm-lock.yaml`. Dependencies were selected against current package metadata; the Microduck physics/policy tuple must still be integrated and benchmarked as a unit.
+Core stack: TypeScript, React 19, Fiber 9, Three.js, Zustand, Radix Primitives, Motion, Fastify and Zod. Exact versions are in `pnpm-lock.yaml`. The Microduck physics and walking-policy integration runs in the console.
 
 ## Checks
 
@@ -53,10 +52,10 @@ pnpm exec playwright install chromium
 pnpm test:e2e
 ```
 
-`pnpm check` runs typecheck, unit/API tests and both builds. Browser tests cover desktop/mobile recipient selection, command effects, collaboration, stop/reset and overflow. CI runs these checks with Node 24.
+`pnpm check` runs typecheck, unit/API tests and both builds. Browser tests cover desktop/mobile landing navigation, lazy simulator loading, commands, stop/reset and the separate two-bot demo. CI runs these checks with Node 24.
 
 ## Build next
 
 Follow [the roadmap](docs/ROADMAP.md), [product context](PRODUCT.md) and [design direction](DESIGN.md). Audit planning with [the Claude Code prompt](docs/prompts/claude-context-audit.md). Obsidian stays a private research/planning source; this repository contains a deliberately public-safe product summary.
 
-No private vault dump, API keys or practice source is included. See [third-party references](THIRD_PARTY.md). Adding `.env` keys does not enable live features until their integration milestone is implemented. Production hosting and child-facing rollout need their own configuration and checks.
+No private vault dump, API keys or practice source is included. See [third-party references](THIRD_PARTY.md). The API loads the root `.env` for configured voice and AI providers. Production hosting and child-facing rollout need their own configuration and checks.

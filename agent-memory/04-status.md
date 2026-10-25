@@ -62,3 +62,9 @@ A temporary demo of two robots talking to each other and to the learner. It runs
 ## UI branch verification — 2026-10-25
 
 On `glass-windows` (from main `4154acf`): sandbox lesson/console/speech windows and buttons now use noir/amethyst/silver styling. No simulation or agent behavior changed. `pnpm check` passes (147 tests, typecheck, web/API builds, API smoke). Sandbox Playwright passes 4/4 using installed Chrome on desktop and mobile with mocked provider requests. Production visual inspection at 1440/768/390px: zero failures, one compact-secondary-text warning; glass, floating shadows and purple explicitly allowed for the brief. Missing local Bedrock SDK was resolved with frozen-lockfile install; lockfile unchanged.
+
+## Integrated entry — 2026-10-25
+
+Root now serves the landing page; Open console enters the real lab at `/console`, with `/lab` and `/sandbox.html` compatibility. The original scripted screen, scene and store are removed; the explicit two-bot demo remains separate. Console windows now have a dark purple glass tint. `pnpm check` passes with 139 tests after removing eight obsolete preview-store tests. Landing/navigation/sandbox browser checks pass 16/16 on desktop/mobile. Production entry/console screenshots have no page errors or overflow. Merge to main explicitly authorized by owner, pending CI.
+
+Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.
