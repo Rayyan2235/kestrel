@@ -19,6 +19,8 @@ import { Focus, Minus, Plus, RotateCcw, ScanEye } from "lucide-react";
 import type { BotId } from "@kestrel/contracts";
 import { BOTS, type DuckSim } from "../simulation/duckSim";
 import { buildDuckRig, poseDuckRig, type DuckRig } from "../simulation/rig";
+import type { BotLook } from "@kestrel/contracts";
+import { applyLook, describeLook, dressingFor } from "../cosmetics/rig3d";
 import styles from "./Sandbox.module.css";
 
 // Everything inside <MjFrame> uses MuJoCo coordinates (z up), so props,
@@ -370,10 +372,13 @@ export function SandboxScene({
   tint,
   onProgress,
   bubble,
+  looks,
 }: {
   sim: DuckSim;
   kit: LabKit;
   tint: string;
+  /** Workshop looks per robot: shell colour and simple props, drawn only. */
+  looks?: Record<BotId, BotLook>;
   onProgress: (filled: string[]) => void;
   /** Latest public reply from the duck, shown next to it. */
   bubble: { id: number; text: string; speaker: BotId } | null;
@@ -401,6 +406,24 @@ export function SandboxScene({
       live = false;
     };
   }, [tint]);
+  const dressings = useMemo(
+    () =>
+      rigs
+        ? (Object.fromEntries(BOTS.map((id) => [id, dressingFor(rigs[id], BOT_TINTS[id] ?? tint)])) as Record<
+            BotId,
+            ReturnType<typeof dressingFor>
+          >)
+        : null,
+    [rigs, tint],
+  );
+  useEffect(() => {
+    if (!dressings || !looks) return;
+    for (const id of BOTS) applyLook(dressings[id], looks[id]);
+    // Dev-only handle for browser tests: what each robot wears.
+    if (import.meta.env.DEV)
+      (window as unknown as { kestrelLooks: unknown }).kestrelLooks = () =>
+        Object.fromEntries(BOTS.map((id) => [id, describeLook(dressings[id])]));
+  }, [dressings, looks]);
   // Fixed furniture, if a kit ever adds some back; the playground court itself is open.
   const furniture = useMemo(() => roomProps(), []);
   if (error) return <div className="scene-fallback">The robot model could not load: {error}</div>;

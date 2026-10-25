@@ -192,7 +192,8 @@ export function resolveAddressees(
     if (acting && side) {
       to = [OWNER[side]];
       mode = "owner";
-    } else if (acting && (POINTING.test(lower) || !side)) {
+    } else if (acting && POINTING.test(lower)) {
+      // "move this" with no weight named: ask, never guess. A plain "move please" goes on below.
       to = [ctx.selected ?? ctx.thread ?? "pip"];
       mode = "clarify";
     } else if (ctx.selected) {

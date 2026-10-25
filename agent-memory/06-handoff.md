@@ -1,4 +1,8 @@
-# Current handoff — crew windows
+# Current handoff — everything folded into #14
+
+`lab-workshop-camera` (PR #14) now carries the playground UI, crew windows (#16), Rayyan's routing fix (#15) and 3D looks (#17), each merged with a merge commit. When #14 merges into main, GitHub marks #15 and #17 merged too. Codex's `rescue-navigation` (main checkout, uncommitted) must merge the updated `lab-workshop-camera` next.
+
+# Earlier handoff — crew windows
 
 Branch `crew-windows` (worktree `../kestrel-crew-windows`) = `lab-workshop-camera` + main (#11, #12) + collapsible Pip/Nova windows. Its PR targets `lab-workshop-camera`; merging it clears PR #14's conflicts with main. Codex's `rescue-navigation` (main checkout, uncommitted) also edits `SandboxApp.tsx` and will need a merge after this lands.
 
