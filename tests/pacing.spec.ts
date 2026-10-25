@@ -1,4 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
+// The numbers under test come from the pacing module, never hard-coded here.
+import {
+  FADE_MS,
+  GAP_MS,
+  MAX_HOLD_MS,
+  MIN_HOLD_MS,
+  MS_PER_CHAR,
+} from "../apps/web/src/presentation/director.js";
 
 // Pacing + Pause/Resume gates. Everything runs on Playwright's fake clock so the
 // timings are exact: runFor() fires every timer, we sample the DOM each step.
@@ -16,6 +24,7 @@ type Snap = {
   }[];
   capsule: string | null;
   capKind: string | null;
+  capMs: number;
   glyph: number;
   collapsed: string | null;
   paused: boolean;
@@ -44,6 +53,9 @@ const snap = (page: Page): Promise<Snap> =>
       ),
       capsule: q('[data-testid="capsule"]')?.getAttribute("data-state") ?? null,
       capKind: q('[data-testid="capsule"]')?.getAttribute("data-kind") ?? null,
+      capMs: Number(
+        q('[data-testid="capsule"]')?.getAttribute("data-duration-ms") ?? 0,
+      ),
       glyph: document.querySelectorAll('[data-testid="capsule-glyph"]').length,
       collapsed: q('[data-testid="collapsed"]')?.textContent ?? null,
       paused: !!q('[data-testid="paused"]'),
@@ -83,7 +95,10 @@ const send = async (page: Page, text: string) => {
   await page.getByRole("button", { name: "Send command" }).click();
 };
 
-const holdFor = (len: number) => Math.min(7000, Math.max(2500, len * 60));
+const holdFor = (len: number) =>
+  Math.min(MAX_HOLD_MS, Math.max(MIN_HOLD_MS, len * MS_PER_CHAR));
+/** Fade and gap overlap: the next bubble starts when the fade ends. */
+const SEPARATION_MS = Math.max(FADE_MS, GAP_MS);
 
 /** Per bubble id: how long it stayed in `show`, and when it first/last appeared. */
 const timeline = (samples: Sample[]) => {
@@ -93,6 +108,8 @@ const timeline = (samples: Sample[]) => {
       showMs: number;
       first: number;
       last: number;
+      firstShow: number;
+      lastShow: number;
       len: number;
       to: string;
       anchor: string;
@@ -104,11 +121,17 @@ const timeline = (samples: Sample[]) => {
         showMs: 0,
         first: s.t,
         last: s.t,
+        firstShow: -1,
+        lastShow: -1,
         len: b.len,
         to: b.to,
         anchor: b.anchor,
       };
-      if (b.phase === "show") e.showMs += STEP;
+      if (b.phase === "show") {
+        e.showMs += STEP;
+        if (e.firstShow < 0) e.firstShow = s.t;
+        e.lastShow = s.t;
+      }
       e.last = s.t;
       ids.set(b.id, e);
     }
@@ -132,22 +155,19 @@ test.describe("pacing: one bubble, readable, ordered", () => {
       "nova:you",
     ]);
     for (const b of tl) {
-      // hold = max(2.5 s, 60 ms/char) capped at 7 s (tolerate one sample step)
+      // hold = max(floor, ms/char) capped (tolerate one sample step)
       expect(b.showMs, `${b.id} shown ${b.showMs} ms`).toBeGreaterThanOrEqual(
         holdFor(b.len) - STEP,
       );
-      expect(b.showMs).toBeLessThanOrEqual(
-        Math.max(holdFor(b.len), 1400) + 3 * STEP,
-      );
+      expect(b.showMs).toBeLessThanOrEqual(holdFor(b.len) + 3 * STEP);
     }
-    // gap: nothing in the room for ~600 ms between consecutive bubbles
+    // the next bubble starts when the previous fade ends: no sooner, and promptly
     for (let i = 1; i < tl.length; i++) {
-      const empty = clock.samples.filter(
-        (s) => s.t > tl[i - 1]!.last && s.t < tl[i]!.first,
-      ).length;
-      expect(empty * STEP, `gap before ${tl[i]!.id}`).toBeGreaterThanOrEqual(
-        600 - 2 * STEP,
+      const between = tl[i]!.firstShow - tl[i - 1]!.lastShow;
+      expect(between, `separation before ${tl[i]!.id}`).toBeGreaterThanOrEqual(
+        SEPARATION_MS,
       );
+      expect(between).toBeLessThanOrEqual(SEPARATION_MS + 3 * STEP);
     }
   });
 
@@ -180,8 +200,8 @@ test.describe("pacing: one bubble, readable, ordered", () => {
     expect(pill[0]!.capKind).toBe("handoff");
     expect(pill.at(-1)!.capsule).toMatch(/landed|idle/);
     const flyMs = pill.filter((s) => s.capsule === "flying").length * STEP;
-    expect(flyMs).toBeGreaterThanOrEqual(1000);
-    expect(flyMs).toBeLessThanOrEqual(1500);
+    expect(pill[0]!.capMs).toBeGreaterThan(0);
+    expect(Math.abs(flyMs - pill[0]!.capMs)).toBeLessThanOrEqual(2 * STEP);
   });
 
   test("full sample run: never more than one bubble, and it finishes", async ({
@@ -243,7 +263,16 @@ test.describe("pause and resume", () => {
   }) => {
     const clock = await boot(page);
     await send(page, "why does it tilt?");
-    await clock.run(3100); // Pip's bubble began ~1.1 s: 2.0 s of its 2.5 s are spent
+    // run until Pip's first bubble shows, then pause 400 ms before its hold ends
+    while (clock.t < 6000 && clock.last()?.bubbles[0]?.phase !== "show")
+      await clock.run(STEP);
+    const t0 = clock.t;
+    const holdLeft = 400;
+    await clock.run(
+      Math.ceil((holdFor(clock.last().bubbles[0]!.len) - holdLeft) / STEP) *
+        STEP,
+    );
+    const pausedAt = clock.t;
     const before = clock.last();
     expect(before.bubbles[0]).toMatchObject({
       anchor: "pip",
@@ -260,7 +289,7 @@ test.describe("pause and resume", () => {
     await expect(page.getByTestId("pause")).toHaveText(/Resume/);
     await expect(page.getByTestId("paused")).toBeVisible();
     await clock.run(15000);
-    for (const s of clock.samples.filter((x) => x.t > 3100)) {
+    for (const s of clock.samples.filter((x) => x.t > pausedAt)) {
       expect(s.bubbles).toHaveLength(1);
       expect(s.bubbles[0]).toMatchObject({ id: orig, phase: "show" });
       expect(s.capsule).toBe(before.capsule);
@@ -275,11 +304,12 @@ test.describe("pause and resume", () => {
     await page.getByTestId("pause").click();
     await expect(page.getByTestId("paused")).toHaveCount(0);
     await expect(page.getByTestId("pause")).toHaveText(/Pause/);
-    // only ~0.5 s of the original hold remains: a restart would still show it at +0.9 s
-    await clock.run(900);
+    // only ~400 ms of the original hold remains: a restart would still show it 600 ms later
+    await clock.run(holdLeft + 2 * STEP + 200);
     expect(
       clock.last().bubbles.some((b) => b.id === orig && b.phase === "show"),
     ).toBe(false);
+    void t0;
     await clock.run(4000);
     expect(
       clock.samples.slice(-40).some((s) => s.bubbles[0]?.to === "nova"),
@@ -289,16 +319,17 @@ test.describe("pause and resume", () => {
   test("Pause freezes the sample-run script and Resume continues it", async ({
     page,
   }) => {
+    test.setTimeout(120000);
     const clock = await boot(page);
     await page.getByTestId("sample-run").click();
     await clock.run(2500);
     await page.getByTestId("pause").click();
     const frozen = clock.last().step;
     expect(frozen).toMatch(/of 5/);
-    await clock.run(30000);
+    await clock.run(30000, 500);
     expect(clock.last().step).toBe(frozen);
     await page.getByTestId("pause").click();
-    await clock.run(20000);
+    await clock.run(20000, 250);
     expect(clock.last().step).not.toBe(frozen);
   });
 

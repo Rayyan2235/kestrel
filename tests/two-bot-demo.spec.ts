@@ -728,16 +728,12 @@ test.describe("polish: dwell, stopped bubbles, handback in view", () => {
     ).toHaveCount(1, { timeout: 8000 });
     await expect(page.getByTestId("bubble").first()).toBeVisible();
     await page.getByTestId("stop").click();
-    const stale = page.locator('[data-testid="bubble"][data-stale="true"]');
-    await expect(stale.first()).toBeVisible();
-    await expect(stale.first().getByTestId("bubble-stopped")).toHaveText(
-      /stopped/i,
-    );
-    expect(
-      await stale
-        .first()
-        .evaluate((e) => parseFloat(getComputedStyle(e).opacity)),
-    ).toBeLessThan(1);
+    // pacing: Stop fades the current bubble out and empties the queue; while it
+    // fades it reads as stopped, then nothing more plays
+    await expect(page.getByTestId("bubble")).toHaveCount(0, { timeout: 3000 });
+    await expect(
+      page.locator('[data-testid="bubble"][data-to="nova"]'),
+    ).toHaveCount(0);
     // the ledger is not rewritten by Stop
     await expect(
       page.locator('[data-testid="channel-entry"][data-kind="handoff"]'),
