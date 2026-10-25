@@ -1,6 +1,7 @@
-import { BOT_NAMES, type BotId, type LedgerEvent } from "@kestrel/contracts";
+import { BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { Eye } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { type CSSProperties } from "react";
+import type { Beat, Phase } from "../presentation/director.js";
 import { deriveBubbles, type Bubble } from "./model.js";
 import { useCompact } from "./useCompact.js";
 import styles from "./BubbleLayer.module.css";
@@ -61,91 +62,44 @@ export function placeBubble(
 }
 
 const seqOf = (b: Bubble) => Number(b.eventId.split("-")[1]);
-/**
- * Phones show one in-room bubble: the newest, with a bubble to the learner
- * taking priority. Bot-to-bot text stays in the rail.
- */
-const onePerRoom = (bubbles: Bubble[]): Bubble[] => {
-  const toYou = bubbles.filter((b) => b.variant === "to-you");
-  const pool = toYou.length > 0 ? toYou : bubbles;
-  const newest = pool.reduce<Bubble | null>(
-    (best, b) => (best && seqOf(best) > seqOf(b) ? best : b),
-    null,
-  );
-  return newest ? [newest] : [];
-};
-/** At most 80 characters in the room on phones, name included. */
+/** Phones: at most 80 characters in the room, name included. */
 const shorten = (text: string, name: string): string => {
   const room = 80 - name.length - 1;
   return text.length <= room ? text : `${text.slice(0, room - 1)}…`;
 };
-
-/** A bubble stays at least this long before the same bot's next one replaces it. */
-export const DWELL_MS = 700;
-const BOTS = ["pip", "nova"] as const;
+const ROOM_MAX = 117;
+/** Desktop: long text trims to its first sentence (at most 117 chars); the rail keeps all of it. */
+const trimRoom = (text: string): string => {
+  if (text.length <= ROOM_MAX) return text;
+  const first = /^.*?[.!?](?=\s|$)/.exec(text)?.[0] ?? text;
+  return first.length <= ROOM_MAX ? first : `${first.slice(0, ROOM_MAX)}…`;
+};
 
 /**
- * View-only: plays each bot's ledger events in order, holding each for DWELL_MS,
- * so a short line ("Let me check with Nova.") is readable before the handoff
- * pill replaces it even when both land in the same tick. More than two events
- * behind skips to the newest. The ledger and deriveBubbles are untouched.
+ * One bubble in the room at a time, chosen by the presentation director. The
+ * rail still shows every event at once.
  */
-function usePlayback(ledger: readonly LedgerEvent[], ms: number): Bubble[] {
-  const [shown, setShown] = useState<Partial<Record<BotId, string>>>({});
-  const [tick, setTick] = useState(0);
-  const at = useRef<Partial<Record<BotId, number>>>({});
-  useEffect(() => {
-    const now = Date.now();
-    const timers: number[] = [];
-    const next = { ...shown };
-    let changed = false;
-    for (const bot of BOTS) {
-      const mine = ledger.filter((e) => e.from === bot);
-      if (mine.length === 0) {
-        if (next[bot] !== undefined) {
-          delete next[bot];
-          changed = true;
-        }
-        continue;
-      }
-      const last = mine.length - 1;
-      const i = mine.findIndex((e) => e.id === next[bot]);
-      if (i === last) continue;
-      const age = i < 0 ? ms : now - (at.current[bot] ?? 0);
-      if (age < ms) {
-        timers.push(window.setTimeout(() => setTick((n) => n + 1), ms - age));
-        continue;
-      }
-      const step = last - i > 2 ? last : i + 1;
-      next[bot] = mine[step]!.id;
-      at.current[bot] = now;
-      changed = true;
-      if (step < last)
-        timers.push(window.setTimeout(() => setTick((n) => n + 1), ms));
-    }
-    if (changed) setShown(next);
-    return () => timers.forEach((id) => window.clearTimeout(id));
-  }, [ledger, shown, tick, ms]);
-  const events = BOTS.flatMap((bot) => {
-    const e = ledger.find((x) => x.id === shown[bot]);
-    return e ? [e] : [];
-  });
-  return deriveBubbles(events);
-}
-
 export function BubbleLayer({
-  ledger,
+  beat,
+  phase,
+  collapsed,
   anchors,
   staleBefore = null,
 }: {
-  ledger: readonly LedgerEvent[];
+  beat: Beat | null;
+  phase: Phase;
+  /** Bot-to-bot pills that skipped the room; they are in the rail. */
+  collapsed: number;
   anchors: Anchors;
   /** Bubbles from events with a lower seq were cut off by Stop and read as stopped. */
   staleBefore?: number | null;
 }) {
   const compact = useCompact();
-  const all = usePlayback(ledger, DWELL_MS);
-  const bubbles = compact ? onePerRoom(all) : all;
+  const shown =
+    beat && (phase === "show" || phase === "fade")
+      ? deriveBubbles([beat.event])
+      : [];
+  const bubbles = shown;
   let slot = 0;
   return (
     <div className={styles.layer} data-testid="bubble-layer">
@@ -166,6 +120,7 @@ export function BubbleLayer({
             data-anchor={b.anchor}
             data-tail={p.tail}
             data-source={b.source}
+            data-phase={phase}
             data-stale={staleBefore !== null && seqOf(b) < staleBefore}
             role="group"
             aria-label={b.ariaLabel}
@@ -191,11 +146,18 @@ export function BubbleLayer({
             </div>
             <p className={styles.text}>
               <strong>{BOT_NAMES[b.anchor]}</strong>{" "}
-              {compact ? shorten(b.text, BOT_NAMES[b.anchor]) : b.text}
+              {compact
+                ? shorten(b.text, BOT_NAMES[b.anchor])
+                : trimRoom(b.text)}
             </p>
           </div>
         );
       })}
+      {collapsed > 0 && (
+        <div className={styles.more} data-testid="collapsed">
+          +{collapsed} more in the rail
+        </div>
+      )}
     </div>
   );
 }

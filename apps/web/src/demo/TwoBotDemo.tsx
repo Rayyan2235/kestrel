@@ -11,9 +11,8 @@ import {
   type CSSProperties,
   type FormEvent,
 } from "react";
-import { ArrowUp, Play, RotateCcw, Square } from "lucide-react";
+import { ArrowUp, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
-import { deriveBubbles } from "../bubbles/model.js";
 import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
 import { createCoordinator } from "../coordinator/index.js";
 import { parseFast, type Side } from "../fastpath/index.js";
@@ -21,12 +20,13 @@ import { ChannelPanel } from "../handoff/ChannelPanel.js";
 import { deriveChannel } from "../handoff/model.js";
 import { createMockProvider } from "../provider/mock.js";
 import type { Provider } from "../provider/types.js";
+import { usePresentation } from "../presentation/usePresentation.js";
 import { createFakeSim } from "../simulation/fake/index.js";
 import styles from "./TwoBotDemo.module.css";
 
 const ANCHORS: Anchors = { pip: { x: 24, y: 62 }, nova: { x: 76, y: 62 } };
 const DELAYS = [1000, 3000, 6000] as const;
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const SPEEDS = [0.5, 1] as const;
 
 export function TwoBotDemo() {
   const reducedMotion = Boolean(useReducedMotion());
@@ -37,6 +37,12 @@ export function TwoBotDemo() {
   const [step, setStep] = useState<string | null>(null);
   const [pulsing, setPulsing] = useState(false);
   const [stoppedSeq, setStoppedSeq] = useState<number | null>(null);
+  const [paused, setPaused] = useState(false);
+  const [speed, setSpeed] = useState<number>(1);
+  const pausedRef = useRef(false);
+  pausedRef.current = paused;
+  const speedRef = useRef(1);
+  speedRef.current = speed;
   const delayRef = useRef(delay);
   delayRef.current = delay;
   const runId = useRef(0);
@@ -60,7 +66,9 @@ export function TwoBotDemo() {
 
   const world = sim.snapshot();
   const ledger = c.ledger();
-  const bubbles = deriveBubbles(ledger);
+  const pres = usePresentation(ledger, { paused, speed, reducedMotion });
+  const idleRef = useRef(true);
+  idleRef.current = pres.phase === "idle" && pres.queued === 0;
   const status = { pip: c.botState("pip"), nova: c.botState("nova") };
   const view = deriveChannel(ledger, status, c.budget());
   const running = (["pip", "nova"] as const).some((b) =>
@@ -82,9 +90,50 @@ export function TwoBotDemo() {
     return () => window.clearTimeout(off);
   }, [handbackId]);
 
+  /** Waits in demo time: frozen while paused, stretched at 0.5x. */
+  const wait = (ms: number) =>
+    new Promise<void>((resolve) => {
+      let left = ms;
+      let last = Date.now();
+      const id = window.setInterval(() => {
+        const now = Date.now();
+        if (!pausedRef.current) left -= (now - last) * speedRef.current;
+        last = now;
+        if (left <= 0) {
+          window.clearInterval(id);
+          resolve();
+        }
+      }, 50);
+    });
+  /** Until the room has finished showing what the ledger already holds. */
+  const settled = async () => {
+    await wait(250);
+    while (!idleRef.current) await wait(100);
+  };
+
+  // Space toggles Pause when focus is on the page itself, never in a field or on a control.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== "Space" || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        t !== document.body &&
+        (["INPUT", "TEXTAREA", "SELECT", "BUTTON", "A"].includes(t.tagName) ||
+          t.isContentEditable ||
+          t.getAttribute("role") === "tab")
+      )
+        return;
+      e.preventDefault();
+      setPaused((p) => !p);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function command(raw: string, bot: BotId) {
     const cmd = raw.trim();
-    if (!cmd) return;
+    if (!cmd) return undefined;
     const w = sim.snapshot();
     const r = parseFast(cmd, {
       focus: focus.current,
@@ -98,18 +147,19 @@ export function TwoBotDemo() {
         cm: r.side === "left" ? w.leftCm : w.rightCm,
       });
       focus.current = r.side;
-      c.localTurn(bot, cmd, {
+      return c.localTurn(bot, cmd, {
         say: `The ${r.side} weight is now ${r.cm} cm from the pivot. What do you predict?`,
         action: { side: r.side, cm: r.cm },
       });
     } else if (r.kind === "undo") {
       const prev = undo.current.pop()!;
       focus.current = prev.side;
-      c.localTurn(bot, cmd, {
+      return c.localTurn(bot, cmd, {
         say: `Put the ${prev.side} weight back at ${prev.cm} cm.`,
         action: { side: prev.side, cm: prev.cm },
       });
-    } else c.learnerTurn(cmd, bot); // open question: the labelled mock
+    }
+    return c.learnerTurn(cmd, bot); // open question: the labelled mock
   }
 
   function submit(e: FormEvent) {
@@ -123,6 +173,7 @@ export function TwoBotDemo() {
   /** Stop: bubbles from before this point read as stopped until a newer turn. */
   function halt() {
     setStoppedSeq(c.ledger().length);
+    pres.interrupt();
     c.stop();
   }
 
@@ -156,24 +207,24 @@ export function TwoBotDemo() {
     setStoppedSeq(null);
     setSelected("pip");
     (await go("1 of 5 · fast command, no model", async () => {
-      command("move the left weight to 30 cm", "pip");
-      await sleep(2200);
+      await command("move the left weight to 30 cm", "pip")?.done;
+      await settled();
     })) &&
       (await go("2 of 5 · open question to Pip (mock)", async () => {
         await c.learnerTurn("why does it tilt?", "pip").done;
-        await sleep(1500);
+        await settled();
       })) &&
       (await go("3 of 5 · Ask Nova", async () => {
         await c.askPeer("pip", "nova").done;
-        await sleep(1500);
+        await settled();
       })) &&
       (await go("4 of 5 · Stop in the middle of a chain", async () => {
         c.askPeer("nova", "pip");
-        await sleep(delayRef.current + 400);
+        await wait(delayRef.current + 400);
         halt();
-        await sleep(800);
+        await wait(1200);
       })) &&
-      (await go("5 of 5 · done", async () => void (await sleep(300))));
+      (await go("5 of 5 · done", async () => void (await wait(300))));
     if (live()) setStep(null);
   }
 
@@ -236,14 +287,19 @@ export function TwoBotDemo() {
               </g>
             </svg>
             {(["pip", "nova"] as const).map((b) => {
-              const mine = bubbles.find((x) => x.anchor === b);
+              const speaking =
+                pres.beat &&
+                (pres.phase === "show" || pres.phase === "fade") &&
+                pres.beat.event.from === b
+                  ? pres.beat.event
+                  : null;
               return (
                 <div
                   key={b}
                   className={styles.bot}
                   data-testid={`bot-${b}`}
                   data-bot={b}
-                  data-facing={mine?.gaze ?? "you"}
+                  data-facing={speaking?.to ?? "you"}
                   data-state={status[b]}
                   data-shape={b}
                   style={
@@ -262,15 +318,25 @@ export function TwoBotDemo() {
               );
             })}
             <BubbleLayer
-              ledger={ledger}
+              beat={pres.beat}
+              phase={pres.phase}
+              collapsed={pres.collapsed}
               anchors={ANCHORS}
               staleBefore={stoppedSeq}
             />
             <CapsuleOverlay
-              ledger={ledger}
+              beat={pres.beat}
+              state={pres.capsuleState}
               anchors={ANCHORS}
               reducedMotion={reducedMotion}
+              paused={paused}
+              speed={speed}
             />
+            {paused && (
+              <div className={styles.paused} data-testid="paused" role="status">
+                <Pause size={14} aria-hidden="true" /> Paused
+              </div>
+            )}
           </div>
 
           <section
@@ -327,6 +393,33 @@ export function TwoBotDemo() {
                   {DELAYS.map((d) => (
                     <option key={d} value={d}>
                       {d / 1000} s
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button
+                data-testid="pause"
+                aria-pressed={paused}
+                onClick={() => setPaused((p) => !p)}
+              >
+                {paused ? (
+                  <Play size={14} aria-hidden="true" />
+                ) : (
+                  <Pause size={14} aria-hidden="true" />
+                )}{" "}
+                {paused ? "Resume" : "Pause"}
+              </button>
+              <label>
+                Speed
+                <select
+                  data-testid="speed"
+                  aria-label="Speed"
+                  value={speed}
+                  onChange={(e) => setSpeed(Number(e.target.value))}
+                >
+                  {SPEEDS.map((v) => (
+                    <option key={v} value={v}>
+                      {v}x
                     </option>
                   ))}
                 </select>

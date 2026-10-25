@@ -20,12 +20,12 @@ export type CapsulePlan = {
 const FULL = {
   handoff: [
     ["depart", 200],
-    ["travel", 600],
+    ["travel", 800],
     ["arrive", 200],
   ],
   handback: [
     ["depart", 200],
-    ["travel", 500],
+    ["travel", 700],
     ["arrive", 150],
     ["exit", 350],
   ],
