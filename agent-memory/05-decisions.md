@@ -28,3 +28,20 @@ Sources: `build-order.md` ("Settled"), `adr/README.md`, `codebase-architecture.m
 | Kestrel asset provenance; Microduck MJCF/policy compatibility | Benchmark one body, then two | `apps/web/src/simulation/README.md` |
 | Latency and cost budget, target device, hosting, demo duration, team owners | — | queue #6 |
 | ADR 0005 (data and grounded actions) | Still **proposed**; don't treat it as accepted | `adr/0005-…` |
+
+## 2026-10-25 — UI treatment
+
+Owner requested a separate UI branch from main, to merge later: `glass-windows`. Owner selected Nox Noir #141414, Royal Amethyst #7E49B3 and Steel Mist #CFCFCF, Open Space-inspired glass windows, and rounded buttons from the supplied visual prompt. This pass applies to the sandbox panels and controls; wider scene art remains outside this pass.
+
+## 2026-10-25 — Main product entry and merge authorization
+
+Owner directs deletion of the original scripted view, landing Open console navigation to the existing real voice/physics lab, dark-purple glass windows, and merging landing plus console to main for teammates. Canonical console URL is `/console`; `/lab` and `/sandbox.html` retain compatibility. The separate teammate demo and unrelated two-robot integration branches are outside this merge. This supersedes the earlier freeze on main for this specific integration.
+
+## 2026-10-25 — console palette
+
+Owner explicitly selected Botanical Studio: warm stone, forest green, sage, brass and clay, after rejecting the blocky noir/amethyst environment. Applies to the console and room; landing remains unchanged. The My Room in 3D reference directs richer materials, furnishing detail, and lighting rather than recoloring primitive geometry alone.
+
+## 2026-10-25 — playground replaces classroom
+
+Owner decisions in the Claude Code session: the console becomes a bright playground instead of a classroom; the whole floor is open to the robots (no walls or fixed furniture inside the boundary); windows and side panels float over a full-screen playground as glassmorphism following the owner's General Intelligence Company design-system artifact, with its components and buttons; the Home button is removed; trees should be realistic rather than low-poly; more clouds; a Disney-style garden fence instead of coloured soft-play blocks. Navy and brass (chosen for the classroom earlier the same morning) is superseded.
+

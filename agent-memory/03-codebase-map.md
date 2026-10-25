@@ -93,4 +93,33 @@ Tests: `src/app.test.ts`. Compiled smoke test: `scripts/check-api.mjs`.
 
 ## Prototype boundaries
 
+World/experiment state, per-bot session, crew coordinator (turn/time/token budgets, object locks), speech router (binds the recipient at capture start), model service (OpenAI Responses with strict function tools), task executor, physical bot controller (MuJoCo + ONNX Microduck policy, outside React), presentation layer and lesson content packs.
+
+## Product entry integration — 2026-10-25
+
+- `src/main.tsx`: `/` renders `welcome/WelcomePage`; `/console`, `/lab` and nested `/lab/` paths lazy-load `sandbox/SandboxApp` outside StrictMode to boot physics once. `?demo=two-bot` remains a separately lazy-loaded teammate demo.
+- `sandbox.html`: legacy console entry retained. Console Home links return to `/`.
+- `src/welcome/`: imported landing UI and Arc controls; public artwork/font assets under `public/welcome/`. Landing balance example uses shared deterministic contracts but does not load MuJoCo or ONNX.
+- Removed the old `App.tsx`, `App.module.css`, `world/LabScene.tsx`, and preview-only Zustand `state/lab.ts` plus its obsolete tests. The older map above is historical for those files. Shared contracts and teammate demo runtime remain.
+- `tests/console-entry.spec.ts` and `tests/welcome.spec.ts` cover product navigation and landing interactions; sandbox specs exercise real physics at `/console` and the legacy `/sandbox.html` route.
+
+## Workshop and camera — 2026-10-25
+
+`SandboxScene` delegates view control to `LabCamera.tsx`, pure framing/pan math to `camera.ts`, and visual-only environment dressing to `Workshop.tsx`. Camera orientation remains fixed to `CAMERA_OFFSET`, preserving screen-relative robot commands. Bubble projection is independent. Workshop dressing preserves furniture collider dimensions; dock markings do not implement charging.
+
+## Playground — 2026-10-25 (replaces Workshop and Botanical materials)
+
+- `Playground.tsx`: island, court, learning zone, focus target, swings, slide, seesaw, sandpit, bench, bunting, lesson board (to-scale canvas diagrams), trees and clouds, all in MuJoCo coordinates. Everything except the flush court paint stands outside `ROOM_HALF`, so nothing visual needs a collider.
+- `GardenFence.tsx`: instanced picket fence on the boundary wall (inner faces on the collider line) with roses and flowers.
+- `Foliage.tsx`, `Grass.tsx`: Folio-technique canopies and lawn blades (see `PROVENANCE.md`). `playgroundMaterials.ts`: `PLAY` colours and procedural textures.
+- `gic.tsx`/`gic.css`: General Intelligence Company tokens and components (`ArrowPill`, `Button`, nav, toast glass, field, tag, icon button). `Sandbox.module.css` holds layout only.
+- `SandboxScene.tsx`: sun/sky lighting, `SOFTWARE_GL` low-power detection (`?hq` override). `StudioLighting.tsx` still supplies the filtered environment.
+- `roomProps()` in contracts now returns no furniture: the court is open in physics too. Removed: `Workshop.tsx`, `studioMaterials.ts`, `scripts/bake-workshop.mjs`, `public/workshop/`.
+
+## Crew windows — 2026-10-25 (branch `crew-windows`)
+
+- `handoff/ChannelPanel.tsx`: optional `open`/`onToggle` props turn the embedded rail into accordion panes (`fold-you`, `fold-bots`, `count-*` test ids; Ask/Stop in the bots header). Without them (the two-bot demo) the markup is unchanged. `RailPane` type exported.
+- `sandbox/SandboxApp.tsx`: main's coordinator, addressing, progress and bubbles, inside the playground layout. Console accordion state `win` (`log` | `you` | `bots` | null) persisted as `kestrel.console.window`; new robot-channel lines open `bots`.
+- `Sandbox.module.css`: accordion, picker, and `overlayTokens`/`lightScope` token scopes that dress teammate components in GIC values.
+
 The `?demo=two-bot` path has `simulation/types.ts`'s `SimAdapter`, `coordinator/`, `provider/mock.ts`, `presentation/`, `capsule/` and `handoff/`. It uses fake physics and mock replies. The live single-duck sandbox has a separate `sandbox/agentSession.ts` wired to `DuckSim`. The main `/` preview has its own balance state. There are three prototypes, not one shared runtime. Treat the two-bot path as an architecture experiment until connected and verified.

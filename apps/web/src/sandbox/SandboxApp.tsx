@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { useReducedMotion } from "motion/react";
-import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { Bird, Check, ChevronDown, Keyboard, Pause, Play, RotateCcw, Square } from "lucide-react";
 import { BOT_NAMES, KITS, MOMENTS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
 import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
 import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
@@ -18,7 +18,7 @@ import { ProgressHud } from "../progress/ProgressHud.js";
 import { createProgressStore } from "../progress/store.js";
 import { useProgress } from "../progress/useStore.js";
 import { createDuckSimAdapter } from "../simulation/real/index.js";
-import { ChannelPanel } from "../handoff/ChannelPanel.js";
+import { ChannelPanel, type RailPane } from "../handoff/ChannelPanel.js";
 import { deriveChannel } from "../handoff/model.js";
 import { usePresentation } from "../presentation/usePresentation.js";
 import { createMockProvider } from "../provider/mock.js";
@@ -37,6 +37,7 @@ import type { Skill } from "../simulation/tasks";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
+import { ArrowPill, Button } from "./gic";
 
 type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean; speaker?: BotId };
 type LearningFlow = { step: "book" | "demo" | "demo-complete" | "demo-incomplete" | "quiz"; lesson: LessonId; message?: string } | null;
@@ -68,6 +69,24 @@ const KEYS: [string, string][] = [
   ["T", "Roll"],
   ["Esc", "Stop task"],
 ];
+
+/** The console's accordion: its own log, or one of the two conversation panes. */
+type ConsoleWindow = "log" | RailPane | null;
+const WINDOW_KEY = "kestrel.console.window";
+const savedWindow = (): ConsoleWindow => {
+  try {
+    const v = window.localStorage.getItem(WINDOW_KEY);
+    return v === "log" || v === "you" || v === "bots" ? v : v === "none" ? null : "log";
+  } catch {
+    return "log";
+  }
+};
+
+/** What the 3D robots can show today: six shell colours, a head prop, a backpack. */
+const CONSOLE_LOOKS: ReadonlySet<string> = new Set([
+  "shell-sky", "shell-mint", "shell-slate", "shell-plum", "shell-gold", "shell-coral",
+  "none", "antenna", "partyhat", "backpack",
+]);
 
 const safeStorage = (): Storage | null => {
   try {
@@ -189,7 +208,7 @@ export function SandboxApp() {
           }
         });
         session.current.setRobotSound(robotSound);
-        session.current.onTranscript = (heard) => routeRef.current(heard, pressed.current ?? currentRef.current());
+        session.current.onTranscript = (heard) => routeRef.current(heard, pressed.current ?? currentRef.current(), true);
         // Dev-only handle for browser tests and debugging.
         if (import.meta.env.DEV) (window as unknown as { kestrelSim: DuckSim }).kestrelSim = s;
       })
@@ -414,7 +433,7 @@ export function SandboxApp() {
   }, [sim, skill, add]);
 
   // The session is created once; these refs always point at the latest router.
-  const routeRef = useRef<(cmd: string, ctx: AddressContext) => void>(() => {});
+  const routeRef = useRef<(cmd: string, ctx: AddressContext, spoken?: boolean) => void>(() => {});
   const currentRef = useRef<() => AddressContext>(() => ({ selected: null, thread: null }));
   useEffect(() => {
     routeRef.current = route;
@@ -423,7 +442,7 @@ export function SandboxApp() {
     if (import.meta.env.DEV)
       (window as unknown as { kestrelVoice: unknown }).kestrelVoice = {
         press: () => (pressed.current = pressStart(currentContext())),
-        transcript: (heard: string) => route(heard, pressed.current ?? currentContext()),
+        transcript: (heard: string) => route(heard, pressed.current ?? currentContext(), true),
       };
   });
 
@@ -447,7 +466,7 @@ export function SandboxApp() {
   }
 
   /** One router for typed and spoken turns: name first, then the precedence rules. */
-  function route(cmd: string, ctx: AddressContext) {
+  function route(cmd: string, ctx: AddressContext, spoken = false) {
     let r: Resolution;
     try {
       r = resolveAddressees(cmd, ctx);
@@ -458,8 +477,10 @@ export function SandboxApp() {
     const world = adapterRef.current?.snapshot();
     const fast = world ? parseFast(r.body, { focus: null, leftCm: world.leftCm, rightCm: world.rightCm, undo: [] }) : null;
     const move = fast?.kind === "move" ? { side: fast.side, cm: fast.cm } : null;
-    const crew = r.to.length > 1;
-    const bot = r.to[0]!;
+    // A crew turn needs group words or the "Both" selection; any other unaddressed
+    // line goes to the selected robot's agent, as before addressing existed.
+    const crew = r.mode === "group" || (r.mode === "crew-default" && crewSelected);
+    const bot = r.mode === "crew-default" ? selectedRef.current : r.to[0]!;
     const other = (b: BotId): BotId => (b === "pip" ? "nova" : "pip");
     const label = crew ? "to Crew" : `to ${BOT_NAMES[bot]}${r.unsure ? "?" : ""}`;
     setChip({
@@ -504,7 +525,8 @@ export function SandboxApp() {
       return;
     }
     turnBot.current = bot;
-    lastRoute.current = { text: r.body, bot, at: Date.now() };
+    // Only a spoken turn can be redirected by tapping the other robot; a typed one was chosen on purpose.
+    lastRoute.current = spoken ? { text: r.body, bot, at: Date.now() } : null;
     session.current?.setRecipient(bot, bot);
     void session.current?.submit(r.body, bot, "normal", bot);
   }
@@ -525,6 +547,35 @@ export function SandboxApp() {
     }
   }
 
+  // Teammate dialogs portal to <body>; this class lets them wear the console's glass.
+  useEffect(() => {
+    document.body.classList.add("gic-console");
+    return () => document.body.classList.remove("gic-console");
+  }, []);
+  // One window open at a time; the choice is remembered on this device.
+  const [win, setWin] = useState<ConsoleWindow>(savedWindow);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(WINDOW_KEY, win ?? "none");
+    } catch {
+      /* private mode: the choice just isn't remembered */
+    }
+  }, [win]);
+  const toggle = (w: Exclude<ConsoleWindow, null>) => setWin((open) => (open === w ? null : w));
+  // When the robots start talking to each other, unfold their window.
+  const botLines = useRef(channel.botChannel.length);
+  useEffect(() => {
+    if (channel.botChannel.length > botLines.current) setWin("bots");
+    botLines.current = channel.botChannel.length;
+  }, [channel.botChannel.length]);
+  // Log lines that arrived while the log was folded.
+  const [logSeen, setLogSeen] = useState(0);
+  useEffect(() => {
+    if (win === "log") setLogSeen(log.length);
+    else setLogSeen((n) => Math.min(n, log.length));
+  }, [win, log.length]);
+  const logUnseen = win === "log" ? 0 : log.length - logSeen;
+
   const name = (id: string) => sim?.kit.props.find((p) => p.id === id)?.label ?? id;
   const lesson = LESSONS.find((l) => l.id === kitId)!;
   const solved = kit.slots.length > 0 && filled.length === kit.slots.length;
@@ -539,47 +590,45 @@ export function SandboxApp() {
   };
 
   return (
-    <div className={styles.app}>
-      <header className={styles.header}>
-        <a className={styles.brand} href="/" aria-label="Kestrel home">
-          <Bird size={24} strokeWidth={1.7} />
-          <h1>Kestrel</h1>
-        </a>
-        <span className={styles.pill}>Console · Microduck physics</span>
-        <nav className={styles.lessons} aria-label="Lesson">
-          {LESSONS.map((l) => (
-            <button
-              key={l.id}
-              className={l.id === kitId ? styles.lessonOn : styles.lesson}
-              aria-pressed={l.id === kitId}
-              onClick={() => chooseLesson(l.id)}
-              disabled={!sim}
-            >
-              <small>{l.subject}</small>
-              {l.topic}
-            </button>
-          ))}
-        </nav>
-        <a className={styles.back} href="/">
-          <ArrowLeft size={16} /> Home
-        </a>
-      </header>
-
+    <div className={`gic-root ${styles.app}`}>
       <main className={styles.workspace}>
-        <section className={styles.stage} aria-label="3D lab">
+        <header className={styles.header}>
+          <nav className={`gic-nav ${styles.nav}`} aria-label="Lesson">
+            <a className={styles.brand} href="/" aria-label="Kestrel home">
+              <Bird size={22} strokeWidth={1.8} aria-hidden="true" />
+              <h1>Kestrel</h1>
+            </a>
+            <div className={styles.lessons}>
+              {LESSONS.map((l) => (
+                <button
+                  key={l.id}
+                  type="button"
+                  className={styles.lesson}
+                  aria-pressed={l.id === kitId}
+                  onClick={() => chooseLesson(l.id)}
+                  disabled={!sim}
+                >
+                  <small>{l.subject}</small> {l.topic}
+                </button>
+              ))}
+            </div>
+          </nav>
+        </header>
+
+        <section className={styles.stage} aria-label="3D playground">
           {sim ? (
             <>
-              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} />
+              <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} looks={view.equipped} />
               <Contained label="Speech bubbles">
-            <div className={styles.overlayTokens}>
-              <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
-              <CapsuleOverlay beat={pres.beat} state={pres.capsuleState} anchors={ANCHORS} reducedMotion={reducedMotion} paused={paused} speed={1} />
-            </div>
-            </Contained>
+                <div className={styles.overlayTokens}>
+                  <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
+                  <CapsuleOverlay beat={pres.beat} state={pres.capsuleState} anchors={ANCHORS} reducedMotion={reducedMotion} paused={paused} speed={1} />
+                </div>
+              </Contained>
             </>
           ) : (
             <div className={styles.boot} role="status">
-              <strong>{error ? "The lab could not start" : "Opening the lab…"}</strong>
+              <strong>{error ? "The playground could not start" : "Opening the playground…"}</strong>
               {boot.map((b) => (
                 <span key={b}>{b}</span>
               ))}
@@ -587,34 +636,34 @@ export function SandboxApp() {
             </div>
           )}
 
-          <div className={styles.lessonCard}>
-            <span className={styles.eyebrow}>
+          <div className={`gic-toast ${styles.lessonCard}`}>
+            <p className={`heading-sm ${styles.eyebrow}`}>
               {lesson.subject} · {lesson.topic}
-            </span>
-            <p>{OBJECTIVE[kitId]}</p>
+            </p>
+            <p className="body">{OBJECTIVE[kitId]}</p>
             {kit.slots.length > 0 && (
               <div className={styles.chips}>
                 {kit.slots.map((s) => (
-                  <span key={s.id} className={filled.includes(s.id) ? styles.chipOn : styles.chip}>
+                  <span key={s.id} className={filled.includes(s.id) ? "gic-tag gic-tag--on" : "gic-tag"}>
                     {filled.includes(s.id) && <Check size={12} />} {s.label}
                   </span>
                 ))}
               </div>
             )}
-            {solved && <strong className={styles.solved}>Right triangle built: 9 + 16 = 25.</strong>}
+            {solved && <strong className={`body ${styles.solved}`}>Right triangle built: 9 + 16 = 25.</strong>}
             {kit.id === "pythagoras" && !solved && (
-              <button className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
+              <Button variant="solid" className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
                 {status?.task?.kind === "build_squares" ? `Building · ${status.experiment?.phase ?? ""}` : "Build it together"}
-              </button>
+              </Button>
             )}
             {balance && (
               <div className={styles.chips} data-testid="balance">
                 {balance.weights.map((w) => (
-                  <span key={w.id} className={styles.chip}>
+                  <span key={w.id} className="gic-tag">
                     {w.grams} g · {w.side} · {w.cm} cm
                   </span>
                 ))}
-                <span className={balance.plank === "released" ? styles.chipOn : styles.chip}>
+                <span className={balance.plank === "released" ? "gic-tag gic-tag--on" : "gic-tag"}>
                   {balance.plank === "released"
                     ? balance.lowSide === "level"
                       ? "Level"
@@ -623,19 +672,51 @@ export function SandboxApp() {
                       ? "Levelling…"
                       : "Plank locked"}
                 </span>
-                <button
-                  className={styles.plankButton}
-                  onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}
-                >
+                <Button variant="link" className={styles.plankButton} onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}>
                   {balance.plank === "locked" ? "Release plank" : "Lock plank"}
-                </button>
+                </Button>
               </div>
             )}
             {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
+            {kitId === "moments" && !adapter && (
+              <p className={styles.lightScope} role="status" data-testid="progress-loading">
+                Loading lab…
+              </p>
+            )}
+            {kitId === "moments" && adapter && (
+              <Contained label="Progress">
+                <section className={styles.lightScope} aria-label="Challenges and progress">
+                  <ProgressHud store={store} paused={paused} speed={1} onWorkshop={() => setWorkshop(true)} />
+                  <ChallengeBar
+                    active={challengeId}
+                    completed={completed}
+                    explained={explained}
+                    onStart={(id) => {
+                      setSetup("busy");
+                      void coordinator.startChallenge(id, challengeById(id)!.setup).then((ok) => setSetup(ok ? "idle" : "failed"));
+                    }}
+                    onExplain={() =>
+                      challengeId &&
+                      labLog.append({ type: "explanation_submitted", challengeId, epoch: coordinator.epoch(), worldVersion: adapterRef.current?.snapshot().version ?? 0 })
+                    }
+                  />
+                  {setup === "busy" && <p role="status" data-testid="setup-status">Setting up the beam…</p>}
+                  {setup === "failed" && <p role="alert" data-testid="setup-failed">Setup did not finish. Try again.</p>}
+                  {coordinator.pushing() && setup !== "busy" && (
+                    <p role="status" data-testid="pushing">{BOT_NAMES[coordinator.pushing()!]} is pushing the weight…</p>
+                  )}
+                  {coordinator.holding() && held.current && (
+                    <PredictionPrompt onChoose={(choice) => void held.current?.commit(choice)} onSkip={() => void held.current?.skip()} />
+                  )}
+                  <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} shows={CONSOLE_LOOKS} />
+                  {demoProfile && <p>Demo profile: progress is not saved.</p>}
+                </section>
+              </Contained>
+            )}
           </div>
 
-          <div className={styles.keys} aria-label="Keyboard controls">
-            <Keyboard size={15} />
+          <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls">
+            <Keyboard size={15} aria-hidden="true" />
             {KEYS.map(([k, v]) => (
               <span key={k}>
                 <kbd>{k}</kbd> {v}
@@ -645,13 +726,13 @@ export function SandboxApp() {
           </div>
         </section>
 
-        <aside className={styles.console} aria-label="Duck console">
+        <aside className={`gic-toast ${styles.console}`} aria-label="Duck console">
           <div className={styles.consoleHead}>
-            <div>
+            <p className="heading-sm">
               <span className={styles.dot} />
-              <strong>Your duck</strong>
-            </div>
-            <span className={styles.mode} data-testid="duck-mode">
+              Your duck
+            </p>
+            <span className="gic-tag" data-testid="duck-mode">
               {status ? (sitting ? (status.sitting ? "sitting" : "sitting down") : status.mode) : "loading"}
             </span>
           </div>
@@ -676,7 +757,7 @@ export function SandboxApp() {
             </dl>
           )}
           {status && nova && (
-            <div className={styles.crew} data-testid="crew">
+            <div className={`label ${styles.crew}`} data-testid="crew">
               <span>
                 <i className={styles.pipDot} /> Pip · {status.phase ?? (status.task ? "busy" : status.mode)}
               </span>
@@ -685,89 +766,93 @@ export function SandboxApp() {
               </span>
             </div>
           )}
-          <div className={styles.log} role="log" aria-live="polite" ref={logRef}>
-            {log.length === 0 ? (
-              <p className={styles.empty}>
-                Hold to talk, or ask <em>What is the Pythagorean theorem?</em> I can explain and move the squares to demonstrate. You can also ask me to push a box or drive with the keyboard.
-              </p>
-            ) : (
-              log.map((l) => (
-                <div key={l.id} className={l.who === "you" ? styles.fromYou : styles.fromDuck}>
-                  {l.ok === false && <span className={styles.warn}>!</span>}
-                  {l.who === "duck" && l.speaker && <strong>{BOT_NAMES[l.speaker]}: </strong>}
-                  {l.text}
-                </div>
-              ))
-            )}
+
+          <div className={styles.windows}>
+            <section className={styles.window} data-open={win === "log"} aria-label="Log">
+              <h2>
+                <button className={styles.fold} aria-expanded={win === "log"} aria-controls="console-log" data-testid="fold-log" onClick={() => toggle("log")}>
+                  Log
+                  {logUnseen > 0 && (
+                    <span className={styles.count}>
+                      {logUnseen}
+                      <span className={styles.srOnly}> new</span>
+                    </span>
+                  )}
+                  <ChevronDown size={16} aria-hidden="true" className={styles.chevron} />
+                </button>
+              </h2>
+              <div className={styles.log} id="console-log" role="log" aria-live="polite" ref={logRef} hidden={win !== "log"}>
+                {log.length === 0 ? (
+                  <p className={`body ${styles.empty}`}>
+                    Hold to talk, or ask <em>What is the Pythagorean theorem?</em> I can explain and move the squares to demonstrate. You can also ask me to push a box or drive with the keyboard.
+                  </p>
+                ) : (
+                  log.map((l) => (
+                    <div key={l.id} className={`body-alt ${l.who === "you" ? styles.fromYou : styles.fromDuck}`}>
+                      {l.ok === false && <span className={styles.warn}>!</span>}
+                      {l.who === "duck" && l.speaker && <strong>{BOT_NAMES[l.speaker]}: </strong>}
+                      {l.text}
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+            <Contained label="Conversation">
+              <ChannelPanel
+                embedded
+                view={channel}
+                threadBot={selected}
+                running={asking || coordinator.holding()}
+                onAsk={(from, to) => {
+                  setWin("bots");
+                  void coordinator.askPeer(from, to);
+                }}
+                onStop={() => coordinator.stop()}
+                open={win === "you" || win === "bots" ? win : null}
+                onToggle={toggle}
+              />
+            </Contained>
           </div>
+
           {(phase !== "Ready" || status?.task) && (
-            <div className={styles.running} role="status">
+            <div className={`label ${styles.running}`} role="status">
               <span data-testid="agent-phase">{phase}{status?.task ? ` · ${describe(status.task, name)}` : ""}</span>
-              <button
+              <Button
+                variant="link"
+                arrow={false}
                 onClick={() => {
                   session.current?.cancel();
                   add("duck", "Stopped.");
                 }}
               >
-                <Square size={13} /> Stop
-              </button>
+                <Square size={12} aria-hidden="true" /> Stop
+              </Button>
             </div>
           )}
           <div className={styles.picker} role="group" aria-label="Who are you talking to">
+            <span className="label">Talking to</span>
             {(["pip", "nova"] as const).map((b) => (
-              <button key={b} aria-pressed={selected === b} aria-label={`Select ${BOT_NAMES[b]}`} onClick={() => selectBot(b)}>
-                {BOT_NAMES[b]}
+              <button key={b} className="gic-tag" aria-pressed={selected === b} aria-label={`Select ${BOT_NAMES[b]}`} onClick={() => selectBot(b)}>
+                <i className={b === "pip" ? styles.pipDot : styles.novaDot} /> {BOT_NAMES[b]}
               </button>
             ))}
-            <button aria-pressed={crewSelected} onClick={() => { setCrewSelected(true); selectedSince.current = null; thread.current = null; }}>Both</button>
+            <button className="gic-tag" aria-pressed={crewSelected} onClick={() => { setCrewSelected(true); selectedSince.current = null; thread.current = null; }}>
+              Both
+            </button>
+            <button className="gic-tag" data-testid="pause" aria-pressed={paused} onClick={() => setPaused((p) => !p)}>
+              {paused ? <Play size={12} aria-hidden="true" /> : <Pause size={12} aria-hidden="true" />} {paused ? "Resume" : "Pause"}
+            </button>
             {chip && (
-              <span className={styles.chip} data-testid="address-chip">
+              <span className={`caption ${styles.addressChip}`} data-testid="address-chip">
                 {chip.label}
                 {chip.heard && <small> · heard: {chip.heard}</small>}
                 {chip.reaction && <small data-testid="reaction"> · {chip.reaction}</small>}
               </span>
             )}
-            <button data-testid="pause" aria-pressed={paused} onClick={() => setPaused((p) => !p)}>
-              {paused ? <Play size={13} aria-hidden="true" /> : <Pause size={13} aria-hidden="true" />} {paused ? "Resume" : "Pause"}
-            </button>
           </div>
-          {kitId === "moments" && !adapter && (
-            <p className={styles.lightScope} role="status" data-testid="progress-loading">
-              Loading lab…
-            </p>
-          )}
-          {kitId === "moments" && adapter && (
-            <Contained label="Progress">
-            <section className={styles.lightScope} aria-label="Challenges and progress">
-              <ProgressHud store={store} paused={paused} speed={1} onWorkshop={() => setWorkshop(true)} />
-              <ChallengeBar
-                active={challengeId}
-                completed={completed}
-                explained={explained}
-                onStart={(id) => {
-                  setSetup("busy");
-                  void coordinator.startChallenge(id, challengeById(id)!.setup).then((ok) => setSetup(ok ? "idle" : "failed"));
-                }}
-                onExplain={() =>
-                  challengeId &&
-                  labLog.append({ type: "explanation_submitted", challengeId, epoch: coordinator.epoch(), worldVersion: adapterRef.current?.snapshot().version ?? 0 })
-                }
-              />
-              {setup === "busy" && <p role="status" data-testid="setup-status">Setting up the beam…</p>}
-              {setup === "failed" && <p role="alert" data-testid="setup-failed">Setup did not finish. Try again.</p>}
-              {coordinator.pushing() && setup !== "busy" && (
-                <p role="status" data-testid="pushing">{BOT_NAMES[coordinator.pushing()!]} is pushing the weight…</p>
-              )}
-              {coordinator.holding() && held.current && (
-                <PredictionPrompt onChoose={(choice) => void held.current?.commit(choice)} onSkip={() => void held.current?.skip()} />
-              )}
-              <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} />
-              {demoProfile && <p>Demo profile: progress is not saved.</p>}
-            </section>
-            </Contained>
-          )}
-          <form className={styles.command} onSubmit={send}>
+          <form className={`gic-field ${styles.command}`} onSubmit={send}>
             <input
+              className="gic-field__input body"
               aria-label="Task for your duck"
               placeholder="Ask a question or tell me what to move…"
               value={text}
@@ -776,13 +861,13 @@ export function SandboxApp() {
               autoComplete="off"
               disabled={!sim}
             />
-            <button type="submit" aria-label="Send task" disabled={!sim || !text.trim()}>
-              <ArrowUp size={18} />
+            <button className="gic-field__submit" type="submit" aria-label="Send task" disabled={!sim || !text.trim()}>
+              <ArrowPill tone="ink" />
             </button>
           </form>
           <div className={styles.voiceControls}>
-            <button
-              type="button"
+            <Button
+              variant="solid"
               disabled={!sim}
               aria-label="Hold to talk"
               aria-pressed={phase === "Listening"}
@@ -792,29 +877,30 @@ export function SandboxApp() {
               onLostPointerCapture={() => session.current?.endCapture()}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) talk(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
-            >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</button>
-            <button type="button" aria-label="Robot reply sound" aria-pressed={robotSound} onClick={() => setRobotSound((enabled) => !enabled)}>
+            >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</Button>
+            <button type="button" className="gic-tag" aria-label="Robot reply sound" aria-pressed={robotSound} onClick={() => setRobotSound((enabled) => !enabled)}>
               {robotSound ? "Robot sound on" : "Robot sound off"}
             </button>
           </div>
-          <small className={styles.providerNote}>Claude on Bedrock · ElevenLabs transcription · local robot sound. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
+          <small className={`caption ${styles.providerNote}`}>Claude on Bedrock · ElevenLabs transcription · local robot sound. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
           <div className={styles.skills}>
-            <button onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
               {sitting ? "Stand" : "Sit"}
             </button>
-            <button onClick={() => skill("kickL", "Left kick")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("kickL", "Left kick")} disabled={!sim}>
               Kick L
             </button>
-            <button onClick={() => skill("kickR", "Right kick")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("kickR", "Right kick")} disabled={!sim}>
               Kick R
             </button>
-            <button onClick={() => skill("peck", "Peck")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("peck", "Peck")} disabled={!sim}>
               Peck
             </button>
-            <button onClick={() => skill("roll", "Roll")} disabled={!sim}>
+            <button className="gic-tag" onClick={() => skill("roll", "Roll")} disabled={!sim}>
               Roll
             </button>
             <button
+              className="gic-social"
               aria-label="Reset the lab"
               onClick={() => {
                 session.current?.cancel(true);
@@ -827,9 +913,6 @@ export function SandboxApp() {
             </button>
           </div>
         </aside>
-        <Contained label="Conversation">
-        <ChannelPanel embedded view={channel} threadBot={selected} running={asking || coordinator.holding()} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
-        </Contained>
       </main>
       {learningFlow?.step === "book" && (
         <LessonBookOverlay

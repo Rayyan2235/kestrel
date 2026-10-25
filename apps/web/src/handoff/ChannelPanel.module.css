@@ -252,15 +252,174 @@ h2 {
   }
 }
 
-/* The console scopes light tokens for its dark glass; this rail has its own light and dark panes. */
+/*
+ * In the console the rail wears the General Intelligence Company glass: light
+ * panes are white glass with ink, the robots' channel stays dark ("dark means
+ * the robots are talking"). Only the embedded rail uses these; the demo keeps
+ * its own look.
+ */
 .embedded {
-  --ink: #203b33;
-  --muted: #536960;
-  --panel: #fbfcf7;
-  --dock: #18352c;
-  --on-dark: #f2f6ed;
-  --on-dark-muted: #bfcfc3;
-  --accent: #d2eb88;
-  --shadow: 0 14px 36px rgb(33 58 42 / 12%);
+  --ink: #2c2c2c;
+  --muted: #646464;
+  --panel: #ffffffb3;
+  --dock: #1f1f29;
+  --on-dark: #ffffff;
+  --on-dark-muted: #ffffffb3;
+  --accent: #c9ecdc;
+  --shadow: 0 1px 8px 0 #0000000d;
   color: var(--ink);
+  font-family: var(--font-sans, inherit);
+}
+
+/* Console accordion: each pane folds to a header bar; one is open at a time. */
+.accordion {
+  gap: 8px;
+}
+.accordion .you,
+.accordion .channel {
+  padding: 0;
+  gap: 0;
+  border: 0;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.accordion .channel {
+  background: rgb(31 31 41 / 90%);
+}
+.accordion [data-open="true"] {
+  flex: 1;
+  min-height: 150px;
+}
+.accordion h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 500 14px/21px var(--font-sans, inherit);
+  letter-spacing: -0.15px;
+}
+.fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.fold:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+  border-radius: 10px;
+}
+.chevron {
+  flex: none;
+  margin-left: auto;
+  transition: transform 250ms;
+}
+.fold[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #1f1f29;
+  font: 600 11px/18px var(--font-sans, inherit);
+  text-align: center;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.foldRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-right: 8px;
+}
+.foldRow .fold {
+  padding-right: 4px;
+}
+.accordion .controls {
+  gap: 4px;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+.accordion .controls button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #ffffff3d;
+  border-radius: 8px;
+  background: linear-gradient(315deg, #ffffff1a, #ffffff30);
+  font: 500 12px/18px var(--font-sans, inherit);
+  cursor: pointer;
+}
+.accordion .controls button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+  padding: 0 12px 12px;
+}
+.body[hidden] {
+  display: none;
+}
+.accordion .log {
+  max-height: none;
+}
+.accordion .logWrap {
+  min-height: 60px;
+}
+.accordion .entry,
+.accordion .botEntry {
+  font-size: 13px;
+  line-height: 19.5px;
+}
+.accordion .handback {
+  border-radius: 12px;
+}
+.accordion .handback button {
+  border-width: 1px;
+  border-radius: 8px;
+  font: 500 12px/18px var(--font-sans, inherit);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+/* The handback strip stays compact in the console so the open pane keeps its room. */
+.accordion .handback {
+  gap: 6px;
+  padding: 10px 12px;
+}
+.accordion .handback strong {
+  font: 600 13px/19.5px var(--font-sans, inherit);
+}
+.accordion .handback > div {
+  gap: 4px;
+}
+.accordion .handback button {
+  min-height: 30px;
+  padding: 0 10px;
 }

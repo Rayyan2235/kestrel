@@ -51,6 +51,10 @@
   gap: 24px;
   padding-top: 24px;
 }
+/* The preview is drawn at twice the stage size, name tag included: keep it clear of the buttons. */
+.figure {
+  padding-bottom: 64px;
+}
 .row {
   display: flex;
   flex-wrap: wrap;

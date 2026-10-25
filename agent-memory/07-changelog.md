@@ -283,6 +283,38 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 
 ### Robot sound timing and browser playback fix (2026-10-25)
 
+Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.
+
+## 2026-10-25 — Codex: workshop and camera
+
+Created `lab-workshop-camera` from main. Added LabCamera, camera math/tests, Workshop, camera toolbar and responsive stage spacing; extracted bubble anchoring from camera following. Workshop uses original procedural geometry and the confirmed palette, preserving MuJoCo props/colliders and both robot rigs. Added browser coverage for persistent exploration, zoom, follow/frame/reset, keyboard Space isolation, lesson switching and touch pinch/cancel. Updated DESIGN and shared memory. Validation: pnpm check (185 tests, builds/API smoke) passed; Playwright 7 passed/1 intentional skip; diff whitespace check passed. Initial interpolation-sensitive assertions corrected; review-discovered Space conflict reproduced then fixed. No paid AI calls, push or merge.
+
+## 2026-10-25 — Codex: Botanical Studio
+
+Applied owner-selected palette to console and rebuilt Workshop; added studioMaterials, StudioLighting, original AO maps and bake script/provenance. Bevelled box visuals retain original dimensions/science face textures; material disposal added. Added live measured-position screen, botanical furnishings and physically separate decorative detail. Updated DESIGN, design tokens, plan and shared memory. Checks: pnpm check 185 pass/builds/API smoke; relevant Playwright 7 pass/1 intentional skip. Final screenshots inspected and Moments output contrast corrected. Independent review found no significant correctness issues. Static shading is AO, not a full GI bake. No paid requests, push or merge.
+
+## 2026-10-25 — Codex: classroom cues and Claude Code handoff
+
+- Replaced decorative back-wall shelves/sign with a lesson-aware teaching board, diagram, chalk tray/eraser, equipment labels and learning-station marker in Workshop.tsx. Kept Botanical palette, open floor, both bots and physics/camera behavior.
+- Added docs/handoffs/claude-code-classroom-redesign.md with source revisions/findings, REA reproduction workflow, taste skill, palette, file map, constraints and checks. Updated DESIGN and shared status/handoff.
+- Validation: pnpm check passed: 185 tests, typecheck, web/API builds and API health smoke. Browser screenshot run exited 0; inspected Pythagoras and Moments on desktop and mobile. Moments output contrast remains rgb(243,238,227). git diff --check passed. No new behavior tests needed for decorative geometry/labels.
+- Stayed on lab-workshop-camera; no push/merge. Owner will launch Claude Code on the same branch.
+
+## 2026-10-25 — Claude Code: playground console
+
+- Owner redirected the classroom redesign to a bright, open playground with General Intelligence Company glass. Navy and brass (picked earlier for the classroom) superseded.
+- Physics: `roomProps()` returns no fixed furniture, so the court is open; the boundary wall is unchanged. `tasks.test.ts` fixed-target check now uses the Moments pivot.
+- Scene: new `Playground.tsx`, `GardenFence.tsx`, `Foliage.tsx`, `Grass.tsx`, `playgroundMaterials.ts`; removed `Workshop.tsx`, `studioMaterials.ts`, `scripts/bake-workshop.mjs`, `public/workshop/`. Equipment sits outside the collider line; fence inner faces on it. Folio Foliage/Grass techniques verified in source (revision 41046b5) and reimplemented; REA 6.7.0 static analysis parsed my-room-in-3d (21 files) and folio Game sources (118 files) without failures, plus a REA screenshot of the live room from a disposable headless profile.
+- Console: full-screen stage, `gic.tsx`/`gic.css` from the owner's design-system artifact, Inter via fontsource, Home link removed (`console-entry.spec.ts` now returns home through the Kestrel mark), nav moved top left, wider desktop follow framing so the lesson board stays visible.
+- Performance: headless SwiftShader measured 1.0 fps full scene, 2.0 fps without the playground, unchanged by removing grass, blur or panels; machine load average ~20. Added a software-renderer low-power path (no shadows, no grass, half resolution, `?hq` override) and a 120 s file timeout to the camera spec, matching `sandbox.spec.ts`.
+- Checks: `pnpm check` passed twice (185 tests, typecheck, web/API builds, API smoke). Playwright camera + console-entry: 11 passed, 1 intentional skip; sandbox spec after the final scene: 9 passed, 1 skipped. Desktop 1440×900 and iPhone 13 screenshots of Pythagoras and Moments inspected (follow, zoomed out, experiment frame). `git diff --check` clean. No paid AI calls. Not committed, pushed or merged.
+
+## 2026-10-25 — Claude Code: crew windows and main merge
+
+- New branch `crew-windows` in a separate worktree (the main checkout holds Codex's in-flight `rescue-navigation`). Merged `origin/main` (merge commit); resolved `SandboxApp.tsx` from main's logic plus the playground layout, and `Sandbox.module.css` from the playground stylesheet plus main's picker/overlay/progress scopes.
+- Teammate rail: `ChannelPanel` gained opt-in accordion props; console shows Log / You and Pip / Pip and Nova as one-open-at-a-time glass windows with unread counts, persisted choice, auto-open on robot talk, Ask/Stop in the robots' header. Demo markup unchanged. Progress (XP, challenges, Workshop) moved to the lesson card.
+- Checks: `pnpm check` 316 tests, typecheck, builds, API smoke. Visual: desktop and iPhone 13 after Ask Nova and after unfolding the learner thread. Playwright results recorded below.
+
 - Replaced late-created HTMLAudio playback with a reusable Web Audio context/buffer primed during the user's mic, text-submit or demo-button gesture to address autoplay blocking. Playback failures now log instead of disappearing silently.
 - First concise reply sound is awaited before the lesson book opens. A second sound starts alongside the coordinated robot action; measured demo conclusion and quiz score are silent, giving the learning flow two sound cues.
 - `pnpm typecheck` passes. Console and MP3 return HTTP 200. Audible browser playback and fresh MuJoCo boot remain unverified; no live provider calls or browser tests were run.
@@ -299,3 +331,19 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 - API now parses and surfaces ElevenLabs' bounded validation message for provider failures without logging or returning credentials. pnpm typecheck passes.
 
 - Live retry: POSTed local beep-bop MP3 to /api/voice/transcribe; ElevenLabs returned HTTP 200 and an empty transcript as expected for non-speech. Confirms credentials + MP3 request path. Browser microphone capture/WebM request remains to be retested.
+
+## 2026-10-25 — Claude Code: fold Rayyan's #15 and #17 into the playground console
+
+- Branch `fold-in-rayyan` from `lab-workshop-camera`; merged `feat/3d-looks` (#17, which already contains #15). Conflicts in `SandboxApp.tsx` and `SandboxScene.tsx` resolved by keeping the playground layout and applying his edits; `route()` and `selectBot()` verified identical to his branch.
+- #15: typed unaddressed lines go to the selected robot's agent; only "move this/it" asks which weight; only spoken turns can be redirected by tapping the other robot. This fixes the sandbox/real-console failures on main.
+- #17: Workshop looks (shell colour, antenna, party hat, backpack) on the 3D robots via `cosmetics/rig3d.ts`; console Workshop offers only what the robots can show.
+- Workshop dialog portals to `<body>`; the console now marks `body.gic-console` while mounted so the dialog wears GIC glass, tags and solid selection above the floating panels. Demo page unaffected.
+- Camera spec budget 120 s → 180 s: CI's software WebGL ran past 120 s at the last click on #16.
+- Checks: `pnpm check` 316 tests, typecheck, builds, API smoke. Workshop and looks checked in screenshots (Pip sky shell applied on the 3D rig).
+
+## 2026-10-25 — Claude Code: lighter low-power scene for CI
+
+- #14's CI (19.2 min vs 8.7–9.4 min on Rayyan's branches) failed the camera spec at 180 s and a 5 s Moments wait. The CI trace showed every Playwright action taking 3–20 s: the page was saturated on the runner's software WebGL.
+- Low-power mode (software GL) now draws `SimpleCanopies` (one solid low-poly ball per canopy, one draw call) instead of alpha-cut leaf cards, and skips clouds and rose foliage. On this Mac's many-core SwiftShader the frame rate was unchanged (≈2 fps either way), so the CI gain is expected, not measured locally.
+- Camera spec budget 180 s → 300 s; the sequence reached its last click at 172 s on CI.
+- `sandbox.spec` natural text still fails on main, #15 and #17 alike (#13's agent session no longer logs the pre-action line); not addressed here.

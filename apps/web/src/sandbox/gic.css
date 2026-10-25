@@ -1,0 +1,314 @@
+/*
+ * General Intelligence Company design system, as published in the owner's
+ * design-system artifact (tokens.json + components/bundle.css). Token names and
+ * values are copied exactly; Kestrel-only additions are marked "Kestrel:".
+ */
+.gic-root {
+  --background: #ffffff;
+  --surface: #fefffc;
+  --surface-raised: #f9faf7;
+  --surface-sunken: #f3f5f2;
+  --surface-tint: #eef1ed;
+  --ink: #2c2c2c;
+  --ink-secondary: #444141;
+  --ink-muted: #646464;
+  --line: #dee2de;
+  --line-strong: #cfd3cf;
+  --line-field: #e5e5e5;
+  --white: #ffffff;
+  --control-solid: #1f1f29;
+  --control-solid-border: #282834;
+  --cofounder-border: #41a1cf;
+  --glass-nav-from: #f9faf71f;
+  --glass-nav-to: #f9faf72e;
+  --glass-panel-from: #0000001f;
+  --glass-panel-to: #00000012;
+  --glass-stroke: #ffffff33;
+  --glass-stroke-soft: #ffffff3d;
+  --glass-stroke-ink: #0000003d;
+  --sheen-solid-from: #ffffff00;
+  --sheen-solid-to: #ffffff1f;
+  --sheen-glass-from: #ffffff1a;
+  --sheen-glass-to: #ffffff30;
+  --sheen-pill-from: #ffffff29;
+  --sheen-pill-to: #ffffff14;
+  --wash-toast: #ffffff99;
+  --wash-social: #ffffff0f;
+  --shadow-float: 0 2px 6px 0 #00000026;
+  --shadow-card: 0 1px 8px 0 #0000000d;
+  --shadow-pill: 0 1px 1px 0 #0000000a;
+  --shadow-ring: 0 0 0 1px #dee2de;
+  --blur-nav: 9px;
+  --blur-scrim: 10px;
+  --blur-glass: 15px;
+  --blur-toast: 20px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --radius-pill: 50.5px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  /* Kestrel: the tag pill measured on generalintelligencecompany.com. */
+  --tag-fill: rgb(156 180 192 / 14%);
+  --tag-border: rgb(207 209 211);
+  --tag-ink: oklch(0.373 0.034 259.733);
+  --tag-shadow: 0 2px 4px 0 rgb(80 115 138 / 24%);
+  font-family: var(--font-sans);
+  color: var(--ink);
+}
+
+/* Type styles (tokens.json → type.groups). */
+.gic-root .heading-sm { font-size: 18px; line-height: 23.4px; letter-spacing: -0.18px; font-weight: 500; }
+.gic-root .body { font-size: 14px; line-height: 21px; letter-spacing: -0.15px; font-weight: 500; }
+.gic-root .body-alt { font-size: 13px; line-height: 19.5px; letter-spacing: 0; font-weight: 400; }
+.gic-root .label { font-size: 13px; line-height: 18.2px; letter-spacing: -0.13px; font-weight: 500; }
+.gic-root .label-strong { font-size: 13px; line-height: 19.5px; letter-spacing: 0; font-weight: 600; }
+.gic-root .caption { font-size: 13px; line-height: 16.9px; letter-spacing: -0.13px; font-weight: 500; }
+
+/* Arrow pill */
+.gic-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 12px;
+  height: 16px;
+  padding: 0 1.5px 0 2.5px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--glass-stroke-soft);
+  background: linear-gradient(0deg, var(--sheen-pill-to), var(--sheen-pill-from));
+  box-shadow: var(--shadow-pill);
+  color: var(--white);
+  box-sizing: border-box;
+}
+.gic-pill--ink {
+  border-color: var(--glass-stroke-ink);
+  color: var(--ink-secondary);
+}
+.gic-pill svg { display: block; }
+
+/* Button */
+.gic-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-sans);
+  color: inherit;
+  transition: background-color 250ms, color 250ms, opacity 250ms;
+}
+.gic-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.gic-btn--solid {
+  padding: 6px 12px 7px 16px;
+  border: 1px solid var(--control-solid-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--control-solid);
+  background-image: linear-gradient(180deg, var(--sheen-solid-from), var(--sheen-solid-to));
+  color: var(--white);
+}
+.gic-btn--solid:focus-visible { outline-color: var(--ink); }
+.gic-btn--glass {
+  gap: 7.26px;
+  padding: 8px 16.74px 8px 16px;
+  border: 1px solid var(--cofounder-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(315deg, var(--sheen-glass-from), var(--sheen-glass-to));
+  -webkit-backdrop-filter: blur(var(--blur-nav));
+  backdrop-filter: blur(var(--blur-nav));
+  box-shadow: var(--shadow-float);
+  color: var(--white);
+}
+.gic-btn--link { padding: 0; border-radius: var(--radius-sm); color: var(--ink-secondary); }
+.gic-btn--quiet { padding: 7.9px 0 9.1px; border-radius: var(--radius-sm); color: var(--ink-secondary); }
+.gic-btn:disabled { cursor: default; opacity: 0.5; }
+
+/* Glass nav */
+.gic-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--glass-stroke);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(180deg, var(--glass-nav-from), var(--glass-nav-to));
+  -webkit-backdrop-filter: blur(var(--blur-nav));
+  backdrop-filter: blur(var(--blur-nav));
+  box-shadow: var(--shadow-float);
+}
+
+/* Toast card: the light glass used for every text surface over the sunny scene. */
+.gic-toast {
+  border: 1px solid var(--wash-toast);
+  border-radius: var(--radius-2xl);
+  background: var(--wash-toast);
+  -webkit-backdrop-filter: blur(var(--blur-toast));
+  backdrop-filter: blur(var(--blur-toast));
+  box-shadow: var(--shadow-card);
+}
+
+/* Field (newsletter form) */
+.gic-field {
+  display: flex;
+  align-items: center;
+  height: 38px;
+  padding-left: var(--space-3);
+  border: 1px solid var(--line-field);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+}
+.gic-field:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+.gic-field__input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.gic-field__input::placeholder { color: var(--ink-secondary); }
+.gic-field__input:focus { outline: none; }
+.gic-field__submit {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 32px;
+  padding: 0 6px 0 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+.gic-field__submit:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.gic-field__submit:disabled { cursor: default; opacity: 0.45; }
+
+/* Social button: GIC's 36px icon button, used for camera and reset controls. */
+.gic-social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--wash-social);
+  box-shadow: var(--shadow-ring);
+  color: var(--ink);
+  cursor: pointer;
+}
+.gic-social:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* Kestrel: GIC's tag pill, measured from the live site, as a selectable chip. */
+.gic-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 2px 10px;
+  border: 1px solid var(--tag-border);
+  border-radius: 27px;
+  background: var(--tag-fill);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  box-shadow: var(--tag-shadow);
+  color: var(--tag-ink);
+  font: 500 13px/18.2px var(--font-sans);
+  letter-spacing: -0.13px;
+  font-variant-numeric: tabular-nums;
+}
+button.gic-tag { cursor: pointer; transition: background-color 250ms, color 250ms; }
+button.gic-tag:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.gic-tag[aria-pressed="true"],
+.gic-tag[aria-checked="true"],
+.gic-tag--on {
+  border-color: var(--control-solid-border);
+  background-color: var(--control-solid);
+  background-image: linear-gradient(180deg, var(--sheen-solid-from), var(--sheen-solid-to));
+  color: var(--white);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .gic-toast { background: #ffffffeb; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .gic-toast,
+  .gic-nav { background: #ffffffeb; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gic-btn, button.gic-tag { transition: none; }
+}
+
+/*
+ * Kestrel: teammate dialogs (the Workshop) portal to <body>, outside the
+ * console's scope. The console marks <body> while mounted so they wear the
+ * same glass and tokens; other pages (the two-bot demo) are unaffected.
+ */
+body.gic-console {
+  --ink: #2c2c2c;
+  --muted: #646464;
+  --panel: #ffffffeb;
+  --shadow: 0 2px 6px 0 #00000026;
+  --accent: #c9ecdc;
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+body.gic-console [data-testid="workshop-dialog"] {
+  border: 1px solid #ffffff99;
+  background: #ffffffd9;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+body.gic-console [data-testid="workshop-dialog"] h2 {
+  font: 500 18px/23.4px var(--font-sans);
+  letter-spacing: -0.18px;
+}
+body.gic-console [data-testid="workshop-dialog"] button {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid rgb(207 209 211);
+  border-radius: 8px;
+  background: #ffffffb3;
+  box-shadow: 0 1px 1px 0 #0000000a;
+  color: var(--ink);
+  font: 500 13px/18.2px var(--font-sans);
+  cursor: pointer;
+}
+body.gic-console [data-testid="workshop-dialog"] :is(button[aria-pressed="true"], button[aria-selected="true"]) {
+  border-color: #282834;
+  background-color: #1f1f29;
+  background-image: linear-gradient(180deg, #ffffff00, #ffffff1f);
+  color: #ffffff;
+}
+body.gic-console [data-testid="workshop-dialog"] fieldset {
+  border: 1px solid #dee2de;
+  border-radius: 12px;
+}
+body.gic-console [data-testid="workshop-dialog"] :focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+/* Portaled dialogs sit above the floating console panels (z-index 3–5). */
+body.gic-console div[data-state][class*="overlay"] {
+  z-index: 60;
+  background: rgb(31 31 41 / 35%);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+body.gic-console [data-testid="workshop-dialog"] {
+  z-index: 61;
+}

@@ -39,7 +39,7 @@ Responsive: below 900px place the chat below the stage; maintain full-width comm
 
 This is an initial visual foundation, not final art. Robots are original procedural placeholders pending approved Kestrel assets. Preview conversation is labeled scripted. Advanced tools appear only when implemented; avoid disabled decorative buttons masquerading as product features.
 
-## Sandbox window treatment — October 25, 2026
+## Earlier sandbox window treatment — superseded for console
 
 The `/sandbox.html` windows and controls use the owner-selected Nox Noir `#141414`, Royal Amethyst `#7E49B3`, and Steel Mist `#CFCFCF`. Soft white `#F5F3F7` is the implementation choice for text and primary pill buttons; pale amethyst supports readable focus and state labels. These tokens are scoped to the sandbox. The earlier preview and 3D materials retain their existing styling.
 
@@ -48,3 +48,35 @@ Lesson, console and speech surfaces use dense smoked glass, subtle silver edges 
 ## Integrated product entry — October 25, 2026
 
 The illustrated welcome page is the root route. Every Open console action leads directly to `/console`, the existing real Microduck lab. Home returns to the welcome page; the old scripted preview screen is removed. The console glass now uses a dark purple tint (`rgb(34 23 45 / 80%)`) and lavender-lit silver edges; brand colors stay unchanged. Welcome display lettering is self-hosted Grandstander; body text is Plus Jakarta Sans. Owner-supplied concept art remains distinct from runtime physics.
+
+## Earlier console workshop environment — superseded
+
+The owner-approved Folio-inspired workshop extends the noir/amethyst/silver identity into the 3D scene. Pale silver flooring keeps the science readable; graphite walls/cabinetry and amethyst inlaid lighting establish depth. Recessed wall panels, cabinet handles, flush dock markings, a slow wall fan and sparse dust provide peripheral detail. A brief expanding floor ring marks lesson entry; reduced motion disables it and ambient movement. The orthographic view retains a fixed angle for screen-relative robot commands. A compact purple glass camera toolbar provides follow, frame, zoom and reset; drag/pinch exploration persists until the learner changes mode. Mobile separates the lesson panel vertically from the scene.
+
+## Botanical Studio console — superseded by the playground below
+
+Current authority for `/console`, `/lab`, and `/sandbox.html`: warm stone `#E8E2D6`, forest `#293D35`, sage `#9BAE97`, brass `#B99250`, clay `#BC816B`. The landing page is unchanged. Light shell/header; forest glass panels (`rgb(35 55 45 / 92%)`), ivory foreground `#F3EEE3`, sage secondary foreground `#CED6C7`, forest active controls and brass focus accents. Robot identity colors are preserved.
+
+The room uses original oak floor/worktop maps, plaster walls, a flush stone experiment inlay, recessed cabinet fronts, brass fittings, shelves/books/jars, curved leaf geometry, window mullions and a task lamp. Offline AO maps add contact/corner shading to static surfaces; they are not full global-illumination bakes. Moving robots and apparatus retain real-time shadows, with a filtered studio environment for material highlights. The wall monitor shows measured robot positions. Reduced motion stops fan/dust animation.
+
+Reference implementation studied using REA and direct source inspection: `brunosimon/my-room-in-3d` at 5d00b3f. No reference assets are redistributed. (Its workshop assets were removed with the playground; see `apps/web/src/sandbox/PROVENANCE.md`.) Preserve the existing camera controls and fixed angle. Physically reachable apparatus geometry and all simulator state remain authoritative.
+
+### Classroom refinement
+
+The owner retained Botanical Studio and asked for a shared classroom character. The room now prioritizes a lesson-specific teaching board, chalk tray, organized equipment labels, and an open learning station over decorative studio shelving. Preserve daylight and tactile materials. Diagrams explain concepts; only simulation-backed displays report measurements. See `docs/handoffs/claude-code-classroom-redesign.md` for the Claude Code continuation workflow.
+
+## Playground console — owner direction, October 25, 2026
+
+Current authority for `/console`, `/lab` and `/sandbox.html`. The owner replaced the classroom with a bright outdoor playground and asked for the whole floor to be open to the robots. (Navy and brass was chosen for the classroom minutes earlier and is superseded with it.)
+
+**World.** A floating grass island in a blue sky. The 3 m court is an open poured-rubber surface with no furniture: the robots get the whole floor. A storybook white picket fence (scalloped pickets, rails, ball-capped posts, climbing roses, a flower bed) sits exactly on MuJoCo's 25 cm boundary wall, inner faces on the collider line. All equipment stands outside that line on the lawn, so none of it needs a collider: swings (their sway uses the real pendulum period for the chain length), a slide, a seesaw resting on one end (the Moments lesson at play size), a sandpit, a bench, bunting and a lesson chalkboard turned to face the fixed camera. The board draws each lesson's rule to scale (3-4-5 squares; 200 g × 10 cm = 100 g × 20 cm); it is a diagram, never a measured result. Flush painted cues only: a dashed learning-zone circle around the experiment and a hopscotch.
+
+**Realism.** Leafy canopies and lawn blades follow folio-2025's `Foliage.js` and `Grass.js` techniques (camera-facing alpha-cut leaf cards with sphere-blended normals; one-triangle blades with up normals and tip-only wind), reimplemented in WebGL with original textures. Clouds ring the island, placed by screen position so none ever covers the court. Midday sun from the front left, sky/grass hemisphere bounce. Reduced motion stops swings, bunting, leaves, grass and clouds.
+
+**Interface.** The playground fills the screen; every panel floats over it as General Intelligence Company glass, using the owner's design-system artifact: exact tokens, ArrowPill, solid and link buttons, GlassNav structure, field, 36px icon buttons, and the site's tag pill. Text surfaces use the system's light glass (the toast recipe: white 60% over a 20px blur, ink text) because the source's dark 7–12% panel tint is drawn for night imagery; over a sunny scene white text on it would not be legible. Inter replaces Plus Jakarta Sans in the console (the system names Inter as its stand-in face). The nav sits top left (no Home button; the Kestrel mark links home), the lesson card under it, the console on the right, keyboard help and camera controls along the bottom. On phones the panels stack around a full-width scene.
+
+**Low power.** On a software WebGL renderer (SwiftShader, llvmpipe) the scene drops shadows and grass blades and renders at half resolution; `?hq` forces full quality for design screenshots. Physics is unaffected.
+
+### Crew windows (merged with main's gamification and voice addressing)
+
+The console's right column is one accordion: **Log** (the console's own log), **You and Pip/Nova** (the learner's thread with the selected robot) and **Pip and Nova** (the robots' channel). One is open at a time; folded windows are header bars with an unread count, and the choice is remembered on the device. When the robots start talking to each other, their window unfolds. The robots' channel stays dark (the teammate's rule: dark means the robots are talking), the learner's thread is light glass. Ask and Stop live in the robots' header so they work while folded; the "Back to you" prediction strip always shows. A "Talking to" row (Pip, Nova, Pause, routing chip) sits above the message field. Challenges, XP and the Workshop move into the lesson card on Moments. Teammate overlays and progress panels keep their own components and read GIC values through scoped colour tokens; the two-bot demo page is unchanged.

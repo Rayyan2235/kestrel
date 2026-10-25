@@ -11,8 +11,41 @@
     "accent": "#d2eb88",
     "coral": "#dc8060",
     "teal": "#5caca4",
-    "spacing": [4, 8, 12, 16, 24, 32, 48]
+    "spacing": [
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48
+    ]
   },
   "reference": "https://github.com/Fantomiald/open-space",
-  "status": "initial scaffold direction; final asset integration pending"
+  "status": "initial scaffold direction; final asset integration pending",
+  "surfaces": {
+    "console": {
+      "mode": "experience",
+      "direction": "Playground with General Intelligence Company glass",
+      "tokens": {
+        "surface": "#fefffc",
+        "ink": "#2c2c2c",
+        "ink-secondary": "#444141",
+        "ink-muted": "#646464",
+        "control-solid": "#1f1f29",
+        "wash-toast": "#ffffff99",
+        "blur-toast": "20px",
+        "radius-2xl": "16px",
+        "font": "Inter Variable"
+      },
+      "world": {
+        "sky": "#7cc4ee",
+        "grass": "#6cb45a",
+        "court": "#f2e6cd",
+        "fence": "#fff6e8"
+      },
+      "reference": "Owner's GIC design-system artifact; brunosimon/folio-2025 Foliage.js and Grass.js techniques",
+      "scope": "Console and playground only; preserve landing and robot identities"
+    }
+  }
 }

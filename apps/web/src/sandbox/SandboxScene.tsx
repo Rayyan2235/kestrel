@@ -1,6 +1,7 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import {
   MOMENTS,
   roomProps,
@@ -9,10 +10,17 @@ import {
   type PropSpec,
   type SlotSpec,
 } from "@kestrel/contracts";
-import { CAMERA_OFFSET, ROOM_HALF, WALL_H, WALL_T } from "../simulation/constants";
+import { LabCamera } from "./LabCamera";
+import { Playground } from "./Playground";
+import { PLAY } from "./playgroundMaterials";
+import { StudioLighting } from "./StudioLighting";
+import type { CameraCommand, CameraMode } from "./camera";
+import { Focus, Minus, Plus, RotateCcw, ScanEye } from "lucide-react";
 import type { BotId } from "@kestrel/contracts";
 import { BOTS, type DuckSim } from "../simulation/duckSim";
 import { buildDuckRig, poseDuckRig, type DuckRig } from "../simulation/rig";
+import type { BotLook } from "@kestrel/contracts";
+import { applyLook, describeLook, dressingFor } from "../cosmetics/rig3d";
 import styles from "./Sandbox.module.css";
 
 // Everything inside <MjFrame> uses MuJoCo coordinates (z up), so props,
@@ -32,7 +40,7 @@ function labelTexture(text: string, opts: { bg?: string; fg?: string; w?: number
     g.fillStyle = opts.bg;
     g.fillRect(0, 0, w, h);
   }
-  g.fillStyle = opts.fg ?? "#203b33";
+  g.fillStyle = opts.fg ?? "#2c2c2c";
   g.font = `700 ${opts.font ?? 64}px "Plus Jakarta Sans Variable", sans-serif`;
   g.textAlign = "center";
   g.textBaseline = "middle";
@@ -51,7 +59,11 @@ function gridTexture(units: number, color: string) {
   const g = c.getContext("2d")!;
   g.fillStyle = color;
   g.fillRect(0, 0, px, px);
-  g.strokeStyle = "rgba(24, 53, 44, 0.55)";
+  for (let i = 0; i < units * units * 90; i++) {
+    g.fillStyle = i % 2 ? "rgba(255,255,240,.08)" : "rgba(30,45,30,.035)";
+    g.fillRect((i * 73.17) % px, (i * 41.31) % px, 1, 1);
+  }
+  g.strokeStyle = "rgba(44, 44, 44, 0.5)";
   g.lineWidth = 3;
   for (let i = 0; i <= units; i++) {
     g.beginPath();
@@ -61,7 +73,7 @@ function gridTexture(units: number, color: string) {
     g.lineTo(px, i * 64);
     g.stroke();
   }
-  g.fillStyle = "rgba(24, 53, 44, 0.8)";
+  g.fillStyle = "rgba(44, 44, 44, 0.8)";
   g.font = `800 ${Math.min(96, px / 2.6)}px "Plus Jakarta Sans Variable", sans-serif`;
   g.textAlign = "center";
   g.textBaseline = "middle";
@@ -82,7 +94,7 @@ function rulerTexture(length: number, width: number, color: string) {
   const g = c.getContext("2d")!;
   g.fillStyle = color;
   g.fillRect(0, 0, w, h);
-  g.fillStyle = "rgba(24, 53, 44, 0.7)";
+  g.fillStyle = "rgba(44, 44, 44, 0.7)";
   const half = Math.floor((length * 100) / 2);
   for (let cm = -half; cm <= half; cm++) {
     const y = h / 2 - cm * perCm;
@@ -123,9 +135,9 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
   const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const { geometry, material } = useMemo(() => {
     const s = spec.shape;
-    const base = new THREE.MeshStandardMaterial({ color: spec.color, roughness: 0.75 });
+    const base = new THREE.MeshStandardMaterial({ color: spec.color, roughness: spec.role === "plank" ? 0.42 : 0.55, metalness: spec.role === "paddle" ? 0.25 : 0.05 });
     if (s.type === "box") {
-      const geometry = new THREE.BoxGeometry(...s.size);
+      const geometry = new RoundedBoxGeometry(...s.size, 3, Math.min(...s.size) * 0.09);
       if (spec.units) {
         const top = new THREE.MeshStandardMaterial({ map: gridTexture(spec.units, spec.color), roughness: 0.8 });
         return { geometry, material: [base, base, base, base, top, base] };
@@ -143,6 +155,11 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
     const w = s.width / 2, l = s.length / 2, h = s.height;
     return { geometry: prismGeometry([-w, -l, 0, w, -l, 0, 0, -l, h, -w, l, 0, w, l, 0, 0, l, h]), material: base };
   }, [spec]);
+  useEffect(() => () => {
+    geometry.dispose();
+    const materials = new Set(Array.isArray(material) ? material : [material]);
+    for (const m of materials) { m.map?.dispose(); m.dispose(); }
+  }, [geometry, material]);
   useFrame(() => {
     const m = ref.current;
     if (!m || !sim.readProp(spec.id, pose)) return;
@@ -151,7 +168,7 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
     // A push face glows only while MuJoCo reports a robot touching it.
     if (spec.role === "paddle" && !Array.isArray(material)) {
       const f = sim.touchForce(spec.id);
-      (material as THREE.MeshStandardMaterial).emissive.set(f > 0.05 ? "#7e49b3" : "#000000");
+      (material as THREE.MeshStandardMaterial).emissive.set(f > 0.05 ? PLAY.yellow : "#000000");
       (material as THREE.MeshStandardMaterial).emissiveIntensity = Math.min(0.9, f / 6);
     }
   });
@@ -235,10 +252,10 @@ function Slot({ slot, filled }: { slot: SlotSpec; filled: boolean }) {
     <group position={[slot.pos[0], slot.pos[1], 0.0015]} rotation={[0, 0, slot.yaw]}>
       <mesh>
         <planeGeometry args={[slot.side, slot.side]} />
-        <meshBasicMaterial color={filled ? "#d2eb88" : "#f6f7ef"} transparent opacity={filled ? 0.85 : 0.45} />
+        <meshBasicMaterial color={filled ? PLAY.mint : "#ffffff"} transparent opacity={filled ? 0.8 : 0.6} />
       </mesh>
       <lineLoop geometry={edge}>
-        <lineBasicMaterial color={filled ? "#456c53" : "#7d938a"} />
+        <lineBasicMaterial color={filled ? "#1f6b54" : "#3b4a55"} />
       </lineLoop>
       <mesh position={[0, -slot.side / 2 - 0.03, 0.001]}>
         <planeGeometry args={[0.2, 0.05]} />
@@ -256,62 +273,8 @@ function Outline({ points }: { points: [number, number][] }) {
   return (
     <line>
       <primitive object={g} attach="geometry" />
-      <lineBasicMaterial color="#203b33" />
+      <lineBasicMaterial color="#2c2c2c" />
     </line>
-  );
-}
-
-// Chalkboard on the −x wall, facing +x: text runs along +y, up is +z.
-const BOARD_FACING = new THREE.Quaternion().setFromRotationMatrix(
-  new THREE.Matrix4().makeBasis(
-    new THREE.Vector3(0, 1, 0),
-    new THREE.Vector3(0, 0, 1),
-    new THREE.Vector3(1, 0, 0),
-  ),
-);
-
-function Room({ kit }: { kit: LabKit }) {
-  const board = useMemo(
-    () =>
-      labelTexture(
-        kit.id === "pythagoras" ? "a² + b² = c²" : kit.id === "moments" ? "moment = mass × distance" : "Kestrel lab",
-        { bg: "#2f4f45", fg: "#f2f6ed", w: 1024, h: 384, font: 120 },
-      ),
-    [kit.id],
-  );
-  const r = ROOM_HALF;
-  return (
-    <MjFrame>
-      <mesh receiveShadow position={[0, 0, -0.01]}>
-        <boxGeometry args={[2 * r + 0.6, 2 * r + 0.6, 0.02]} />
-        <meshStandardMaterial color="#bbc9ad" roughness={0.95} />
-      </mesh>
-      <mesh receiveShadow position={[0, 0, 0.0005]}>
-        <planeGeometry args={[2 * r, 2 * r]} />
-        <meshStandardMaterial color="#d8dec8" roughness={0.95} />
-      </mesh>
-      {/* Far walls are tall for the room feel; near walls stay low so the camera sees in. */}
-      <mesh receiveShadow position={[-r - WALL_T / 2, 0, 0.6]}>
-        <boxGeometry args={[WALL_T, 2 * r + 2 * WALL_T, 1.2]} />
-        <meshStandardMaterial color="#f0ecdd" />
-      </mesh>
-      <mesh receiveShadow position={[0, r + WALL_T / 2, 0.6]}>
-        <boxGeometry args={[2 * r, WALL_T, 1.2]} />
-        <meshStandardMaterial color="#e2e5d5" />
-      </mesh>
-      <mesh position={[-r + 0.002, 0.15, 0.7]} quaternion={BOARD_FACING}>
-        <planeGeometry args={[1.5, 0.56]} />
-        <meshStandardMaterial map={board} roughness={0.9} />
-      </mesh>
-      <mesh position={[r + WALL_T / 2, 0, WALL_H / 2]}>
-        <boxGeometry args={[WALL_T, 2 * r + 2 * WALL_T, WALL_H]} />
-        <meshStandardMaterial color="#c8d3bf" transparent opacity={0.7} />
-      </mesh>
-      <mesh position={[0, -r - WALL_T / 2, WALL_H / 2]}>
-        <boxGeometry args={[2 * r, WALL_T, WALL_H]} />
-        <meshStandardMaterial color="#c8d3bf" transparent opacity={0.7} />
-      </mesh>
-    </MjFrame>
   );
 }
 
@@ -326,41 +289,21 @@ function Robot({ sim, id, rig }: { sim: DuckSim; id: BotId; rig: DuckRig }) {
   return <primitive object={rig.placer} />;
 }
 
-function Duck({
+function BubbleAnchor({
   sim,
   bubble,
-  focus,
 }: {
   sim: DuckSim;
   bubble: React.RefObject<HTMLDivElement | null>;
-  /** The lesson's apparatus, kept in frame together with the ducks. */
-  focus: [number, number];
 }) {
   const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const other = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const { camera } = useThree();
-  const target = useMemo(() => new THREE.Vector3(), []);
   const head = useMemo(() => new THREE.Vector3(), []);
   const { size } = useThree();
   useFrame(() => {
     sim.readTrunk(pose, "pip");
     sim.readTrunk(other, "nova");
-    // Isometric follow: centre on both ducks and the lesson apparatus,
-    // zooming out as they spread, so the experiment stays on screen.
-    const mx = (pose.pos[0] + other.pos[0] + 2 * focus[0]) / 4;
-    const my = (pose.pos[1] + other.pos[1] + 2 * focus[1]) / 4;
-    target.lerp(new THREE.Vector3(mx, 0.1, -my), 0.06);
-    camera.position.set(target.x + CAMERA_OFFSET[0], target.y + CAMERA_OFFSET[1], target.z + CAMERA_OFFSET[2]);
-    camera.lookAt(target);
-    const spread = Math.max(
-      Math.hypot(pose.pos[0] - focus[0], pose.pos[1] - focus[1]),
-      Math.hypot(other.pos[0] - focus[0], other.pos[1] - focus[1]),
-    );
-    const zoom = Math.min(420, Math.max(220, 470 - 190 * spread));
-    if (Math.abs(camera.zoom - zoom) > 0.5) {
-      camera.zoom += (zoom - camera.zoom) * 0.05;
-      camera.updateProjectionMatrix();
-    }
     // Anchor the speech bubble just above the duck's head, in screen space.
     const el = bubble.current;
     if (el) {
@@ -404,21 +347,53 @@ function Slots({ kit, sim, onProgress }: { kit: LabKit; sim: DuckSim; onProgress
   );
 }
 
+/**
+ * True when WebGL runs on a software rasteriser (SwiftShader, llvmpipe), as in
+ * headless CI or GPU-less machines. Those get no shadows and no grass blades,
+ * which keeps the lab responsive; everything physical is unchanged. Add
+ * `?hq` to the URL to force full quality (design screenshots).
+ */
+const SOFTWARE_GL = (() => {
+  if (new URLSearchParams(location.search).has("hq")) return false;
+  try {
+    const gl = document.createElement("canvas").getContext("webgl2");
+    const info = gl?.getExtension("WEBGL_debug_renderer_info");
+    const name = gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
+    return /swiftshader|llvmpipe|software/i.test(name);
+  } catch {
+    return false;
+  }
+})();
+
 export function SandboxScene({
   sim,
   kit,
   tint,
   onProgress,
   bubble,
+  looks,
 }: {
   sim: DuckSim;
   kit: LabKit;
   tint: string;
+  /** Workshop looks per robot: shell colour and simple props, drawn only. */
+  looks?: Record<BotId, BotLook>;
   onProgress: (filled: string[]) => void;
   /** Latest public reply from the duck, shown next to it. */
   bubble: { id: number; text: string; speaker: BotId } | null;
 }) {
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<CameraMode>("follow");
+  const [command, setCommand] = useState<CameraCommand>({ kind: "follow", serial: 0 });
+  const sendCamera = (kind: CameraCommand["kind"]) => setCommand(c => ({ kind, serial: c.serial + 1 }));
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const change = () => setReducedMotion(media.matches);
+    media.addEventListener("change", change);
+    return () => media.removeEventListener("change", change);
+  }, []);
   const [rigs, setRigs] = useState<Record<BotId, DuckRig> | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
@@ -431,31 +406,59 @@ export function SandboxScene({
       live = false;
     };
   }, [tint]);
+  const dressings = useMemo(
+    () =>
+      rigs
+        ? (Object.fromEntries(BOTS.map((id) => [id, dressingFor(rigs[id], BOT_TINTS[id] ?? tint)])) as Record<
+            BotId,
+            ReturnType<typeof dressingFor>
+          >)
+        : null,
+    [rigs, tint],
+  );
+  useEffect(() => {
+    if (!dressings || !looks) return;
+    for (const id of BOTS) applyLook(dressings[id], looks[id]);
+    // Dev-only handle for browser tests: what each robot wears.
+    if (import.meta.env.DEV)
+      (window as unknown as { kestrelLooks: unknown }).kestrelLooks = () =>
+        Object.fromEntries(BOTS.map((id) => [id, describeLook(dressings[id])]));
+  }, [dressings, looks]);
+  // Fixed furniture, if a kit ever adds some back; the playground court itself is open.
   const furniture = useMemo(() => roomProps(), []);
   if (error) return <div className="scene-fallback">The robot model could not load: {error}</div>;
   return (
     <div className={styles.sceneWrap}>
     <Canvas
-      shadows
+      shadows={!SOFTWARE_GL}
       orthographic
       camera={{ position: [2, 2, 2], zoom: 420, near: 0.01, far: 50 }}
-      dpr={[1, 1.5]}
+      dpr={SOFTWARE_GL ? 0.5 : [1, 1.5]}
       fallback={<div className="scene-fallback">This browser cannot show the 3D lab.</div>}
     >
-      <color attach="background" args={["#dde5d5"]} />
-      <ambientLight intensity={1.3} />
+      <StudioLighting />
+      {/* Midday sun from the front left; sky above and grass bounce below tint the shade. */}
+      <hemisphereLight args={["#eaf6ff", "#8cc56f", 1.15]} />
+      <ambientLight intensity={0.18} />
+      <directionalLight position={[3, 2, 3]} color="#dbeeff" intensity={0.45} />
       <directionalLight
-        position={[2.5, 5, 3]}
-        intensity={2.2}
+        position={[-2.2, 4.4, 2.4]}
+        intensity={2.6}
+        color="#fff1d6"
         castShadow
         shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-2.5}
-        shadow-camera-right={2.5}
-        shadow-camera-top={2.5}
-        shadow-camera-bottom={-2.5}
-        shadow-normalBias={0.02}
+        shadow-camera-left={-3.6}
+        shadow-camera-right={3.6}
+        shadow-camera-top={3.6}
+        shadow-camera-bottom={-3.6}
+        shadow-camera-near={0.5}
+        shadow-camera-far={14}
+        shadow-normalBias={0.004}
+        shadow-bias={-0.0003}
+        shadow-radius={3}
       />
-      <Room kit={kit} />
+      <Playground kit={kit} reducedMotion={reducedMotion} lowPower={SOFTWARE_GL} onFocus={() => sendCamera("experiment")} />
+      <LabCamera sim={sim} focus={kit.focus} command={command} onMode={setMode} reducedMotion={reducedMotion} />
       <Slots kit={kit} sim={sim} onProgress={onProgress} />
       {kit.id === "moments" && <MomentsDressing sim={sim} />}
       <MjFrame>
@@ -464,8 +467,21 @@ export function SandboxScene({
         ))}
       </MjFrame>
       {rigs && BOTS.map((id) => <Robot key={id} sim={sim} id={id} rig={rigs[id]} />)}
-      {rigs && <Duck sim={sim} bubble={bubbleRef} focus={kit.focus} />}
+      {rigs && <BubbleAnchor sim={sim} bubble={bubbleRef} />}
     </Canvas>
+      <div className={styles.cameraControls} role="group" aria-label="Camera controls" onKeyUp={e => { if ([" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.stopPropagation(); }} onKeyDown={e => {
+        const pan: Record<string, CameraCommand["kind"]> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
+        if (pan[e.key]) { e.preventDefault(); e.stopPropagation(); sendCamera(pan[e.key]!); }
+        if (e.key === " " || e.key === "Enter") e.stopPropagation();
+      }}>
+        <span className={styles.cameraHint}>{mode === "explore" ? "Exploring" : mode === "experiment" ? "Experiment view" : "Following crew"}<small>Drag to pan · scroll to zoom</small></span>
+        <button type="button" aria-label="Follow crew" aria-pressed={mode === "follow"} onClick={() => sendCamera("follow")} title="Follow crew"><ScanEye size={18} /></button>
+        <button type="button" aria-label="Frame experiment" aria-pressed={mode === "experiment"} onClick={() => sendCamera("experiment")} title="Frame experiment"><Focus size={18} /></button>
+        <span className={styles.cameraDivider} />
+        <button type="button" aria-label="Zoom out" onClick={() => sendCamera("out")}><Minus size={18} /></button>
+        <button type="button" aria-label="Zoom in" onClick={() => sendCamera("in")}><Plus size={18} /></button>
+        <button type="button" aria-label="Reset view" onClick={() => sendCamera("reset")} title="Reset view"><RotateCcw size={16} /></button>
+      </div>
       {bubble && (
         <div key={bubble.id} ref={bubbleRef} data-speaker={bubble.speaker} className={styles.bubble} role="status">
           {bubble.text}

@@ -117,3 +117,16 @@ Requirements: `pnpm dev` running and `.env` with `ELEVENLABS_API_KEY`, the AWS k
 | "Stop" | Stops immediately |
 
 Paid checks: `node scripts/live-voice-check.mjs` (voice round trip plus demo). The temporary probes `tests/.probe-demo.mjs` and `tests/.probe-right.mjs` run the typed flows.
+
+## Product routes — 2026-10-25
+
+Run `pnpm dev` and open port 5180: the landing page is `/`, and Open console leads to `/console`. Old `/lab` and `/sandbox.html` links also open the real console. The original scripted preview is removed. Live AI/voice need each teammate's root `.env` (see `.env.example`); never copy or commit credentials. The standalone mock teammate demo remains `/?demo=two-bot`.
+
+## Camera controls
+
+In `/console`, drag the playground to pan and scroll/pinch to zoom. Follow crew resumes automatic framing; Frame experiment centers the apparatus; Reset view restores follow. Tab to a camera button and use arrow keys to pan without driving the robots. Camera buttons support Enter/Space.
+
+## Playground rendering quality
+
+The workshop AO bake script is gone with the room. On a software WebGL renderer (headless SwiftShader, llvmpipe) `/console` drops shadows and grass and renders at half resolution so Playwright stays responsive; open `/console?hq` to force full quality for design screenshots. Under heavy machine load, the camera spec needs its 120 s file timeout.
+
