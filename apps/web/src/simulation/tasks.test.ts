@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { pythagorasKit, roomProps, type Vec2 } from "@kestrel/contracts";
+import { MOMENTS, momentsKit, pythagorasKit, roomProps, type Vec2 } from "@kestrel/contracts";
 import { SCREEN_DIRS } from "./constants";
-import { TaskRunner, type WorldView } from "./tasks";
+import { TaskRunner, type BalanceView, type WorldView } from "./tasks";
 
 const kit = (() => {
   const k = pythagorasKit();
@@ -73,5 +73,85 @@ describe("task runner", () => {
     for (let i = 0; i < 155 * 50 && !last?.done; i++) last = r.step(moved, 0.02); // push budget is 150 s
     expect(last?.done?.ok).toBe(false);
     expect(last?.done?.summary).toMatch(/moved 23 cm and is still \d+ cm from the target/);
+  });
+});
+
+describe("balance tasks", () => {
+  const moments = (() => {
+    const k = momentsKit();
+    return { ...k, props: [...roomProps(), ...k.props] };
+  })();
+  function scene(
+    duck: { x: number; y: number; yaw: number },
+    rails: Record<string, number> = { "weight-200": -0.2, "weight-100": 0.2 },
+    pin: BalanceView["pin"] = "locked",
+    angle = 0,
+  ): WorldView {
+    const props = new Map<string, Vec2>(moments.props.map((p) => [p.id, [p.pos[0], p.pos[1]]]));
+    return { duck, props, kit: moments, balance: { pin, angle, rails: new Map(Object.entries(rails)) } };
+  }
+  const spawn = { x: -0.6, y: 0, yaw: 0 };
+
+  it("refuses what the balance can't do before moving", () => {
+    const r = new TaskRunner();
+    expect(r.start({ kind: "place_weight", target: "plank", cm: 10 }, scene(spawn))).toMatch(/isn't on the balance/);
+    // Both weights near the pivot would leave nowhere to stand between them.
+    expect(r.start({ kind: "place_weight", target: "weight-200", cm: 5 }, scene(spawn, { "weight-200": -0.2, "weight-100": 0.05 }))).toMatch(
+      /Try 9 cm or more/,
+    );
+    expect(r.start({ kind: "place_weight", target: "weight-200", cm: 10 }, scene({ x: 0.8, y: 0, yaw: 0 }))).toMatch(/other side of the plank/);
+    expect(r.start({ kind: "release_plank" }, world())).toMatch(/no balance/);
+    expect(r.active).toBeNull();
+  });
+
+  it("frees the brake only to push, brakes at the mark, then steps clear", () => {
+    const r = new TaskRunner();
+    // Planned from the walkway; then the duck stands behind the 100 g paddle, facing along the rail.
+    const walkway = { x: MOMENTS.transitX, y: 0.2 - 0.16, yaw: 0 };
+    const corner = { x: MOMENTS.laneX, y: 0.2 - 0.16, yaw: Math.PI / 2 };
+    expect(r.start({ kind: "place_weight", target: "weight-100", cm: 30 }, scene(walkway))).toBeNull();
+    expect(r.step(scene(corner), 0.02)).toEqual({ vx: 0, wz: 0 }); // reached the corner
+    expect(r.step(scene(corner), 0.02)?.brake).toEqual({ id: "weight-100", at: null }); // faced along the rail
+    const pushing = r.step(scene(corner, { "weight-200": -0.2, "weight-100": 0.25 }), 0.02)!;
+    expect(pushing.vx).toBeGreaterThan(0);
+    expect(pushing.brake).toBeUndefined();
+    const near = { "weight-200": -0.2, "weight-100": 0.29 };
+    expect(r.step(scene(corner, near), 0.02)?.brake).toEqual({ id: "weight-100", at: 0.3 });
+    const placed = { "weight-200": -0.2, "weight-100": 0.3 };
+    for (let i = 0; i < 16; i++) expect(r.step(scene(corner, placed), 0.02)?.done).toBeUndefined();
+    const clear = { x: MOMENTS.transitX, y: 0.28, yaw: Math.PI };
+    expect(r.step(scene(clear, placed), 0.02)?.done).toEqual({ ok: true, summary: "Moved the 100 g weight from 20 cm to 30 cm." });
+  });
+
+  it("locks a released plank before moving a weight", () => {
+    const r = new TaskRunner();
+    expect(r.start({ kind: "place_weight", target: "weight-200", cm: 10 }, scene(spawn, undefined, "free", 0.1))).toBeNull();
+    expect(r.step(scene(spawn, undefined, "free", 0.1), 0.02)?.pin).toBe("lock");
+    expect(r.step(scene(spawn, undefined, "levelling", 0.05), 0.02)?.pin).toBe("lock");
+    const next = r.step(scene(spawn), 0.02)!;
+    expect(next.pin).toBeUndefined();
+    expect(next.done).toBeUndefined();
+  });
+
+  it("releases the plank and reports the tilt it measures once it settles", () => {
+    const r = new TaskRunner();
+    expect(r.start({ kind: "release_plank" }, scene(spawn))).toBeNull();
+    expect(r.step(scene(spawn), 0.02)?.pin).toBe("release");
+    let last = r.step(scene(spawn, undefined, "free", 0.1), 0.02);
+    for (let i = 0; i < 100 && !last?.done; i++) last = r.step(scene(spawn, undefined, "free", 0.1), 0.02);
+    expect(last?.done).toEqual({ ok: true, summary: "Released the plank. The left side went down 5.7°." });
+
+    r.start({ kind: "release_plank" }, scene(spawn));
+    for (let i = 0; i < 100 && !last?.done; i++) last = r.step(scene(spawn, undefined, "free", 0), 0.02);
+    last = r.step(scene(spawn, undefined, "free", 0), 0.02);
+    for (let i = 0; i < 100 && !last?.done; i++) last = r.step(scene(spawn, undefined, "free", 0), 0.02);
+    expect(last?.done?.summary).toBe("Released the plank. It stayed level (0.0°).");
+  });
+
+  it("levels and locks the plank", () => {
+    const r = new TaskRunner();
+    r.start({ kind: "lock_plank" }, scene(spawn, undefined, "free", -0.1));
+    expect(r.step(scene(spawn, undefined, "free", -0.1), 0.02)?.pin).toBe("lock");
+    expect(r.step(scene(spawn), 0.02)?.done).toEqual({ ok: true, summary: "Levelled and locked the plank." });
   });
 });

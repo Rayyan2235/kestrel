@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, RotateCcw, Square } from "lucide-react";
 import { KITS, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
-import { AgentSession, type AgentPhase } from "./agentSession";
+import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
@@ -19,7 +19,8 @@ const LESSONS: { id: KitId; subject: string; topic: string }[] = [
 const OBJECTIVE: Record<KitId, string> = {
   pythagoras:
     "Push each square onto the side of the right triangle that matches it. Count the tiles: does 9 + 16 make 25?",
-  moments: "A 200 g weight sits 20 cm from the pivot with nothing on the other side, so the plank tips. Ask Pip what moments are. Placing weights on the plank comes next.",
+  moments:
+    "A 200 g and a 100 g weight sit 20 cm either side of the pivot. Which way will the plank tip? Release it to check, then ask Pip to balance it.",
   free: "Walk, turn, kick and push blocks around the lab.",
 };
 
@@ -46,6 +47,12 @@ function describe(task: DuckTask, name: (id: string) => string = (id) => id): st
       return `Push the ${name(task.target)}${task.toward ? ` to ${task.toward === "slot" ? "its slot" : `the ${name(task.toward)}`}` : ""}`;
     case "kick":
       return `Kick with the ${task.foot} foot`;
+    case "place_weight":
+      return `Move the ${name(task.target)} to ${task.cm} cm`;
+    case "release_plank":
+      return "Release the plank";
+    case "lock_plank":
+      return "Lock the plank";
     default:
       return task.kind[0]!.toUpperCase() + task.kind.slice(1);
   }
@@ -133,6 +140,14 @@ export function SandboxApp() {
     add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
   }
 
+  // The learner works the plank's lock pin directly; the measured result lands in the log.
+  const plank = (kind: "release_plank" | "lock_plank") => {
+    if (!sim) return;
+    session.current?.cancel();
+    const refusal = sim.runTask({ kind });
+    if (refusal) add("duck", refusal, false);
+  };
+
   const skill = useCallback(
     (s: Skill, label: string) => {
       if (!sim) return;
@@ -215,6 +230,7 @@ export function SandboxApp() {
   const lesson = LESSONS.find((l) => l.id === kitId)!;
   const solved = kit.slots.length > 0 && filled.length === kit.slots.length;
   const sitting = status?.mode === "sitstand";
+  const balance = status?.balance ? balanceSnapshot(status.balance) : null;
 
   return (
     <div className={styles.app}>
@@ -272,6 +288,30 @@ export function SandboxApp() {
               </div>
             )}
             {solved && <strong className={styles.solved}>Right triangle built: 9 + 16 = 25.</strong>}
+            {balance && (
+              <div className={styles.chips} data-testid="balance">
+                {balance.weights.map((w) => (
+                  <span key={w.id} className={styles.chip}>
+                    {w.grams} g · {w.side} · {w.cm} cm
+                  </span>
+                ))}
+                <span className={balance.plank === "released" ? styles.chipOn : styles.chip}>
+                  {balance.plank === "released"
+                    ? balance.lowSide === "level"
+                      ? "Level"
+                      : `${balance.lowSide === "left" ? "Left" : "Right"} side down ${balance.tiltDeg}°`
+                    : balance.plank === "levelling"
+                      ? "Levelling…"
+                      : "Plank locked"}
+                </span>
+                <button
+                  className={styles.plankButton}
+                  onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}
+                >
+                  {balance.plank === "locked" ? "Release plank" : "Lock plank"}
+                </button>
+              </div>
+            )}
           </div>
 
           <div className={styles.keys} aria-label="Keyboard controls">

@@ -8,8 +8,8 @@ import { z } from "zod";
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];
 
-/** How a prop is attached to the world. */
-export type PropJoint = "fixed" | "free" | "hinge";
+/** How a prop is attached to the world, or to its parent prop. */
+export type PropJoint = "fixed" | "free" | "hinge" | "slide";
 
 export type PropShape =
   | { type: "box"; size: Vec3 }
@@ -21,17 +21,29 @@ export type PropShape =
 export type PropSpec = {
   id: string;
   label: string;
-  role: "tile" | "plank" | "weight" | "pivot" | "triangle" | "furniture";
+  role: "tile" | "plank" | "weight" | "paddle" | "pivot" | "triangle" | "furniture";
   shape: PropShape;
   joint: PropJoint;
-  /** Position of the body origin. Box and wedge origins are their centers. */
+  /**
+   * Position of the body origin. Box and wedge origins are their centers.
+   * With a parent, it is relative to the parent at rest.
+   */
   pos: Vec3;
   /** Rotation about +z, in radians. */
   yaw: number;
   mass: number;
   color: string;
-  /** Hinge axis in body coordinates, for joint "hinge". */
+  /** Prop this one is mounted on (listed before it). It moves with its parent. */
+  parent?: string;
+  /** Joint axis in body coordinates, for "hinge" and "slide". */
   axis?: Vec3;
+  /** Where the hinge axis passes, in body coordinates (default: the origin). */
+  anchor?: Vec3;
+  /** Joint limits: radians for a hinge, metres for a slide. */
+  range?: Vec2;
+  damping?: number;
+  /** Slide position at rest, metres along the axis from the body origin. */
+  rest?: number;
   /** Side length in Pythagoras units, drawn as an n × n grid on tiles. */
   units?: number;
 };
@@ -196,11 +208,65 @@ export function pythagorasKit(): LabKit {
   };
 }
 
+// ── Moments: a floor balance ───────────────────────────────────────────
+// The plank is a beam balance, locked level until someone releases it. Each
+// weight rides a rail on its own side of the pivot. A paddle hangs off each
+// weight into a walking lane beside the plank, so the duck moves a weight by
+// walking into its paddle. Distances on the rails are real centimetres.
+
+const PIVOT_H = 0.06;
+const PLANK = { length: 0.64, width: 0.04, thick: 0.012 };
+const PADDLE = { reach: 0.11, thick: 0.012, height: 0.085, bottom: 0.04, mass: 0.01 };
+const PIVOT: Vec2 = [0.5, 0];
+/** The duck's chest meets the paddles here, 2 cm inside their tips. */
+const LANE_X = PIVOT[0] - PLANK.width / 2 - PADDLE.reach + 0.02;
+
+export type BalanceSide = "left" | "right";
+export type MomentsWeight = {
+  id: string;
+  label: string;
+  grams: number;
+  side: BalanceSide;
+  /** Starting distance from the pivot. */
+  cm: number;
+  size: number;
+  color: string;
+};
+
+export const MOMENTS = {
+  pivot: PIVOT,
+  /** Pivot wedge footprint on the floor: x and y half-extents. */
+  pivotHalf: [0.03, 0.04] as Vec2,
+  plank: PLANK,
+  paddle: PADDLE,
+  /** Furthest the plank tips either way, radians. */
+  tilt: 0.1,
+  minCm: 5,
+  maxCm: 30,
+  laneX: LANE_X,
+  /** A walkway clear of the paddle tips, for getting to and from the lane. */
+  transitX: LANE_X - 0.1675,
+  /** Closest two paddles may come: room for the duck to stand between them. */
+  minGap: 0.14,
+  /** Left is −y, as the learner sees it on screen. */
+  weights: [
+    { id: "weight-200", label: "200 g weight", grams: 200, side: "left", cm: 20, size: 0.04, color: "#72aeb4" },
+    { id: "weight-100", label: "100 g weight", grams: 100, side: "right", cm: 20, size: 0.035, color: "#db8769" },
+  ] as MomentsWeight[],
+};
+
+/** Rail position (metres along the plank from the pivot) for a side and distance. */
+export function railAt(side: BalanceSide, cm: number): number {
+  return (side === "left" ? -cm : cm) / 100;
+}
+
 export function momentsKit(): LabKit {
-  const pivotH = 0.06;
+  const plankZ = PIVOT_H + 0.001 + PLANK.thick / 2;
+  const lo = MOMENTS.minCm / 100;
+  const hi = MOMENTS.maxCm / 100;
   return {
     id: "moments",
-    focus: [0.5, 0],
+    focus: PIVOT,
     subject: "Physics",
     topic: "Moments and balance",
     props: [
@@ -208,9 +274,9 @@ export function momentsKit(): LabKit {
         id: "pivot",
         label: "Pivot",
         role: "pivot",
-        shape: { type: "wedge", width: 0.08, length: 0.1, height: pivotH },
+        shape: { type: "wedge", width: 2 * MOMENTS.pivotHalf[1], length: 2 * MOMENTS.pivotHalf[0], height: PIVOT_H },
         joint: "fixed",
-        pos: [0.5, 0, 0],
+        pos: [PIVOT[0], PIVOT[1], 0],
         // Ridge must run across the plank (along the hinge axis, +x) so it can rock.
         yaw: Math.PI / 2,
         mass: 0,
@@ -220,24 +286,52 @@ export function momentsKit(): LabKit {
         id: "plank",
         label: "Plank",
         role: "plank",
-        shape: { type: "box", size: [0.04, 0.6, 0.012] },
+        shape: { type: "box", size: [PLANK.width, PLANK.length, PLANK.thick] },
         joint: "hinge",
         axis: [1, 0, 0],
-        pos: [0.5, 0, pivotH + 0.007],
+        // Hinged ~2 cm above the loaded plank's centre of mass, like a beam
+        // balance, so equal moments rest level instead of on a knife edge.
+        anchor: [0, 0, 0.04],
+        range: [-MOMENTS.tilt, MOMENTS.tilt],
+        damping: 0.6,
+        pos: [PIVOT[0], PIVOT[1], plankZ],
         yaw: 0,
         mass: 0.08,
         color: "#f8dda9",
       },
-      // Resting on the plank, 20 cm from the pivot.
-      {
-        ...block("weight-200", "200 g weight", [0.04, 0.04, 0.04], [0.5, 0.2], "#72aeb4", {
-          mass: 0.2,
-        }),
-        pos: [0.5, 0.2, pivotH + 0.035],
-      },
-      // On the floor, for the duck to bring over.
-      block("weight-100", "100 g weight", [0.035, 0.035, 0.035], [0.1, -0.45], "#db8769", {
-        mass: 0.1,
+      ...MOMENTS.weights.flatMap((w): PropSpec[] => {
+        const z = PLANK.thick / 2 + w.size / 2;
+        return [
+          {
+            id: w.id,
+            label: w.label,
+            role: "weight",
+            shape: { type: "box", size: [w.size, w.size, w.size] },
+            joint: "slide",
+            parent: "plank",
+            axis: [0, 1, 0],
+            range: w.side === "left" ? [-hi, -lo] : [lo, hi],
+            damping: 3,
+            rest: railAt(w.side, w.cm),
+            pos: [0, 0, z],
+            yaw: 0,
+            // The paddle is part of the weight, so the two add up to its label.
+            mass: w.grams / 1000 - PADDLE.mass,
+            color: w.color,
+          },
+          {
+            id: `${w.id}-paddle`,
+            label: `${w.label} paddle`,
+            role: "paddle",
+            shape: { type: "box", size: [PADDLE.reach, PADDLE.thick, PADDLE.height] },
+            joint: "fixed",
+            parent: w.id,
+            pos: [-(PLANK.width + PADDLE.reach) / 2, 0, PADDLE.bottom + PADDLE.height / 2 - (plankZ + z)],
+            yaw: 0,
+            mass: PADDLE.mass,
+            color: w.color,
+          },
+        ];
       }),
     ],
     slots: [],
@@ -291,7 +385,9 @@ export const DuckTaskSchema = z.discriminatedUnion("kind", [
     .object({ kind: z.literal("push"), target: PropRef, toward: PropRef.optional(), direction: z.enum(["left", "right", "forward", "backward"]).optional(), meters: z.number().min(0.05).max(1).optional() })
     .strict(),
   z.object({ kind: z.literal("kick"), foot: z.enum(["left", "right"]) }).strict(),
-  z.object({ kind: z.enum(["sit", "stand", "peck", "roll", "stop"]) }).strict(),
+  /** Push a balance weight along its rail to a distance from the pivot. */
+  z.object({ kind: z.literal("place_weight"), target: PropRef, cm: z.number().min(5).max(30) }).strict(),
+  z.object({ kind: z.enum(["sit", "stand", "peck", "roll", "stop", "release_plank", "lock_plank"]) }).strict(),
 ]);
 export type DuckTask = z.infer<typeof DuckTaskSchema>;
 
@@ -328,6 +424,14 @@ export function resolveProp(phrase: string, props: PropSpec[]): string | null {
   return word?.id ?? null;
 }
 
+/** Resolve a phrase to a weight on a balance rail: "the 200 g weight", "weight-100". */
+function resolveWeight(phrase: string, props: PropSpec[]): string | null {
+  const rails = props.filter((p) => p.joint === "slide");
+  const g = /(\d+)\s*(?:g|grams?)\b/.exec(phrase);
+  if (g) return rails.find((p) => p.label.startsWith(`${g[1]} g`))?.id ?? null;
+  return resolveProp(phrase, rails);
+}
+
 /**
  * Small deterministic grammar for typed commands and, later, transcripts.
  * It covers the base Microduck skills only. Anything else is refused
@@ -356,6 +460,17 @@ export function parseDuckTask(text: string, props: PropSpec[]): ParseResult {
     const deg = turn[1] === "around" ? 180 : Number(turn[2] ?? 90);
     return { ok: true, task: { kind: "turn", degrees: turn[1] === "right" ? -deg : deg } };
   }
+  if (/^(?:release|unlock|let go of|free)\s+(?:the\s+)?(?:plank|beam|balance)$|^let (?:the )?(?:plank|beam|balance) go$/.test(t))
+    return { ok: true, task: { kind: "release_plank" } };
+  if (/^(?:lock|level|hold)\s+(?:the\s+)?(?:plank|beam|balance)(?: level)?$/.test(t))
+    return { ok: true, task: { kind: "lock_plank" } };
+  const place = /^(?:move|put|place|slide|push|set)\s+(.+?)\s+(?:to|at|onto)\s+(\d+(?:\.\d+)?)\s*(?:cm|centimet(?:er|re)s?)?(?: mark)?$/.exec(t);
+  const weight = place && resolveWeight(place[1]!, props);
+  if (place && weight) {
+    const cm = Number(place[2]);
+    if (cm < 5 || cm > 30) return { ok: false, reason: "The rails run from 5 to 30 cm from the pivot." };
+    return { ok: true, task: { kind: "place_weight", target: weight, cm } };
+  }
   const push = /^(?:push|shove|nudge)\s+(.+?)(?:\s+(?:to|toward|towards|onto|into)\s+(.+))?$/.exec(t);
   if (push) {
     const target = resolveProp(push[1]!, props);
@@ -376,6 +491,6 @@ export function parseDuckTask(text: string, props: PropSpec[]): ParseResult {
   return {
     ok: false,
     reason:
-      "I know: walk forward 20 cm, turn left, go to the 3 square, push the 5 square to its slot, kick, sit, stand, peck, roll, stop.",
+      "I know: walk forward 20 cm, turn left, go to the 3 square, push the 5 square to its slot, move the 200 g weight to 10 cm, release the plank, kick, sit, stand, peck, roll, stop.",
   };
 }

@@ -1,5 +1,6 @@
 import type { DuckTask, LabKit, PropSpec, Vec2 } from "@kestrel/contracts";
 import { SCREEN_DIRS, VEL_ANG, VEL_BACK, VEL_FWD } from "./constants";
+import { PlaceWeight } from "./moments";
 
 // Turns one bounded DuckTask into velocity commands and one-shot skill
 // triggers, a control step at a time. The world is read from simulation
@@ -10,12 +11,25 @@ export type WorldView = {
   duck: DuckPose;
   props: Map<string, Vec2>;
   kit: LabKit;
+  /** The Moments balance, when the lesson has one. */
+  balance?: BalanceView;
+};
+export type BalanceView = {
+  pin: "locked" | "levelling" | "free";
+  /** Plank angle in radians; positive lowers the left side. */
+  angle: number;
+  /** Each weight's rail position: metres from the pivot, negative on the left. */
+  rails: Map<string, number>;
 };
 export type Skill = "sit" | "stand" | "kickL" | "kickR" | "roll" | "peck";
 export type TaskStep = {
   vx: number;
   wz: number;
   trigger?: Skill;
+  /** Hold a weight's brake at a rail position (metres), or free it (null) to push it. */
+  brake?: { id: string; at: number | null };
+  /** Pull the plank's lock pin, or level the plank and lock it. */
+  pin?: "release" | "lock";
   done?: { ok: boolean; summary: string };
 };
 
@@ -52,6 +66,9 @@ const TIMEOUT_S: Record<DuckTask["kind"], number> = {
   turn: 10,
   go_to: 30,
   push: 150,
+  place_weight: 90,
+  release_plank: 6,
+  lock_plank: 6,
   kick: 1,
   sit: 1,
   stand: 1,
@@ -73,6 +90,10 @@ type Run = {
   anchor?: DuckPose;
   stuck?: number;
   kick?: number;
+  place?: PlaceWeight;
+  /** Release: the pin has been pulled; the plank's last angle and how long it has been still. */
+  pulled?: boolean;
+  lastAngle?: number;
 };
 
 export class TaskRunner {
@@ -91,6 +112,13 @@ export class TaskRunner {
     const run: Run = { task, t: 0, start: { ...world.duck }, phase: "approach" };
     if (task.kind === "go_to" && !world.props.has(task.target))
       return `There is no ${task.target} in this lab.`;
+    if ((task.kind === "release_plank" || task.kind === "lock_plank") && !world.balance)
+      return "There is no balance in this lesson.";
+    if (task.kind === "place_weight") {
+      const plan = PlaceWeight.plan(task, world);
+      if (typeof plan === "string") return plan;
+      run.place = plan;
+    }
     if (task.kind === "push") {
       const prop = world.props.get(task.target);
       if (!prop) return `There is no ${task.target} in this lab.`;
@@ -130,7 +158,8 @@ export class TaskRunner {
     // Gait kick-start: the policy can stall from a standing pose (seen on
     // right turns from rest). If motion is commanded but the duck hasn't
     // moved or turned for 1.5 s, take a short forward step first.
-    if (run.kick && run.kick > 0) {
+    // A placed weight is driven by its own planner, which kick-starts the gait itself.
+    if (!run.place && run.kick && run.kick > 0) {
       run.kick -= dt;
       return { vx: VEL_FWD, wz: 0 };
     }
@@ -141,7 +170,7 @@ export class TaskRunner {
       !run.anchor ||
       Math.hypot(d.x - run.anchor.x, d.y - run.anchor.y) > 0.02 ||
       Math.abs(wrap(d.yaw - run.anchor.yaw)) > 0.06;
-    if (moved || !commanded) {
+    if (moved || !commanded || run.place) {
       run.anchor = { ...d };
       run.stuck = 0;
     } else if ((run.stuck = (run.stuck ?? 0) + dt) > 1.5) {
@@ -158,6 +187,7 @@ export class TaskRunner {
         if (now)
           summary += ` It moved ${cm(dist(run.startProp, now))} and is still ${cm(dist(now, run.goal))} from the target.`;
       }
+      if (run.place) summary += ` ${run.place.where(world)}`;
       out.done = { ok: false, summary };
     }
     if (out.done) this.run = null;
@@ -213,7 +243,35 @@ export class TaskRunner {
       }
       case "push":
         return this.push(run, world);
+      case "place_weight":
+        return run.place!.step(world);
+      case "release_plank":
+        return this.release(run, world);
+      case "lock_plank":
+        if (world.balance!.pin === "locked")
+          return { vx: 0, wz: 0, done: { ok: true, summary: run.t <= 0.02 ? "The plank is already locked." : "Levelled and locked the plank." } };
+        return { vx: 0, wz: 0, pin: "lock" };
     }
+  }
+
+  /** Pull the pin, wait for the plank to come to rest, and report the measured tilt. */
+  private release(run: Run, world: WorldView): TaskStep {
+    const angle = world.balance!.angle;
+    if (!run.pulled) {
+      run.pulled = true;
+      run.lastAngle = angle;
+      run.stillFor = 0;
+      return { vx: 0, wz: 0, pin: "release" };
+    }
+    run.stillFor = Math.abs(angle - run.lastAngle!) < 0.0003 ? (run.stillFor ?? 0) + 0.02 : 0;
+    run.lastAngle = angle;
+    if ((run.stillFor < 0.5 || run.t < 0.6) && run.t < 4) return { vx: 0, wz: 0 };
+    const deg = Math.abs((angle * 180) / Math.PI);
+    const summary =
+      deg < 0.5
+        ? `Released the plank. It stayed level (${deg.toFixed(1)}°).`
+        : `Released the plank. The ${angle > 0 ? "left" : "right"} side went down ${deg.toFixed(1)}°.`;
+    return { vx: 0, wz: 0, done: { ok: true, summary } };
   }
 
   private push(run: Run, world: WorldView): TaskStep {

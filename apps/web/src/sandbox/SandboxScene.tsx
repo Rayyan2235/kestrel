@@ -69,6 +69,42 @@ function gridTexture(units: number, color: string) {
   return t;
 }
 
+/** Centimetre ruler along a plank: ticks every cm, numbered every 10 cm out from the pivot. */
+function rulerTexture(length: number, width: number, color: string) {
+  const perCm = 16;
+  const w = Math.round(width * 100 * perCm);
+  const h = Math.round(length * 100 * perCm);
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  const g = c.getContext("2d")!;
+  g.fillStyle = color;
+  g.fillRect(0, 0, w, h);
+  g.fillStyle = "rgba(24, 53, 44, 0.7)";
+  const half = Math.floor((length * 100) / 2);
+  for (let cm = -half; cm <= half; cm++) {
+    const y = h / 2 - cm * perCm;
+    const tick = cm % 10 === 0 ? 0.3 : cm % 5 === 0 ? 0.22 : 0.12;
+    // From both long edges, so the ruler reads the same from either side.
+    g.fillRect(0, y - 1, w * tick, 2);
+    g.fillRect(w * (1 - tick), y - 1, w * tick, 2);
+  }
+  g.font = `800 ${Math.round(w * 0.42)}px "Plus Jakarta Sans Variable", sans-serif`;
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  for (let cm = -30; cm <= 30; cm += 10) {
+    g.save();
+    g.translate(w / 2, h / 2 - cm * perCm);
+    g.rotate(Math.PI / 2);
+    g.fillText(String(Math.abs(cm)), 0, 0);
+    g.restore();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
 function prismGeometry(verts: number[]) {
   // Two triangles (bottom 0-1-2, top 3-4-5) joined by three quads.
   const faces = [0, 2, 1, 3, 4, 5, 0, 1, 4, 0, 4, 3, 1, 2, 5, 1, 5, 4, 2, 0, 3, 2, 3, 5];
@@ -90,6 +126,10 @@ function PropMesh({ spec, sim }: { spec: PropSpec; sim: DuckSim }) {
       const geometry = new THREE.BoxGeometry(...s.size);
       if (spec.units) {
         const top = new THREE.MeshStandardMaterial({ map: gridTexture(spec.units, spec.color), roughness: 0.8 });
+        return { geometry, material: [base, base, base, base, top, base] };
+      }
+      if (spec.role === "plank") {
+        const top = new THREE.MeshStandardMaterial({ map: rulerTexture(s.size[1], s.size[0], spec.color), roughness: 0.8 });
         return { geometry, material: [base, base, base, base, top, base] };
       }
       return { geometry, material: base };

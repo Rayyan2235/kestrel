@@ -23,7 +23,7 @@ import {
   type PolicyId,
 } from "./constants";
 import { buildSceneXml } from "./mjcf";
-import { TaskRunner, type Skill, type WorldView } from "./tasks";
+import { TaskRunner, type BalanceView, type Skill, type TaskStep, type WorldView } from "./tasks";
 
 // Browser-side Microduck runtime: MuJoCo WASM physics stepping the MJCF the
 // policies were trained on, ONNX policies at 50 Hz. It runs outside React
@@ -48,6 +48,7 @@ export type SimStatus = {
   task: DuckTask | null;
   pose: { x: number; y: number; yawDeg: number };
   hz: number;
+  balance: BalanceView | null;
 };
 
 type Pose7 = { pos: [number, number, number]; quat: [number, number, number, number] };
@@ -77,6 +78,11 @@ export class DuckSim {
   private trunkId = 0;
   private standKey = 0;
   private propBodies = new Map<string, number>();
+  // Kinematic holds for the Moments balance, applied before every physics
+  // substep: a lock pin on the plank's hinge and a brake on each weight's
+  // rail. A brake is only off while the duck is pushing that weight.
+  private pin: { q: number; v: number; state: BalanceView["pin"] } | null = null;
+  private rails = new Map<string, { q: number; v: number; brake: number | null }>();
 
   private readonly obs = new Float32Array(OBS_SIZE);
   private readonly cmd = new Float32Array(CMD_SIZE);
@@ -168,6 +174,16 @@ export class DuckSim {
     this.trunkId = m.mj_name2id(this.model, BODY, "trunk_base");
     this.standKey = m.mj_name2id(this.model, m.mjtObj.mjOBJ_KEY.value, "STAND");
     this.propBodies = new Map(kit.props.map((p) => [p.id, m.mj_name2id(this.model, BODY, p.id)]));
+    const plank = kit.props.find((p) => p.role === "plank" && p.joint === "hinge");
+    const joint = (name: string) => this.model.jnt(name);
+    this.pin = plank
+      ? { q: joint(`${plank.id}_hinge`).qposadr, v: joint(`${plank.id}_hinge`).dofadr, state: "locked" }
+      : null;
+    this.rails = new Map(
+      kit.props
+        .filter((p) => p.joint === "slide")
+        .map((p) => [p.id, { q: joint(`${p.id}_slide`).qposadr, v: joint(`${p.id}_slide`).dofadr, brake: 0 }]),
+    );
     this.kit = kit;
     this.reset("Lab loaded");
   }
@@ -188,6 +204,8 @@ export class DuckSim {
     this.lastAction.fill(0);
     this.mujoco.mj_resetDataKeyframe(this.model, this.data, this.standKey);
     this.mujoco.mj_forward(this.model, this.data);
+    if (this.pin) this.pin.state = "locked";
+    for (const r of this.rails.values()) r.brake = this.data.qpos[r.q];
     this.listener({ type: "reset", reason });
   }
 
@@ -230,7 +248,9 @@ export class DuckSim {
 
   /** Start a bounded task. Returns a refusal reason, or null. */
   runTask(task: DuckTask): string | null {
-    const moves = ["move", "turn", "go_to", "push", "kick", "peck", "roll"].includes(task.kind);
+    // The plank is apparatus, not the duck: the learner can release it any time.
+    if (task.kind === "release_plank" || task.kind === "lock_plank") return this.tasks.start(task, this.world());
+    const moves = ["move", "turn", "go_to", "push", "place_weight", "kick", "peck", "roll"].includes(task.kind);
     if (moves && this.mode === "sitstand") return "The duck is sitting. Ask it to stand up first.";
     if (this.recovery) return "The duck is getting back on its feet.";
     return this.tasks.start(task, this.world());
@@ -281,7 +301,54 @@ export class DuckSim {
     const props = new Map<string, Vec2>();
     const xpos = this.data.xpos;
     for (const [id, b] of this.propBodies) props.set(id, [xpos[b * 3], xpos[b * 3 + 1]]);
-    return { duck: { x: q[0], y: q[1], yaw: yawOf(q[3], q[4], q[5], q[6]) }, props, kit: this.kit };
+    const balance = this.balanceView();
+    return { duck: { x: q[0], y: q[1], yaw: yawOf(q[3], q[4], q[5], q[6]) }, props, kit: this.kit, ...(balance ? { balance } : {}) };
+  }
+
+  private balanceView(): BalanceView | null {
+    if (!this.pin) return null;
+    const q = this.data.qpos;
+    return {
+      pin: this.pin.state,
+      angle: q[this.pin.q],
+      rails: new Map([...this.rails].map(([id, r]) => [id, q[r.q] as number])),
+    };
+  }
+
+  /** Apply a task's balance instructions, and brake any weight nobody is pushing. */
+  private holdBalance(step: TaskStep | null) {
+    const q = this.data.qpos;
+    if (step?.brake) {
+      const r = this.rails.get(step.brake.id);
+      if (r) r.brake = step.brake.at;
+    }
+    const task = this.tasks.active;
+    const pushing = task?.kind === "place_weight" ? task.target : null;
+    for (const [id, r] of this.rails) if (r.brake === null && id !== pushing) r.brake = q[r.q];
+    if (this.pin && step?.pin === "release") this.pin.state = "free";
+    if (this.pin && step?.pin === "lock" && this.pin.state === "free") this.pin.state = "levelling";
+  }
+
+  private hold() {
+    const { qpos, qvel } = this.data;
+    const pin = this.pin;
+    if (pin && pin.state !== "free") {
+      const a = qpos[pin.q];
+      if (pin.state === "levelling") {
+        // The pin drives the plank back to level at a steady rate (gravity
+        // pulls it back between substeps), then locks it.
+        qpos[pin.q] = Math.abs(a) < 0.006 ? 0 : a - Math.sign(a) * 0.0008;
+        if (qpos[pin.q] === 0) pin.state = "locked";
+      } else qpos[pin.q] = 0;
+      qvel[pin.v] = 0;
+    }
+    for (const r of this.rails.values()) {
+      if (r.brake === null) continue;
+      const x = qpos[r.q];
+      // Ease a weight onto its mark rather than teleporting it.
+      qpos[r.q] = Math.abs(x - r.brake) < 0.0005 ? r.brake : x + (r.brake - x) * 0.25;
+      qvel[r.v] = 0;
+    }
   }
 
   private gravityZ(): number {
@@ -294,6 +361,7 @@ export class DuckSim {
   private twist(): [number, number] {
     const manual = this.manual.vx !== 0 || this.manual.wz !== 0;
     let out: [number, number] = [0, 0];
+    let held: TaskStep | null = null;
     if (manual) {
       const task = this.tasks.active;
       if (task) {
@@ -306,6 +374,7 @@ export class DuckSim {
       const step = task ? this.tasks.step(this.world(), CTRL_DT) : null;
       if (task && step) {
         out = [step.vx, step.wz];
+        held = step;
         if (step.done) {
           const refusal = step.trigger ? this.trigger(step.trigger) : null;
           this.listener({
@@ -317,6 +386,7 @@ export class DuckSim {
         }
       }
     }
+    this.holdBalance(held);
     const gated =
       this.recovery || this.mode !== "walk" || this.postKickLock > 0 || this.pendingStand >= 0;
     return gated ? [0, 0] : out;
@@ -373,7 +443,10 @@ export class DuckSim {
         for (let j = 0; j < NUM_JOINTS; j++) ctrl[j] = DEFAULT_POSE[j]! + act[j]!;
       }
     }
-    for (let s = 0; s < DECIMATION; s++) mujoco.mj_step(model, data);
+    for (let s = 0; s < DECIMATION; s++) {
+      this.hold();
+      mujoco.mj_step(model, data);
+    }
     this.modeSteps++;
     this.stepCount++;
     this.afterStep();
@@ -481,6 +554,7 @@ export class DuckSim {
       task: this.tasks.active,
       pose: { x: duck.x, y: duck.y, yawDeg: Math.round((duck.yaw * 180) / Math.PI) },
       hz: w.hz,
+      balance: this.balanceView(),
     };
   }
 }

@@ -50,3 +50,43 @@ test("Stop discards a delayed Claude action and reset stays idle", async ({ page
   await expect(page.getByTestId("agent-phase")).toHaveCount(0);
   await expect(page.getByRole("log")).toContainText("Lab reset.");
 });
+
+test("Moments: Claude balances the plank with a real push and reads the measured tilt", async ({ page }) => {
+  test.setTimeout(240000);
+  const errors: string[] = [];
+  page.on("pageerror", e => errors.push(e.message));
+  const requests: any[] = [];
+  const turns = [
+    [
+      { type: "text", text: "200 g at 10 cm balances 100 g at 20 cm, so I'll move the 200 g weight in." },
+      { type: "tool_use", id: "place1", name: "duck_task", input: { kind: "place_weight", target: "weight-200", cm: 10 } },
+    ],
+    [{ type: "text", text: "Now I'll let the plank go." }, { type: "tool_use", id: "release1", name: "duck_task", input: { kind: "release_plank" } }],
+    [{ type: "text", text: "The simulator measured it level." }],
+  ];
+  await page.route("**/api/agent/turn", async route => {
+    const r = route.request().postDataJSON(); requests.push(r);
+    await route.fulfill({ json: { worldVersion: r.worldVersion, content: turns[requests.length - 1] } });
+  });
+  await page.goto("/sandbox.html");
+  await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
+  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: /Moments/ }).click();
+  await expect(page.getByTestId("balance")).toContainText("Plank locked");
+  await page.getByLabel("Task for your duck").fill("Can you balance the plank?");
+  await page.getByRole("button", { name: "Send task" }).click();
+  await expect(page.getByRole("log")).toContainText("The simulator measured it level.", { timeout: 200000 });
+  expect(requests).toHaveLength(3);
+  expect(requests[0].world.balance).toMatchObject({
+    plank: "locked",
+    weights: [{ id: "weight-200", side: "left", cm: 20 }, { id: "weight-100", side: "right", cm: 20 }],
+  });
+  expect(requests[0].world.props.some((p: { id: string }) => p.id.endsWith("paddle"))).toBe(false);
+  const placed = JSON.parse(requests[1].messages.at(-1).content[0].content);
+  expect(placed).toMatchObject({ ok: true, summary: "Moved the 200 g weight from 20 cm to 10 cm." });
+  const released = JSON.parse(requests[2].messages.at(-1).content[0].content);
+  expect(released.summary).toBe("Released the plank. It stayed level (0.0°).");
+  expect(released.world.balance).toMatchObject({ plank: "released", lowSide: "level" });
+  await expect(page.getByTestId("balance")).toContainText("Level");
+  expect(errors).toEqual([]);
+});
