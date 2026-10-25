@@ -131,10 +131,6 @@ export const ProgressSchema = z
   .strict();
 export type Progress = z.infer<typeof ProgressSchema>;
 
-const todo = (what: string): never => {
-  throw new Error(`not implemented: ${what}`);
-};
-
 export const DEFAULT_LOOKS: { pip: BotLook; nova: BotLook } = {
   pip: {
     shell: "shell-sky",
@@ -156,12 +152,32 @@ export const DEFAULT_LOOKS: { pip: BotLook; nova: BotLook } = {
   },
 };
 
+const lookKeys = Object.keys(BotLookSchema.shape) as (keyof BotLook)[];
+
 /** Falls back per field to `fallback` and keeps every valid field. */
-export const parseBotLook = (_input: unknown, _fallback: BotLook): BotLook =>
-  todo("parseBotLook");
+export const parseBotLook = (input: unknown, fallback: BotLook): BotLook => {
+  if (typeof input !== "object" || input === null || Array.isArray(input))
+    return { ...fallback };
+  const raw = input as Record<string, unknown>;
+  const out = { ...fallback };
+  for (const key of lookKeys) {
+    const field = itemId.safeParse(raw[key]);
+    if (field.success) out[key] = field.data;
+  }
+  return out;
+};
+
+export const freshProgress = (): Progress => ({
+  schema: 1,
+  curveVersion: 1,
+  awards: [],
+  picks: [],
+  equipped: { pip: { ...DEFAULT_LOOKS.pip }, nova: { ...DEFAULT_LOOKS.nova } },
+  seen: [],
+});
 
 /** Corrupt input gives a fresh profile; never throws. */
-export const parseProgress = (_input: unknown): Progress =>
-  todo("parseProgress");
-
-export const freshProgress = (): Progress => todo("freshProgress");
+export const parseProgress = (input: unknown): Progress => {
+  const parsed = ProgressSchema.safeParse(input);
+  return parsed.success ? parsed.data : freshProgress();
+};
