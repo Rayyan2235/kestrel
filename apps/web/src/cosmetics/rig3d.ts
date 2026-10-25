@@ -34,9 +34,28 @@ export function dressingFor(rig: DuckRig, baseColor: string): RigDressing {
       THREE.MeshStandardMaterial | undefined;
     if (m && "color" in m && m.color.equals(base)) shells.add(m);
   });
-  const head =
-    HEAD_NODES.map((n) => rig.placer.getObjectByName(n)).find(Boolean) ?? null;
-  const box = new THREE.Box3().setFromObject(head ?? rig.trunk);
+  // The head is whatever carries the highest shell mesh (the top head shell),
+  // not a body name guess: props then ride the head as it turns.
+  let crown: THREE.Mesh | null = null;
+  let crownTop = -Infinity;
+  rig.placer.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (
+      !mesh.isMesh ||
+      !shells.has(mesh.material as THREE.MeshStandardMaterial)
+    )
+      return;
+    const top = new THREE.Box3().setFromObject(mesh).max.y;
+    if (top > crownTop) {
+      crownTop = top;
+      crown = mesh;
+    }
+  });
+  const head: THREE.Object3D | null =
+    (crown as THREE.Mesh | null)?.parent ??
+    HEAD_NODES.map((n) => rig.placer.getObjectByName(n)).find(Boolean) ??
+    null;
+  const box = new THREE.Box3().setFromObject(crown ?? head ?? rig.trunk);
   // Measured in the placer's frame, which is three.js +Y up (the rig root turns MuJoCo +Z up).
   const top = new THREE.Vector3(
     (box.min.x + box.max.x) / 2,
