@@ -895,3 +895,22 @@
   align-items: center;
   gap: 8px;
 }
+
+/* The lesson card folds to its title row. */
+.lessonHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lessonHead[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}

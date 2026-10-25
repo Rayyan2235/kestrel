@@ -24,6 +24,7 @@ type Pane = "you" | "crew" | null;
 
 const PANE_KEY = "kestrel.console.window";
 const CONTROLS_KEY = "kestrel.controls.open";
+const LESSON_KEY = "kestrel.lesson.open";
 function remember(key: string, value: string) {
   try {
     window.localStorage.setItem(key, value);
@@ -130,6 +131,13 @@ export function SandboxApp() {
   const tipOnLoad = useRef(false);
   const levelSince = useRef<number | null>(null);
   const [pane, setPane] = useState<Pane>(savedPane);
+  const [lessonOpen, setLessonOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(LESSON_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
   const [controlsOpen, setControlsOpen] = useState(() => {
     try {
       return window.localStorage.getItem(CONTROLS_KEY) === "1";
@@ -559,59 +567,72 @@ export function SandboxApp() {
             </div>
           )}
 
-          {kitId !== "rescue" && <div className={`gic-toast ${styles.lessonCard}`}>
-            <p className={`heading-sm ${styles.eyebrow}`}>
+          {kitId !== "rescue" && <div className={`gic-toast ${styles.lessonCard}`} data-open={lessonOpen}>
+            <button
+              type="button"
+              className={`heading-sm ${styles.eyebrow} ${styles.lessonHead}`}
+              aria-expanded={lessonOpen}
+              onClick={() => {
+                setLessonOpen(!lessonOpen);
+                remember(LESSON_KEY, lessonOpen ? "0" : "1");
+              }}
+            >
               {lesson.subject} · {lesson.topic}
-            </p>
-            <p className="body">{OBJECTIVE[kitId]}</p>
-            {kit.slots.length > 0 && (
-              <div className={styles.chips}>
-                {kit.slots.map((s) => (
-                  <span key={s.id} className={filled.includes(s.id) ? "gic-tag gic-tag--on" : "gic-tag"}>
-                    {filled.includes(s.id) && <Check size={12} />} {s.label}
-                  </span>
-                ))}
-              </div>
-            )}
-            {solved && <strong className={`body ${styles.solved}`}>Right triangle built: 9 + 16 = 25.</strong>}
-            {kit.id === "pythagoras" && !solved && (
-              <Button variant="solid" className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
-                {status?.task?.kind === "build_squares" ? `Building · ${status.experiment?.phase ?? ""}` : "Build it together"}
-              </Button>
-            )}
-            {balance && (
-              <div className={styles.chips} data-testid="balance">
-                {balance.weights.map((w) => (
-                  <span key={w.id} className="gic-tag">
-                    {w.grams} g · {w.side} · {w.cm} cm
-                  </span>
-                ))}
-                <span className={balance.plank === "released" ? "gic-tag gic-tag--on" : "gic-tag"}>
-                  {balance.plank === "released"
-                    ? balance.lowSide === "level"
-                      ? "Level"
-                      : `${balance.lowSide === "left" ? "Left" : "Right"} side down ${balance.tiltDeg}°`
-                    : balance.plank === "levelling"
-                      ? "Levelling…"
-                      : "Plank locked"}
-                </span>
-                <Button variant="link" className={styles.plankButton} onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}>
-                  {balance.plank === "locked" ? "Release plank" : "Lock plank"}
+              <ChevronDown size={16} aria-hidden="true" className={styles.chevron} />
+            </button>
+            {lessonOpen && (
+              <>
+              <p className="body">{OBJECTIVE[kitId]}</p>
+              {kit.slots.length > 0 && (
+                <div className={styles.chips}>
+                  {kit.slots.map((s) => (
+                    <span key={s.id} className={filled.includes(s.id) ? "gic-tag gic-tag--on" : "gic-tag"}>
+                      {filled.includes(s.id) && <Check size={12} />} {s.label}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {solved && <strong className={`body ${styles.solved}`}>Right triangle built: 9 + 16 = 25.</strong>}
+              {kit.id === "pythagoras" && !solved && (
+                <Button variant="solid" className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
+                  {status?.task?.kind === "build_squares" ? `Building · ${status.experiment?.phase ?? ""}` : "Build it together"}
                 </Button>
-              </div>
-            )}
-            {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
-            {kit.id === "free" && (
-              <div className={styles.fightRow}>
-                <Button variant="solid" className={styles.runButton} onClick={fighting ? endFight : startFight} disabled={!sim}>
-                  {fighting ? "Stop the fight" : "Pip vs Nova: fight!"}
-                </Button>
-                {score.pip + score.nova > 0 && (
-                  <span className="gic-tag gic-tag--on" data-testid="fight-score">
-                    <Zap size={12} aria-hidden="true" /> Pip {score.pip} · Nova {score.nova}
+              )}
+              {balance && (
+                <div className={styles.chips} data-testid="balance">
+                  {balance.weights.map((w) => (
+                    <span key={w.id} className="gic-tag">
+                      {w.grams} g · {w.side} · {w.cm} cm
+                    </span>
+                  ))}
+                  <span className={balance.plank === "released" ? "gic-tag gic-tag--on" : "gic-tag"}>
+                    {balance.plank === "released"
+                      ? balance.lowSide === "level"
+                        ? "Level"
+                        : `${balance.lowSide === "left" ? "Left" : "Right"} side down ${balance.tiltDeg}°`
+                      : balance.plank === "levelling"
+                        ? "Levelling…"
+                        : "Plank locked"}
                   </span>
-                )}
-              </div>
+                  <Button variant="link" className={styles.plankButton} onClick={() => plank(balance.plank === "locked" ? "release_plank" : "lock_plank")}>
+                    {balance.plank === "locked" ? "Release plank" : "Lock plank"}
+                  </Button>
+                </div>
+              )}
+              {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
+              {kit.id === "free" && (
+                <div className={styles.fightRow}>
+                  <Button variant="solid" className={styles.runButton} onClick={fighting ? endFight : startFight} disabled={!sim}>
+                    {fighting ? "Stop the fight" : "Pip vs Nova: fight!"}
+                  </Button>
+                  {score.pip + score.nova > 0 && (
+                    <span className="gic-tag gic-tag--on" data-testid="fight-score">
+                      <Zap size={12} aria-hidden="true" /> Pip {score.pip} · Nova {score.nova}
+                    </span>
+                  )}
+                </div>
+              )}
+              </>
             )}
           </div>}
 
