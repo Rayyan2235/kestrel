@@ -16,6 +16,10 @@ Isometric room, Pip and Nova placeholders, the analytic balance, the typed gramm
 - **Typed tasks.** These go through `parseDuckTask` → `DuckTaskSchema` → `TaskRunner` and report measured results in the log.
 - **Bubble.** A reply bubble sits next to the duck, and the log keeps history.
 
+### Two-bot conversation demo (`/?demo=two-bot`, new, on `feat/two-bot-demo`)
+
+A temporary demo of two robots talking to each other and to the learner. It runs on a **stub simulation** (`simulation/fake/`) and a **scripted mock provider**; nothing calls a model, uses a key, the network or MuJoCo. Fast commands are labelled `built-in`, mock replies `mock`, fixed fallbacks `scripted`. One bubble shows in the room at a time (paced by `presentation/`), with Pause/Resume and a 0.5x speed; the side rail shows everything. Not yet connected to `duckSim`.
+
 ## Not integrated (do not claim)
 
 - **Voice:** there's no microphone capture, STT or TTS anywhere in the app. ElevenLabs has only had its key checked.

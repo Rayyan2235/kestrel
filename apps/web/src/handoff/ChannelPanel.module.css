@@ -1,0 +1,253 @@
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.you,
+.channel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 16px;
+  min-height: 0;
+}
+.you {
+  background: var(--panel);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  box-shadow: var(--shadow);
+  flex: none;
+}
+.channel {
+  background: var(--dock);
+  color: var(--on-dark);
+  flex: none;
+}
+h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 15px;
+}
+.legend {
+  margin: 0;
+  font-size: 12px;
+  color: var(--on-dark-muted);
+}
+.logWrap {
+  position: relative;
+  flex: 1;
+  min-height: 90px;
+  display: flex;
+}
+.log {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  padding-right: 4px;
+}
+.entry,
+.botEntry {
+  font-size: 14px;
+  line-height: 1.4;
+}
+.entry header,
+.botEntry header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.entry p,
+.botEntry p {
+  margin: 2px 0 0;
+}
+.chip,
+.darkChip {
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.chip {
+  background: var(--accent);
+  color: var(--ink);
+}
+.darkChip {
+  border: 1.5px solid var(--on-dark);
+}
+.source {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.empty,
+.emptyDark {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.emptyDark {
+  color: var(--on-dark-muted);
+}
+.status {
+  display: flex;
+  gap: 14px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.budget {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--on-dark-muted);
+}
+.budget i {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--on-dark);
+}
+.budget i[data-on="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.purpose {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  color: var(--on-dark-muted);
+}
+.evidence {
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--on-dark);
+  color: var(--dock);
+  font-weight: 600;
+  font-size: 12px;
+}
+.controls {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--dock);
+}
+.you[hidden],
+.channel[hidden] {
+  display: none;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+.tabs button {
+  position: relative;
+  flex: 1;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+}
+.tabs button[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--panel);
+}
+.dot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--ink);
+}
+.controls button,
+.handback button {
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 2px solid var(--on-dark);
+  background: transparent;
+  color: var(--on-dark);
+  font-weight: 700;
+}
+.controls button:not(:disabled):hover {
+  background: rgba(242, 246, 237, 0.12);
+}
+.stop {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* The handback is the one light, accent strip inside the dark channel. */
+.handback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--ink);
+  animation: strip 0.25s ease-out;
+}
+.handback > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.handback button {
+  border-color: var(--ink);
+  color: var(--ink);
+  min-height: 36px;
+}
+.handback button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--accent);
+}
+.pill {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--accent);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+@keyframes strip {
+  from {
+    opacity: 0;
+    translate: 0 8px;
+  }
+}
+@media (forced-colors: active) {
+  .you,
+  .channel,
+  .handback {
+    border: 2px solid CanvasText;
+  }
+  .channel {
+    border-style: dashed;
+  }
+}

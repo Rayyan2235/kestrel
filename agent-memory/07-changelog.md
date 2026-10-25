@@ -137,3 +137,14 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 ## 2026-10-24 · Claude Code · Remaining-steps backlog
 
 - Added `11-remaining-steps.md`: 26 items in six groups (finish the slice, multiple bots, quality and tests, merge into the product, safety/cost/deployment, longer term), each tagged with acceptance checks where relevant. It's linked from `README.md` (with an update-protocol line) and from `06-handoff.md`.
+
+## 2026-10-24 · Claude Code (implementer session) · Two-bot conversation demo, merged with `origin/main`
+
+- **Added, behind `?demo=two-bot` only (the scripted preview and the sandbox are untouched):**
+  - Contracts: `packages/contracts/src/ledger.ts` (addressed ledger event, `respond` tool schema, `eventId`) and `bot.ts`; `applyWeight` now bumps the world version on every mutation, plus `bumpVersion` and `resetWorld`.
+  - `apps/web/src/simulation/types.ts` (`SimAdapter`) and `simulation/fake/` (a **temporary** stub over the analytic balance world; nothing above `SimAdapter` may depend on it).
+  - `coordinator/` (ledger, per-bot state, abort, chain budget, `localTurn`/`askPeer`), `provider/` (deterministic **mock**, no network), `fastpath/` (number words, units, more/less/again/undo/other side, silence gate).
+  - `bubbles/`, `handoff/`, `capsule/` (pure view models plus `BubbleLayer`, `ChannelPanel`, `CapsuleOverlay`), `presentation/` (paced one-bubble queue, Pause/Resume, 0.5x), `demo/TwoBotDemo.tsx`.
+  - Tests: unit tests next to each module and `tests/two-bot-demo.spec.ts` (Playwright, installed Chrome, `playwright.chrome.config.ts`).
+- **Merge:** merged `origin/main` (PR #2, the Microduck sandbox) into `feat/two-bot-demo` with no conflicts. Contracts `index.ts` exports both sets. The coordinator is **not** wired to `duckSim` yet; that is a separate task.
+- **Checks:** `pnpm check` green after the merge (19 test files, 147 tests, build and API health OK).

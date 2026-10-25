@@ -2,6 +2,10 @@
 
 _Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, after resuming from Codex and pushing `as-kestrel`)._
 
+## Two-bot demo branch (added 2026-10-24, implementer session)
+
+Branch `feat/two-bot-demo` holds the two-bot conversation demo (see `04-status.md` and `03-codebase-map.md`) merged with `origin/main` (PR #2). It stays behind `?demo=two-bot`. **Next task, separate PR:** implement `SimAdapter` over `duckSim` and wire the coordinator to it; do not change layers above `SimAdapter`. Open for the owner: default presentation speed, and whether Pause also holds an in-flight model call (currently it does not).
+
 ## The goal (teammate slice, see `08-current-scope.md`)
 
 The learner speaks to the duck; Claude decides whether to answer, act, or both; the duck acts in the physics lab; replies appear in a bubble beside the duck and in the chat, and are spoken aloud. Pythagoras squares are the first lesson; Moments is next.
