@@ -758,6 +758,57 @@
 .xpWon {
   box-shadow: 0 0 0 1px #f2b13d, 0 0 14px #f6c45399;
 }
+/* Level and the bar to the next one, always shown under the Objectives title. */
+.level {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-secondary);
+}
+.level .xpTrack {
+  height: 8px;
+}
+/* Level-up celebration: a status line over the room, above the confetti, never takes focus. */
+.levelUp {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  z-index: 51;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-radius: var(--radius-pill);
+  background: #fff6dc;
+  color: var(--ink);
+  box-shadow: 0 0 0 1px #f2b13d, 0 0 24px #f6c45399, var(--shadow-card);
+  transform: translateX(-50%);
+  animation: levelUpIn 500ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.levelUp button {
+  border: 0;
+  background: none;
+  color: var(--ink-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+@keyframes levelUpIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px) scale(0.9);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .levelUp {
+    animation: none;
+  }
+}
+/* "200 g is 0.4 cm too far out": shown under the beam readout when close. */
+.balanceHint {
+  margin: 4px 0 0;
+  color: var(--ink-secondary);
+}
 .objectiveList {
   list-style: none;
   margin: 0;
