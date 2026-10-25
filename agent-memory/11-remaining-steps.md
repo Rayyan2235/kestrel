@@ -83,3 +83,8 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 - [next] Implement `SimAdapter` over `duckSim` and wire the two-bot coordinator to it. Acceptance: L2 to L8 unchanged; unit and `tests/two-bot-demo.spec.ts` still green.
 - [owner] Default presentation speed (1x vs 0.75x); whether Pause holds the in-flight model call.
+
+## UI pass — 2026-10-25
+
+- [done on glass-windows] Sandbox windows and pill buttons in the owner's noir/amethyst/silver palette; desktop/mobile browser regression and three-width visual checks passed.
+- [owner] Review and later merge the UI branch. Further 3D environment and per-robot window work remains separate.

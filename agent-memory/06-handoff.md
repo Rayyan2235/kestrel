@@ -1,3 +1,16 @@
+# Current handoff — 2026-10-25
+
+- Branch: `glass-windows`, created from main `4154acf`. Leave main unchanged; merge later only at owner direction.
+- Implemented sandbox smoked-glass lesson, console and speech windows; palette-scoped pill buttons, hover/focus/disabled states, mobile layout, reduced motion/transparency. App change is confined to `apps/web/src/sandbox/Sandbox.module.css`.
+- Verified: `pnpm check` (147 tests), sandbox Playwright 4/4 desktop/mobile, formatting and diff whitespace checks. Production screenshots inspected at 1440/768/390px; visual inspector zero failures, one compact-label warning.
+- Preview: Vite on 5200 and production preview on 5201 for this session. These are UI previews only; live API is not launched. Browser tests mocked AI.
+- Requested design-taste skill installed locally in `.agents/skills/design-taste-frontend` with `skills-lock.json`; left untracked and out of the product PR.
+- Next: owner reviews the window/button treatment. 3D materials, robot tint, the old scripted preview and other branch work are unchanged.
+
+---
+
+## Previous handoff (historical; separate work)
+
 # Handoff
 
 _Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, after resuming from Codex and pushing `as-kestrel`)._

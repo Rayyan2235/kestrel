@@ -58,3 +58,7 @@ A temporary demo of two robots talking to each other and to the learner. It runs
 
 - Physics fixed: the plank now tips realistically under the 200 g weight (−11.8°, end on the floor).
 - Not usable as an experiment yet: the duck can't place weights on the plank. Options are an authored "place weight at N cm" station action, or a ramp. The lesson isn't tested with Claude or voice, and the prompt only covers Pythagoras.
+
+## UI branch verification — 2026-10-25
+
+On `glass-windows` (from main `4154acf`): sandbox lesson/console/speech windows and buttons now use noir/amethyst/silver styling. No simulation or agent behavior changed. `pnpm check` passes (147 tests, typecheck, web/API builds, API smoke). Sandbox Playwright passes 4/4 using installed Chrome on desktop and mobile with mocked provider requests. Production visual inspection at 1440/768/390px: zero failures, one compact-secondary-text warning; glass, floating shadows and purple explicitly allowed for the brief. Missing local Bedrock SDK was resolved with frozen-lockfile install; lockfile unchanged.

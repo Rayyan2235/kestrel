@@ -28,3 +28,7 @@ Sources: `build-order.md` ("Settled"), `adr/README.md`, `codebase-architecture.m
 | Kestrel asset provenance; Microduck MJCF/policy compatibility | Benchmark one body, then two | `apps/web/src/simulation/README.md` |
 | Latency and cost budget, target device, hosting, demo duration, team owners | — | queue #6 |
 | ADR 0005 (data and grounded actions) | Still **proposed**; don't treat it as accepted | `adr/0005-…` |
+
+## 2026-10-25 — UI treatment
+
+Owner requested a separate UI branch from main, to merge later: `glass-windows`. Owner selected Nox Noir #141414, Royal Amethyst #7E49B3 and Steel Mist #CFCFCF, Open Space-inspired glass windows, and rounded buttons from the supplied visual prompt. This pass applies to the sandbox panels and controls; wider scene art remains outside this pass.

@@ -38,3 +38,9 @@ Responsive: below 900px place the chat below the stage; maintain full-width comm
 ## Scaffold boundary
 
 This is an initial visual foundation, not final art. Robots are original procedural placeholders pending approved Kestrel assets. Preview conversation is labeled scripted. Advanced tools appear only when implemented; avoid disabled decorative buttons masquerading as product features.
+
+## Sandbox window treatment — October 25, 2026
+
+The `/sandbox.html` windows and controls use the owner-selected Nox Noir `#141414`, Royal Amethyst `#7E49B3`, and Steel Mist `#CFCFCF`. Soft white `#F5F3F7` is the implementation choice for text and primary pill buttons; pale amethyst supports readable focus and state labels. These tokens are scoped to the sandbox. The earlier preview and 3D materials retain their existing styling.
+
+Lesson, console and speech surfaces use dense smoked glass, subtle silver edges and offset shadows, informed by Open Space. Primary buttons are light pills with amethyst text; secondary buttons use translucent neutral fills. The supplied button reference informed the pill shape and 2px hover lift. Controls have 44px minimum height, visible focus, disabled states and reduced-motion support. Glass has an opaque fallback and a reduced-transparency treatment.
