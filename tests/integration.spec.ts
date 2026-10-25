@@ -58,7 +58,7 @@ test("the two-bot demo loads, runs a chain, and makes no /api or external reques
   expect(w.api).toEqual([]);
 });
 
-test("the console boots real physics without /api or external requests until the learner acts", async ({
+test("the console boots real physics without paid /api or external requests until the learner acts", async ({
   page,
 }) => {
   test.setTimeout(120000);
@@ -69,7 +69,11 @@ test("the console boots real physics without /api or external requests until the
   });
   expect(w.errors).toEqual([]);
   expect(w.external).toEqual([]);
-  expect(w.api.filter((x) => !x.startsWith("GET /api/health"))).toEqual([]);
+  // Allowed on load: the health check, and reading this browser's saved
+  // progress (a free read by an anonymous id; the owner chose to keep it).
+  expect(
+    w.api.filter((x) => !x.startsWith("GET /api/health") && !x.startsWith("GET /api/progress/")),
+  ).toEqual([]);
 });
 
 test("the two pages do not leak into each other", async ({ page }) => {
