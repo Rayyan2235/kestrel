@@ -352,4 +352,5 @@ Applied owner-selected palette to console and rebuilt Workshop; added studioMate
 
 - `sandbox.spec` natural text failed on main, #15 and #17: since #13's agent-session rewrite, words that arrive with a `duck_task` call ("I'll walk forward to demonstrate.") were never said or logged; only final words were. `AgentSession.submit` now says them before acting and records them in the turn summary so they are not repeated.
 - Checks: typecheck, 316 unit tests; `sandbox.spec` + `real-console.spec` locally 13 passed, 5 skipped, 0 failed (natural text passes on desktop and mobile).
+- Also fixed: the whole console rendered blurred. The Workshop backdrop rule (`div[data-state][class*="overlay"]`) also matched the teammate's always-on capsule overlay (`data-testid="capsule"`), dimming and blurring the full stage. The rule now matches only the Workshop dialog's preceding sibling (Radix backdrop). Verified: no full-screen blur at rest; only the Workshop backdrop blurs when it is open.
 

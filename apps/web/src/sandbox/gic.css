@@ -302,8 +302,13 @@ body.gic-console [data-testid="workshop-dialog"] :focus-visible {
   outline: 2px solid var(--ink);
   outline-offset: 2px;
 }
-/* Portaled dialogs sit above the floating console panels (z-index 3–5). */
-body.gic-console div[data-state][class*="overlay"] {
+/*
+ * Portaled dialogs sit above the floating console panels (z-index 3–5). The
+ * backdrop is matched as the Workshop dialog's preceding sibling (Radix renders
+ * them side by side); a class-name match also caught the always-on capsule
+ * overlay and blurred the whole console.
+ */
+body.gic-console div[data-state="open"]:has(+ [data-testid="workshop-dialog"]) {
   z-index: 60;
   background: rgb(31 31 41 / 35%);
   -webkit-backdrop-filter: blur(4px);
