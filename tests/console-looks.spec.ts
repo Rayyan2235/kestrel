@@ -36,7 +36,7 @@ test("equipping a shell and 3D accessory on Pip changes only Pip's 3D robot; the
 
   await page.goto("/console?profile=demo");
   await expect(page.getByTestId("duck-mode")).toBeVisible({ timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: "Robot reply sound" }).click();
   await page.getByRole("navigation", { name: "Lesson" }).getByText("Moments").click();
   await expect(page.getByTestId("workshop-open")).toBeVisible({ timeout: 120000 });
   await expect(page.getByTestId("progress-loading")).toHaveCount(0, { timeout: 120000 });
