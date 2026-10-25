@@ -810,5 +810,40 @@
 }
 .picker button[aria-pressed="true"] {
   background: var(--on-dark, #fff);
-  color: var(--glass, #111);
+  color: #22172d;
+  font-weight: 700;
+}
+
+/* Bubbles and the capsule are drawn for light panels on dark glass: give them their own tokens. */
+.overlayTokens {
+  --ink: #203b33;
+  --muted: #536960;
+  --panel: #fbfcf7;
+  --dock: #18352c;
+  --on-dark: #f2f6ed;
+  --on-dark-muted: #bfcfc3;
+  --accent: #d2eb88;
+  --shadow: 0 14px 36px rgb(33 58 42 / 12%);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  color: var(--ink);
+}
+
+/* Challenges and progress use the light panels; the console's own tokens are for dark glass. */
+.lightScope {
+  --ink: #203b33;
+  --muted: #536960;
+  --panel: #fbfcf7;
+  --dock: #18352c;
+  --on-dark: #f2f6ed;
+  --on-dark-muted: #bfcfc3;
+  --accent: #d2eb88;
+  --shadow: 0 14px 36px rgb(33 58 42 / 12%);
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--ink);
 }

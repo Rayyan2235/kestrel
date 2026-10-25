@@ -1,15 +1,29 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, Pause, Play, RotateCcw, Square } from "lucide-react";
-import { BOT_NAMES, KITS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
+import { BOT_NAMES, KITS, MOMENTS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
 import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
 import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
 import { createCoordinator } from "../coordinator/index.js";
+import type { HeldMove } from "../coordinator/types.js";
+import { WorkshopDialog } from "../cosmetics/WorkshopDialog.js";
+import { parseFast } from "../fastpath/index.js";
+import { ChallengeBar } from "../progress/ChallengeBar.js";
+import { challengeById } from "../progress/challenges.js";
+import { demoSeed } from "../progress/demoSeed.js";
+import { createLabEventLog } from "../progress/events.js";
+import { DUCKSIM_TOL_GCM } from "../progress/outcome.js";
+import { PredictionPrompt } from "../progress/PredictionPrompt.js";
+import { ProgressHud } from "../progress/ProgressHud.js";
+import { createProgressStore } from "../progress/store.js";
+import { useProgress } from "../progress/useStore.js";
+import { createDuckSimAdapter } from "../simulation/real/index.js";
 import { ChannelPanel } from "../handoff/ChannelPanel.js";
 import { deriveChannel } from "../handoff/model.js";
 import { usePresentation } from "../presentation/usePresentation.js";
 import { createMockProvider } from "../provider/mock.js";
 import { consoleSim, createConversation, threadOf } from "./conversation";
+import { Contained } from "./Contained";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
@@ -47,6 +61,14 @@ const KEYS: [string, string][] = [
   ["T", "Roll"],
   ["Esc", "Stop task"],
 ];
+
+const safeStorage = (): Storage | null => {
+  try {
+    return window.localStorage;
+  } catch {
+    return null;
+  }
+};
 
 function describe(task: DuckTask, name: (id: string) => string = (id) => id): string {
   switch (task.kind) {
@@ -98,6 +120,8 @@ export function SandboxApp() {
   selectedRef.current = selected;
   const reducedMotion = Boolean(useReducedMotion());
   const [paused, setPaused] = useState(false);
+  /** DuckSim events fanned out to the SimAdapter that the coordinator reads. */
+  const relay = useRef(new Set<(e: SimEvent) => void>());
   const [, rerender] = useReducer((n: number) => n + 1, 0);
 
   const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean, bot?: BotId, source: "built-in" | "live" = "built-in") => {
@@ -112,6 +136,7 @@ export function SandboxApp() {
 
   const onEvent = useCallback(
     (e: SimEvent) => {
+      relay.current.forEach((fn) => fn(e));
       session.current?.event(e);
       if (e.type === "task-done") add("duck", e.summary, e.ok, e.duck === "lab" ? undefined : e.duck);
       else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false, e.duck);
@@ -143,22 +168,72 @@ export function SandboxApp() {
   }, [onEvent, agentAdd]);
 
   // Ask Pip / Ask Nova: the labelled mock hands off between the robots and back to the learner.
-  const coordinator = useMemo(
+  // On the Moments lesson the coordinator drives the real robots through the SimAdapter
+  // (held challenge moves, measured outcomes); elsewhere it only reads and refuses moves.
+  const labLog = useMemo(createLabEventLog, []);
+  const demoProfile = new URLSearchParams(window.location.search).get("profile") === "demo";
+  const store = useMemo(
     () =>
-      createCoordinator({
-        sim: consoleSim(() => ({ balance: sim?.status().balance ?? null })),
+      createProgressStore({
+        log: labLog,
+        storage: demoProfile ? null : safeStorage(),
+        ...(demoProfile ? { seed: demoSeed() } : {}),
+      }),
+    [labLog, demoProfile],
+  );
+  const view = useProgress(store);
+  const adapterRef = useRef<ReturnType<typeof createDuckSimAdapter> | null>(null);
+  const [adapter, setAdapter] = useState<ReturnType<typeof createDuckSimAdapter> | null>(null);
+  // The real adapter measures both weights on the balance, so it is built only once
+  // DuckSim reports them, never during render; each lesson change rebuilds it.
+  useEffect(() => {
+    if (!sim || kitId !== "moments") return;
+    let made: ReturnType<typeof createDuckSimAdapter> | null = null;
+    const t = window.setInterval(() => {
+      const rails = sim.status().balance?.rails;
+      if (!rails || !MOMENTS.weights.every((w) => rails.has(w.id))) return;
+      window.clearInterval(t);
+      try {
+        made = createDuckSimAdapter(sim, (fn) => {
+          relay.current.add(fn);
+          return () => void relay.current.delete(fn);
+        });
+        adapterRef.current = made;
+        setAdapter(made);
+      } catch (e) {
+        console.error("Moments adapter could not start", e);
+      }
+    }, 100);
+    return () => {
+      window.clearInterval(t);
+      made?.dispose();
+      if (adapterRef.current === made) adapterRef.current = null;
+      setAdapter(null);
+    };
+  }, [sim, kitId]);
+  const { coordinator } = useMemo(
+    () => ({
+      coordinator: createCoordinator({
+        sim: adapter ?? consoleSim(() => ({ balance: sim?.status().balance ?? null })),
         provider: createMockProvider({ delayMs: 1000 }),
+        ...(adapter ? { log: labLog, tolGcm: DUCKSIM_TOL_GCM, settleMs: 400 } : {}),
       }),
-    [sim],
+    }),
+    [sim, adapter, labLog],
   );
-  useEffect(
-    () =>
-      coordinator.subscribe(() => {
-        conv.mirror(coordinator.ledger());
-        rerender();
-      }),
-    [coordinator, conv],
-  );
+  useEffect(() => {
+    conv.resetMirror();
+    return coordinator.subscribe(() => {
+      conv.mirror(coordinator.ledger());
+      rerender();
+    });
+  }, [coordinator, conv]);
+  const held = useRef<HeldMove | null>(null);
+  const [workshop, setWorkshop] = useState(false);
+  const [setup, setSetup] = useState<"idle" | "busy" | "failed">("idle");
+  const challengeId = coordinator.challengeId();
+  const completed = challengeId !== null && view.awards.some((a) => a.awardId === `complete|${challengeId}`);
+  const explained = challengeId !== null && view.awards.some((a) => a.awardId === `explain|${challengeId}`);
   const pres = usePresentation(events, { paused, speed: 1, reducedMotion });
   const botStatus = { pip: coordinator.botState("pip"), nova: coordinator.botState("nova") };
   const asking = (["pip", "nova"] as const).some((b) => ["thinking", "waiting", "acting"].includes(botStatus[b]));
@@ -179,6 +254,10 @@ export function SandboxApp() {
 
   function chooseLesson(id: KitId) {
     session.current?.cancel(true);
+    coordinator.endChallenge();
+    // The adapter polls the balance, which only exists on the Moments lesson.
+    adapterRef.current?.dispose();
+    adapterRef.current = null;
     const next = KITS[id]();
     setKitId(id);
     setKit(next);
@@ -278,7 +357,25 @@ export function SandboxApp() {
   function send(e: FormEvent) {
     e.preventDefault();
     if (!sim || !text.trim()) return;
-    void session.current?.submit(text.trim());
+    const cmd = text.trim();
+    // While a challenge is active, a fast-path move waits for the learner's prediction.
+    const world = adapterRef.current?.snapshot();
+    const id = coordinator.challengeId();
+    if (id && world) {
+      const r = parseFast(cmd, { focus: null, leftCm: world.leftCm, rightCm: world.rightCm, undo: [] });
+      if (r.kind === "move") {
+        const challenge = challengeById(id)!;
+        held.current = coordinator.heldTurn(
+          selected,
+          cmd,
+          { say: "Lock your prediction, then I'll move it.", action: { side: r.side, cm: r.cm } },
+          { challengeId: id, promptId: challenge.prompts[0]!.promptId },
+        );
+        setText("");
+        return;
+      }
+    }
+    void session.current?.submit(cmd);
     setText("");
   }
 
@@ -320,8 +417,12 @@ export function SandboxApp() {
           {sim ? (
             <>
               <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} />
+              <Contained label="Speech bubbles">
+            <div className={styles.overlayTokens}>
               <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
               <CapsuleOverlay beat={pres.beat} state={pres.capsuleState} anchors={ANCHORS} reducedMotion={reducedMotion} paused={paused} speed={1} />
+            </div>
+            </Contained>
             </>
           ) : (
             <div className={styles.boot} role="status">
@@ -468,6 +569,41 @@ export function SandboxApp() {
               {paused ? <Play size={13} aria-hidden="true" /> : <Pause size={13} aria-hidden="true" />} {paused ? "Resume" : "Pause"}
             </button>
           </div>
+          {kitId === "moments" && !adapter && (
+            <p className={styles.lightScope} role="status" data-testid="progress-loading">
+              Loading lab…
+            </p>
+          )}
+          {kitId === "moments" && adapter && (
+            <Contained label="Progress">
+            <section className={styles.lightScope} aria-label="Challenges and progress">
+              <ProgressHud store={store} paused={paused} speed={1} onWorkshop={() => setWorkshop(true)} />
+              <ChallengeBar
+                active={challengeId}
+                completed={completed}
+                explained={explained}
+                onStart={(id) => {
+                  setSetup("busy");
+                  void coordinator.startChallenge(id, challengeById(id)!.setup).then((ok) => setSetup(ok ? "idle" : "failed"));
+                }}
+                onExplain={() =>
+                  challengeId &&
+                  labLog.append({ type: "explanation_submitted", challengeId, epoch: coordinator.epoch(), worldVersion: adapterRef.current?.snapshot().version ?? 0 })
+                }
+              />
+              {setup === "busy" && <p role="status" data-testid="setup-status">Setting up the beam…</p>}
+              {setup === "failed" && <p role="alert" data-testid="setup-failed">Setup did not finish. Try again.</p>}
+              {coordinator.pushing() && setup !== "busy" && (
+                <p role="status" data-testid="pushing">{BOT_NAMES[coordinator.pushing()!]} is pushing the weight…</p>
+              )}
+              {coordinator.holding() && held.current && (
+                <PredictionPrompt onChoose={(choice) => void held.current?.commit(choice)} onSkip={() => void held.current?.skip()} />
+              )}
+              <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} />
+              {demoProfile && <p>Demo profile: progress is not saved.</p>}
+            </section>
+            </Contained>
+          )}
           <form className={styles.command} onSubmit={send}>
             <input
               aria-label="Task for your duck"
@@ -529,7 +665,9 @@ export function SandboxApp() {
             </button>
           </div>
         </aside>
-        <ChannelPanel embedded view={channel} threadBot={selected} running={asking} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
+        <Contained label="Conversation">
+        <ChannelPanel embedded view={channel} threadBot={selected} running={asking || coordinator.holding()} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
+        </Contained>
       </main>
     </div>
   );

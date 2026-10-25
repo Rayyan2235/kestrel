@@ -251,3 +251,16 @@ h2 {
     border-style: dashed;
   }
 }
+
+/* The console scopes light tokens for its dark glass; this rail has its own light and dark panes. */
+.embedded {
+  --ink: #203b33;
+  --muted: #536960;
+  --panel: #fbfcf7;
+  --dock: #18352c;
+  --on-dark: #f2f6ed;
+  --on-dark-muted: #bfcfc3;
+  --accent: #d2eb88;
+  --shadow: 0 14px 36px rgb(33 58 42 / 12%);
+  color: var(--ink);
+}
