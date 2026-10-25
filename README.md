@@ -49,6 +49,7 @@ docs/                 Architecture, build roadmap and Claude context-audit promp
 - **Pythagoras:** square tiles pushed onto a floor triangle (9 + 16 = 25). The robots can build it together.
 - Claude (Bedrock) can drive the same tasks. ElevenLabs transcribes the learner's voice; the robots answer with a short robot sound, and their words appear in a think bubble and the log. Both need server keys in `.env`.
 - **Objectives:** Balance the beam, Build the right triangle and Rescue Pip, each with an XP bar that fills only when the simulator measures the goal met (for the beam: the released plank reads level, under 0.5°, for one second).
+- **Free play fight:** Pip and Nova face each other, charge and back off in rounds; their bodies really collide in MuJoCo. A fast clash (closing faster than 0.45 m/s into 20 cm) draws a cartoon explosion, and a loser chosen at random is knocked over by a scripted shove (a velocity impulse, not crash physics); it gets back up with its own get-up policy.
 - **Console windows:** You and Pip, and Pip and Nova, are collapsible. Pip and Nova shows the simulator's two-robot handoffs and each robot's measured result; Nova is not a separate language model.
 - Not yet: robot avoidance while both walk the same lane (lanes are scheduled instead), grasping, a jump skill, hardware.
 

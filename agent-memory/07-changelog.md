@@ -342,3 +342,10 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - Checks: `pnpm check` passed (typecheck, unit tests, builds, API health smoke).
 - `b0ea98b`: `runTask` emits a `plan` event for set_balance and build_squares; the Pip and Nova window uses it for Pip's handoff. Polling `status().task` missed build_squares because each robot's own push masks the crew task.
 - Local desktop e2e on the dev server: sandbox, console-entry and integration passed (11). The rescue spec timed out once while `duckSim.ts` hot-reloaded mid-run, then passed alone (5.8 min).
+
+## 2026-10-25 · Claude Code · Polish, confetti, pixel bubbles, Pip vs Nova fight (`4cdc4ca`, rescue-main)
+
+- Console: a collapsed Controls pill (`kestrel.controls.open`), "Your Kestrel", the provider note removed (the mic disclosure is now the Hold-to-talk tooltip), and a speaker/mute icon for robot sound.
+- `Confetti.tsx` (canvas, no dependency) fires on every objective win. The bubble is pixel art (`@fontsource/pixelify-sans` 500).
+- Fight: `fight.ts` (+3 tests) holds the face/charge/recoil controller and `isClash`; `Explosion.tsx` and `sfx.ts` (a Web Audio boom) handle the effects; `DuckSim.knock` is the scripted shove for the random loser.
+- Measured live in a visible browser: charges close at 0.6–0.76 m/s over 300 ms. A 50 ms two-sample rule fired 17 false clashes in 36 s from gait sway, so the rule now uses a 300 ms window and one clash per approach. After that: 9 clashes in 40 s, each knocking exactly one robot over, Pip 5 to Nova 4, and every robot got back up.
