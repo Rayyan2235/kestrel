@@ -187,7 +187,7 @@ describe("G3 gate: progress store", () => {
 
   it("a pick always unlocks and equips only if allowed; a note says who wears it", () => {
     const s = memory();
-    const seed = { ...FIXTURE, picks: [], equipped: { pip: FIXTURE.equipped.pip, nova: { ...FIXTURE.equipped.nova, shell: "shell-gold" } } };
+    const seed = { ...FIXTURE, picks: [], equipped: { pip: { ...FIXTURE.equipped.pip, shell: "shell-sky" }, nova: { ...FIXTURE.equipped.nova, shell: "shell-gold" } } };
     const store = createProgressStore({ log: createLabEventLog(), storage: s, seed });
     const r = store.pick("shell-gold", "pip");
     expect(store.get().unlocked.has("shell-gold")).toBe(true);

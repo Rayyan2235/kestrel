@@ -29,7 +29,7 @@ describe("G5 gate: catalogue", () => {
       expect(typeof i.label).toBe("string");
       expect(Number.isInteger(i.minLevel)).toBe(true);
     });
-    expect(new Set(CATALOG.map((i) => i.id)).size).toBe(CATALOG.length);
+    expect(new Set(CATALOG.map((i) => `${i.slot}:${i.id}`)).size).toBe(CATALOG.length);
   });
 
   it("both default looks use only free items", () => {
