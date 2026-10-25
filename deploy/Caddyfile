@@ -1,0 +1,24 @@
+# Kestrel on one server. Values come from the environment (deploy.sh reads them
+# from the KESTREL_* lines of /opt/kestrel/.env). Written for Caddy 2.6.
+{$KESTREL_HOST} {
+	encode gzip
+
+	# The whole site, API included, sits behind one login.
+	basicauth {
+		{$KESTREL_USER} {$KESTREL_PASS_HASH}
+	}
+
+	handle /api/* {
+		# The API accepts only local Origins; present this site's own Origin as local.
+		# Any other Origin passes through unchanged and is still refused.
+		@self header Origin https://{$KESTREL_HOST}
+		request_header @self Origin http://127.0.0.1
+		reverse_proxy 127.0.0.1:5181
+	}
+
+	handle {
+		root * {$KESTREL_ROOT:/opt/kestrel}/apps/web/dist
+		try_files {path} {path}.html /index.html
+		file_server
+	}
+}

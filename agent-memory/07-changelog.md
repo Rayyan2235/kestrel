@@ -388,6 +388,35 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - CI then failed 3 of 142 on timing. (1) The rescue death bubble expired (12 s of real time) before the test's next check on the slow runner. The rescue result bubble is now sticky until the next reset or run, which is also better for kids. (2) Two Moments tests gave the lesson switch 5 s; that wait is now 30 s, since the switch waits on the physics loop.
 - CI on `399d396` was 137 passed, 1 failed: the rescue spec's bubble-position poll. The CI trace shows the bubble correctly positioned (`transform: translate(741.5px, 467.8px)…`); the poll's first read had not returned within the 5 s default. The rescue spec now gives every default wait 30 s (`expect.configure`).
 
+## 2026-10-25 · Claude Code · Judges deck and loop (branch `judges-deck`)
+
+- Added `docs/judges/`: `kestrel-judges.pptx` (11 slides with speaker notes), `loop.html` (7 scenes, 8 s each, 12 s under reduced motion, wake lock, 6-hour self-reload, click or F for full screen), `assets/` (landing art and real console screenshots), `build/render-art.mjs` (glass plates and the mark via Playwright), `build/build-deck.cjs` (pptxgenjs) and `README.md`. Both pieces use the GIC design system with Kestrel's own mark; the purple Pip concept portrait is deliberately not used (owner's request).
+- Checks: the deck validates (pptx skill `validate.py`) and was rendered through PowerPoint to PDF and inspected slide by slide. The loop was screenshotted per scene at 1920×1080 in headless Chromium, and a timed run showed scenes 0→1→2…→6→0 with no console errors.
+
+## 2026-10-25 · Claude Code · Beam XP tolerance and levels
+
+- Repro (DEV, fast-stepped real physics, 100 g at 20 cm): the 200 g at 10.0/10.1/10.2/10.3/10.4/10.6 cm tilts 0.00/0.53/1.07/1.60/2.44/4.50°; the 100 g at 20.2/20.4/20.6 cm tilts 0.53/1.07/1.60°. A chat set_balance to 10.4/20 landed at 10.35/20.00 cm, 1.99°, no XP. That outcome is correct: it is not balanced.
+- `objectives.ts`: `beamBalanced` with `OBJECTIVE_LEVEL_DEG` 1.5 (held 1 s), so a push 1–2 mm off still counts. `beamLevel` (Usman's test) stays at < 0.5°. Also adds `balanceHint` ("200 g is 0.4 cm too far out (or move the 100 g to 20.8 cm).", shown within 3 cm of the balance point) and `xpOf`.
+- Levels ported from 3ca07e9 into `progress/levels.ts`, with new tests. The Objectives card shows "Level N" and a bar to the next level. `LevelUpToast` fires only when an earn crosses a level, never on load.
+- The ExperimentPanel steppers stay at 1 cm because sandbox.spec expects "15 cm" after 5 clicks. Its results already show 0.1 cm.
+- Checks: pnpm check 229/229. Desktop Playwright `--workers=1`: beam-xp-levels 2/2, plus sandbox, console-entry and rescue-navigation 8/8.
+
+## 2026-10-25 · Claude Code · README rewritten for Devpost judges
+
+- Rewrote `README.md` against the code on `main` at `9f0e56e` (rescue-main, landing redesign, Tiger Data progress, deploy guide and judges kit merged) (objectives/XP and the collapsible You and Pip / Pip and Nova windows included). It now covers two robots, GIC light glass over the playground, the chirp with one-sentence bubbles (no text-to-speech), Rescue/Pythagoras/Moments/Free play, a no-keys demo path, named idealisations and credits. It flags the reply sound's unrecorded provenance and the mesh licence caution.
+- Hero image: the owner's console screenshot (Robot rescue, Objectives board), added as `docs/images/kestrel-console.webp`. No Team section, per the owner.
+- Rebased on `main` `9f0e56e` and updated: progress survives reloads (localStorage, optional Tiger Data), `TIGER_DATABASE_URL`, the deploy guide, landing credits (Arc UI and the balance toy are gone; Midjourney hero art, real console cards), `docs/judges/` and `deploy/` in the repo map.
+- Added "Pip vs Nova, just for fun" from `4cdc4ca`/`aa81e1d`: the Free play fight, its clash rule, the live 9-clashes-in-40-s check, and the scripted-shove, random-loser idealisation. Demo path step 4, Free play row, confetti and Pixelify Sans credit.
+- Removed stale claims: purple/noir glass, spoken ElevenLabs replies, "one Microduck", the separate `/sandbox.html` section and "two-robot physics on other branches".
+- Measured on this branch (headless SwiftShader, fast-stepped, web dev server on port 5230): `coop-bench.mjs` 5/5 balance runs, 0 falls, weights within 0.2 cm, predicted side = measured side every time, 10.6–12.3 s; `speed-bench.mjs` faster preset 6/6, mean 4.2 s, 2.4 cm mean error, 0 falls.
+- Checks: `pnpm exec prettier --check README.md` pass; every relative link and backticked path resolves; README commands match `package.json`; `pnpm test` 209/209. No paid calls. Committed locally only; not pushed.
+- Stale docs reported to the owner, not edited: `PRODUCT.md` scaffold scope, `docs/ARCHITECTURE.md` provider, `THIRD_PARTY.md` (Microduck assets, fonts).
+
+## 2026-10-25 · Claude Code · PR #26 merged with main; README beam line
+
+- Merged `main` `0c84d01` into `feat/beam-xp-levels`. The only conflict was this changelog (the README entry and the beam-XP entry both appended); both entries are kept.
+- README: the beam objective counts within 1.5° of level for 1 s, the fix-it hint, levels (Level 2 at 100 XP, Level 3 at 250), and the 1.5° tolerance named as an idealisation.
+
 ## 2026-10-25 · Claude Code · Fix the MuJoCo contact-list memory leak
 
 - A demo tab crashed with `Cannot enlarge memory … limit is 2147483648 bytes` and `Aborted(native code called abort())` from `audit()` → `controlStep()`.
