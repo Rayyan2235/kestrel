@@ -100,6 +100,8 @@ export class DuckSim {
   private lastExperiment: BalanceResult | null = null;
   private results = new Map<BotId, { ok: boolean; summary: string }>();
   private pendingReset: string | null = null;
+  /** The balance's restoring stiffness about its pin (N·m/rad), measured from the model at rest. */
+  private balanceK = 0;
 
   private acc = 0;
   private pendingKit: LabKit | null = null;
@@ -193,6 +195,22 @@ export class DuckSim {
     );
     this.kit = kit;
     this.reset("Lab loaded");
+    this.balanceK = plank ? this.measureStiffness(plank.id) : 0;
+  }
+
+  /**
+   * k = m·g·h for the plank and everything on it: m from the plank's subtree
+   * mass, h from its pin (the hinge anchor) down to the subtree's centre of
+   * mass, read from MuJoCo at the level, locked rest pose.
+   */
+  private measureStiffness(plankId: string): number {
+    const m = this.mujoco;
+    const body = this.propBodies.get(plankId)!;
+    const jnt = m.mj_name2id(this.model, m.mjtObj.mjOBJ_JOINT.value, `${plankId}_hinge`);
+    const mass = this.model.body_subtreemass[body] as number;
+    const comZ = this.data.subtree_com[body * 3 + 2] as number;
+    const pinZ = this.data.xanchor[jnt * 3 + 2] as number;
+    return mass * 9.81 * (pinZ - comZ);
   }
 
   private onRobot(id: BotId, e: RobotEvent) {
@@ -322,6 +340,7 @@ export class DuckSim {
       start: (id, task) => this.startOn(id, task),
       busy: (id) => this.robot(id).tasks.active !== null,
       clearFor: () => this.data.time - this.lastApparatusContact,
+      stiffness: () => this.balanceK,
     };
   }
 

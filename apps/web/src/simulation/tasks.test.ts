@@ -242,7 +242,7 @@ describe("navigation and coordination", () => {
     const run = (rails: [number, number], left: number, right: number) => {
       const started: string[] = [];
       const exp = new BalanceExperiment({ kind: "set_balance", left_cm: left, right_cm: right });
-      const ports = { world: (id: "pip" | "nova") => view(id, rails), start: (id: string) => (started.push(id), null), busy: () => false, clearFor: () => 10 };
+      const ports = { world: (id: "pip" | "nova") => view(id, rails), start: (id: string) => (started.push(id), null), busy: () => false, clearFor: () => 10, stiffness: () => 0.2 };
       expect(exp.plan(ports)).toBeNull();
       exp.step(ports, 0.02, new Map());
       return { phase: exp.step(ports, 0.02, new Map()).phase, started };
@@ -258,5 +258,23 @@ describe("navigation and coordination", () => {
     const duck = (id: string, base: number) => ({ id, qposAdr: [base + 7], dofAdr: [base + 6], ctrlAdr: [base / 21], gyroAdr: base, freeQ: base });
     expect(() => assertNoCrossTalk([duck("pip", 0), duck("nova", 21)])).not.toThrow();
     expect(() => assertNoCrossTalk([duck("pip", 0), { ...duck("nova", 21), ctrlAdr: [0] }])).toThrow(/share ctrl 0/);
+  });
+});
+
+describe("balance prediction", () => {
+  it("predicts a tilt from the net moment and the balance's stiffness, with the same level threshold as the measurement", async () => {
+    const { momentsFor, LEVEL_DEG } = await import("./moments");
+    const rails = (l: number, r: number) => new Map([["weight-200", -l], ["weight-100", r]]);
+    // Exactly equal moments: level.
+    expect(momentsFor(rails(0.15, 0.3), 0.2)).toMatchObject({ predicted: "level", predictedTiltDeg: 0 });
+    // 2 mm long on the 200 g side: 0.39 N·cm net. With k = 0.2 N·m/rad that is about 1.1° left,
+    // not "level" (the old 2% rule called this level, then measured a real tilt).
+    const off = momentsFor(rails(0.152, 0.3), 0.2);
+    expect(off.predicted).toBe("left");
+    expect(off.predictedTiltDeg).toBeGreaterThan(LEVEL_DEG);
+    expect(off.predictedTiltDeg).toBeCloseTo(1.1, 1);
+    // A big imbalance stops at the plank's 5.7° limit.
+    expect(momentsFor(rails(0.2, 0.2), 0.2).predictedTiltDeg).toBeCloseTo(5.7, 1);
+    expect(momentsFor(rails(0.1, 0.3), 0.2)).toMatchObject({ predicted: "right", predictedTiltDeg: -5.7 });
   });
 });
