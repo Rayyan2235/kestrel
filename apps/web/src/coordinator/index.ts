@@ -515,6 +515,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     },
     challengeId: () => challenge,
     holding: () => voidHeld !== null,
+    epoch: () => epoch,
     stop: () => {
       supersede();
       emit();

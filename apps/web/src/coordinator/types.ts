@@ -86,6 +86,8 @@ export interface Coordinator {
   startChallenge(challengeId: string, setup: SetupMove[]): void;
   /** Leaves the active challenge: cancels any held move; later asks and moves are free play. */
   endChallenge(): void;
+  /** Current epoch, for stamping lab events made outside the coordinator. */
+  epoch(): number;
   /** True while a held move waits for its prediction. */
   holding(): boolean;
   /** Active challenge id, or null. */
