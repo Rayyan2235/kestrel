@@ -6,7 +6,7 @@ Done: learner progress for the Tiger Data prize. Wins are logged to `localStorag
 
 Next:
 1. Done: a real insert and read against Tiger Cloud are verified (see `07-changelog.md`).
-2. Restart the API once Tiger has swapped in its CA-signed certificate; `/api/health` should show `progress: true` (until then it logs `SELF_SIGNED_CERT_IN_CHAIN` and runs with progress off). Then win an objective in the console, refresh, and check the board keeps it.
+2. Restart the API; strict TLS now passes, so `/api/health` should show `progress: true`. Then win an objective in the console, refresh, and check the board keeps it.
 3. Possible follow-up: log failed attempts too (for example a beam experiment that finishes tipped), so attempt counts mean more than wins.
 
 Previous handoff (rescue-main, PR #21) is unchanged: see `07-changelog.md`.

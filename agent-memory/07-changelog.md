@@ -377,3 +377,5 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - Ran `connectProgress` + `buildApp` against the owner's Tiger Cloud service (one-off script, URL never printed). Hypertable `attempts` created with a time dimension on `at`; 3 POSTs → 201; GET → `{"earned":["balance-beam","rescue-pip"],"attempts":{"balance-beam":2,"rescue-pip":1}}`; rows read back with the measured tilt and cm values.
 - The strict TLS check failed first with `SELF_SIGNED_CERT_IN_CHAIN` (the new service's temporary certificate from `ca.timescale.com`). The fallback behaved as designed: one log line with the code only, and no crash. The verification run used `uselibpqcompat=true&sslmode=require` for that command only; `.env` and the code are unchanged.
+
+- 14:27 UTC recheck: the certificate is now issued by Google Trust Services; the same check passes with the unmodified `.env` URL (strict TLS), `health.progress = true`.
