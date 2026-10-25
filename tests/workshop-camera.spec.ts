@@ -21,7 +21,7 @@ test("explore camera persists, controls frame and reset, and keyboard stays out 
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
   await expect(canvas).toHaveAttribute("data-camera-mode", "explore");
   await expect
-    .poll(async () => Number(await canvas.getAttribute("data-camera-zoom")))
+    .poll(async () => Number(await canvas.getAttribute("data-camera-zoom")), { timeout: 30000 })
     .toBeGreaterThan(zoom * 1.1);
   const box = (await canvas.boundingBox())!;
   const x = box.x + box.width * 0.65,
@@ -31,8 +31,10 @@ test("explore camera persists, controls frame and reset, and keyboard stays out 
   await page.mouse.down();
   await page.mouse.move(x + 35, y + 20, { steps: 6 });
   await page.mouse.up();
+  // The target updates once per rendered frame; CI's software WebGL renders
+  // seconds apart, so frame-driven polls get 30 s, not the 5 s default.
   await expect
-    .poll(() => canvas.getAttribute("data-camera-target"))
+    .poll(() => canvas.getAttribute("data-camera-target"), { timeout: 30000 })
     .not.toBe(before);
   await page.waitForTimeout(1200);
   const panned = await canvas.getAttribute("data-camera-target");
@@ -150,7 +152,7 @@ test("pinch zoom works and cancellation leaves the camera usable", async ({
   });
   await expect(canvas).toHaveAttribute("data-camera-mode", "explore");
   await expect
-    .poll(async () => Number(await canvas.getAttribute("data-camera-zoom")))
+    .poll(async () => Number(await canvas.getAttribute("data-camera-zoom")), { timeout: 30000 })
     .toBeGreaterThan(zoom * 1.2);
   await page.getByRole("button", { name: "Reset view", exact: true }).click();
   await expect(canvas).toHaveAttribute("data-camera-mode", "follow");
