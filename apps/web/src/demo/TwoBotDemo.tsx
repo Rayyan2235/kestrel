@@ -12,6 +12,17 @@ import {
   type FormEvent,
 } from "react";
 import { ArrowUp, Pause, Play, RotateCcw, Square } from "lucide-react";
+import { BotFigure } from "../cosmetics/BotFigure.js";
+import { WorkshopDialog } from "../cosmetics/WorkshopDialog.js";
+import { ChallengeBar } from "../progress/ChallengeBar.js";
+import { challengeById } from "../progress/challenges.js";
+import { demoSeed } from "../progress/demoSeed.js";
+import { createLabEventLog } from "../progress/events.js";
+import { PredictionPrompt } from "../progress/PredictionPrompt.js";
+import { ProgressHud } from "../progress/ProgressHud.js";
+import { createProgressStore } from "../progress/store.js";
+import { useProgress } from "../progress/useStore.js";
+import type { HeldMove } from "../coordinator/types.js";
 import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
 import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
 import { createCoordinator } from "../coordinator/index.js";
@@ -28,7 +39,7 @@ const ANCHORS: Anchors = { pip: { x: 24, y: 62 }, nova: { x: 76, y: 62 } };
 const DELAYS = [1000, 3000, 6000] as const;
 const SPEEDS = [0.5, 1] as const;
 
-export function TwoBotDemo() {
+export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
   const reducedMotion = Boolean(useReducedMotion());
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   const [selected, setSelected] = useState<BotId>("pip");
@@ -50,15 +61,37 @@ export function TwoBotDemo() {
   const undo = useRef<{ side: Side; cm: number }[]>([]);
   const input = useRef<HTMLInputElement>(null);
 
-  const { sim, c } = useMemo(() => {
+  const { sim, c, log, store } = useMemo(() => {
     const sim = createFakeSim();
+    const log = createLabEventLog();
+    // The progress demo profile lives in memory only: storage is never touched.
+    const store = createProgressStore({
+      log,
+      storage: null,
+      seed: demoSeed(),
+    });
     // Reads the delay at call time so the selector applies to the next call.
     const provider: Provider = {
       respond: (req, signal) =>
         createMockProvider({ delayMs: delayRef.current }).respond(req, signal),
     };
-    return { sim, c: createCoordinator({ sim, provider }) };
-  }, []);
+    return {
+      sim,
+      c: createCoordinator({ sim, provider, ...(progress ? { log } : {}) }),
+      log,
+      store,
+    };
+  }, [progress]);
+  const held = useRef<HeldMove | null>(null);
+  const [workshop, setWorkshop] = useState(false);
+  const view = useProgress(store);
+  const challengeId = c.challengeId();
+  const completed =
+    challengeId !== null &&
+    view.awards.some((a) => a.awardId === `complete|${challengeId}`);
+  const explained =
+    challengeId !== null &&
+    view.awards.some((a) => a.awardId === `explain|${challengeId}`);
   useEffect(() => {
     const offs = [c.subscribe(rerender), sim.subscribe(rerender)];
     return () => offs.forEach((off) => off());
@@ -70,7 +103,7 @@ export function TwoBotDemo() {
   const idleRef = useRef(true);
   idleRef.current = pres.phase === "idle" && pres.queued === 0;
   const status = { pip: c.botState("pip"), nova: c.botState("nova") };
-  const view = deriveChannel(ledger, status, c.budget());
+  const channel = deriveChannel(ledger, status, c.budget());
   const running = (["pip", "nova"] as const).some((b) =>
     ["thinking", "waiting", "acting"].includes(status[b]),
   );
@@ -79,7 +112,7 @@ export function TwoBotDemo() {
     lastLearner && lastLearner.to !== "you" ? lastLearner.to : selected;
 
   // Handback: pulse the dock once; move focus only when nothing is being typed.
-  const handbackId = view.handback?.id ?? null;
+  const handbackId = channel.handback?.id ?? null;
   useEffect(() => {
     if (!handbackId) return;
     setPulsing(true);
@@ -141,6 +174,24 @@ export function TwoBotDemo() {
       rightCm: w.rightCm,
       undo: undo.current,
     });
+    if (progress && c.challengeId() && r.kind === "move") {
+      // A challenge move waits for a prediction before anything moves.
+      const challenge = challengeById(c.challengeId()!)!;
+      focus.current = r.side;
+      held.current = c.heldTurn(
+        bot,
+        cmd,
+        {
+          say: "Lock your prediction, then I'll move it.",
+          action: { side: r.side, cm: r.cm },
+        },
+        {
+          challengeId: challenge.challengeId,
+          promptId: challenge.prompts[0]!.promptId,
+        },
+      );
+      return undefined;
+    }
     if (r.kind === "move") {
       undo.current.push({
         side: r.side,
@@ -181,6 +232,16 @@ export function TwoBotDemo() {
     runId.current++;
     setStep(null);
     halt();
+  }
+
+  function startChallenge(id: string) {
+    runId.current++;
+    setStoppedSeq(null);
+    focus.current = null;
+    undo.current = [];
+    setStep(null);
+    pres.interrupt();
+    c.startChallenge(id, challengeById(id)!.setup);
   }
 
   function reset() {
@@ -238,6 +299,13 @@ export function TwoBotDemo() {
       <div className={styles.banner} data-testid="demo-banner" role="note">
         <strong>Temporary demo.</strong> Stub simulation and a scripted{" "}
         <b>mock</b> provider. No AI, no network, no MuJoCo.
+        {progress && (
+          <>
+            {" "}
+            <strong>Demo profile: progress is not saved.</strong> XP comes only
+            from measured results; items are cosmetic.
+          </>
+        )}
       </div>
       <main className={styles.layout}>
         <section className={styles.left} aria-label="Lab">
@@ -294,27 +362,21 @@ export function TwoBotDemo() {
                   ? pres.beat.event
                   : null;
               return (
-                <div
+                <BotFigure
                   key={b}
-                  className={styles.bot}
-                  data-testid={`bot-${b}`}
-                  data-bot={b}
-                  data-facing={speaking?.to ?? "you"}
-                  data-state={status[b]}
-                  data-shape={b}
+                  id={b}
+                  look={progress ? view.equipped[b] : undefined}
+                  attrs={{
+                    "data-facing": speaking?.to ?? "you",
+                    "data-state": status[b],
+                  }}
                   style={
                     {
                       "--x": `${ANCHORS[b].x}%`,
                       "--y": `${ANCHORS[b].y}%`,
                     } as CSSProperties
                   }
-                >
-                  <span className={styles.eyes} aria-hidden="true">
-                    <i />
-                    <i />
-                  </span>
-                  <span className={styles.tag}>{BOT_NAMES[b]}</span>
-                </div>
+                />
               );
             })}
             <BubbleLayer
@@ -339,6 +401,37 @@ export function TwoBotDemo() {
             )}
           </div>
 
+          {progress && (
+            <>
+              <ProgressHud
+                store={store}
+                paused={paused}
+                speed={speed}
+                onWorkshop={() => setWorkshop(true)}
+              />
+              <ChallengeBar
+                active={challengeId}
+                completed={completed}
+                explained={explained}
+                onStart={startChallenge}
+                onExplain={() =>
+                  challengeId &&
+                  log.append({
+                    type: "explanation_submitted",
+                    challengeId,
+                    epoch: c.epoch(),
+                    worldVersion: sim.snapshot().version,
+                  })
+                }
+              />
+              {c.holding() && held.current && (
+                <PredictionPrompt
+                  onChoose={(choice) => held.current?.commit(choice)}
+                  onSkip={() => held.current?.skip()}
+                />
+              )}
+            </>
+          )}
           <section
             className={styles.dock}
             aria-label="Command dock"
@@ -360,6 +453,14 @@ export function TwoBotDemo() {
                   {BOT_NAMES[b]}
                 </button>
               ))}
+              {progress && (
+                <WorkshopDialog
+                  store={store}
+                  open={workshop}
+                  onOpenChange={setWorkshop}
+                  persisted={false}
+                />
+              )}
             </div>
             <form onSubmit={submit} className={styles.form}>
               <label htmlFor="cmd">To {BOT_NAMES[selected]}</label>
@@ -449,7 +550,7 @@ export function TwoBotDemo() {
           </section>
         </section>
         <ChannelPanel
-          view={view}
+          view={channel}
           threadBot={threadBot}
           running={running}
           onAsk={(from, to) => {
