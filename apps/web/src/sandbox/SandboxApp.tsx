@@ -15,7 +15,9 @@ import { BLAST_LIFE } from "./Explosion";
 import { CLASH, FIGHT, RECOIL, aimError, chargeTwist, distance, faceTwist, isClash, type FightPhase, type Pose } from "./fight";
 import { playBoom, unlockAudio } from "./sfx";
 import { CREW_TASKS, handoffLine, type CrewLine } from "./crewChannel";
-import { LEVEL_HOLD_MS, OBJECTIVES, beamLevel, type ObjectiveId } from "./objectives";
+import { LEVEL_HOLD_MS, OBJECTIVES, OBJECTIVE_LEVEL_DEG, balanceHint, beamBalanced, xpOf, type ObjectiveId } from "./objectives";
+import { leveledUp } from "../progress/levels";
+import { LevelUpToast } from "./LevelUpToast";
 import { beamReading, loadEarned, logAttempt } from "./progress";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
@@ -124,6 +126,9 @@ export function SandboxApp() {
   const [earned, setEarned] = useState<ReadonlySet<ObjectiveId>>(new Set());
   const [boardOpen, setBoardOpen] = useState(true);
   const [confetti, setConfetti] = useState(0);
+  // Set only when earning XP crosses a level, never when saved progress loads.
+  const [levelUp, setLevelUp] = useState<number | null>(null);
+  const endLevelUp = useCallback(() => setLevelUp(null), []);
   const [fighting, setFighting] = useState(false);
   const [score, setScore] = useState({ pip: 0, nova: 0 });
   const [blasts, setBlasts] = useState<{ id: number; t: number; at: [number, number, number] }[]>([]);
@@ -527,7 +532,7 @@ export function SandboxApp() {
     if (!objective || won || !status) return;
     let met = false;
     if (objective === "balance-beam") {
-      if (kitId === "moments" && beamLevel(status)) {
+      if (kitId === "moments" && beamBalanced(status)) {
         levelSince.current ??= performance.now();
         met = performance.now() - levelSince.current >= LEVEL_HOLD_MS;
       } else levelSince.current = null;
@@ -537,11 +542,16 @@ export function SandboxApp() {
     const o = OBJECTIVES.find((x) => x.id === objective)!;
     setWon(true);
     setConfetti((c) => c + 1);
+    if (!earned.has(objective)) {
+      const up = leveledUp(xpOf(earned), xpOf(new Set(earned).add(objective))).at(-1);
+      if (up) setLevelUp(up.to);
+    }
     setEarned((e) => new Set(e).add(objective));
     add("duck", `${o.win} +${o.xp} XP!`, true);
     const none = { tiltDeg: null, leftCm: null, rightCm: null };
     void logAttempt({ objective, ok: true, ...(objective === "balance-beam" ? beamReading(status) : none) });
-  }, [objective, won, status, kitId, solved, rescueOutcome, add]);
+  }, [objective, won, status, kitId, solved, rescueOutcome, add, earned]);
+  const hint = kitId === "moments" && status ? balanceHint(status) : null;
 
   return (
     <div className={`gic-root ${styles.app}`}>
@@ -622,7 +632,7 @@ export function SandboxApp() {
                     {balance.plank === "released"
                       ? balance.lowSide === "level"
                         ? "Level"
-                        : `${balance.lowSide === "left" ? "Left" : "Right"} side down ${balance.tiltDeg}°`
+                        : `${balance.lowSide === "left" ? "Left" : "Right"} side down ${balance.tiltDeg}°${balance.tiltDeg <= OBJECTIVE_LEVEL_DEG ? ` · balanced (within ${OBJECTIVE_LEVEL_DEG}°)` : ""}`
                       : balance.plank === "levelling"
                         ? "Levelling…"
                         : "Plank locked"}
@@ -631,6 +641,11 @@ export function SandboxApp() {
                     {balance.plank === "locked" ? "Release plank" : "Lock plank"}
                   </Button>
                 </div>
+              )}
+              {hint && (
+                <p className={`caption ${styles.balanceHint}`} data-testid="balance-hint">
+                  {hint}
+                </p>
               )}
               {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
               {kit.id === "free" && (
@@ -854,6 +869,7 @@ export function SandboxApp() {
         </div>
       </main>
       <Confetti burst={confetti} />
+      {levelUp !== null && <LevelUpToast level={levelUp} onDismiss={endLevelUp} />}
     </div>
   );
 }

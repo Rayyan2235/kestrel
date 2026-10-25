@@ -1,5 +1,6 @@
 import { Check, ChevronDown, Target } from "lucide-react";
-import { OBJECTIVES, type ObjectiveId } from "./objectives";
+import { levelOf, need } from "../progress/levels";
+import { OBJECTIVES, xpOf, type ObjectiveId } from "./objectives";
 import styles from "./Sandbox.module.css";
 
 /**
@@ -24,6 +25,10 @@ export function ObjectivesBoard({
   onStart: (id: ObjectiveId) => void;
 }) {
   const current = OBJECTIVES.find((o) => o.id === active) ?? null;
+  const xp = xpOf(earned);
+  const level = levelOf(xp);
+  const floor = need(level);
+  const next = need(level + 1);
   return (
     <section className={`gic-toast ${styles.objectives}`} aria-label="Objectives" data-testid="objectives">
       <button type="button" className={styles.objectivesHead} aria-expanded={open} onClick={onToggle}>
@@ -34,6 +39,24 @@ export function ObjectivesBoard({
         </span>
         <ChevronDown size={16} aria-hidden="true" className={styles.chevron} />
       </button>
+
+      <div className={styles.level} data-testid="level">
+        <span className="label">Level {level}</span>
+        <div
+          className={styles.xpTrack}
+          role="progressbar"
+          aria-label={`Progress to level ${level + 1}`}
+          aria-valuemin={floor}
+          aria-valuemax={next}
+          aria-valuenow={xp}
+          data-testid="level-bar"
+        >
+          <i style={{ width: `${Math.round(((xp - floor) / (next - floor)) * 100)}%` }} />
+        </div>
+        <span className="caption">
+          {xp} / {next} XP
+        </span>
+      </div>
 
       {current && (
         <div className={styles.activeObjective} data-testid="active-objective">

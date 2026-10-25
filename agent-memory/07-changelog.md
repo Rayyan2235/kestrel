@@ -387,3 +387,11 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - CI then failed 3 of 142 on timing. (1) The rescue death bubble expired (12 s of real time) before the test's next check on the slow runner. The rescue result bubble is now sticky until the next reset or run, which is also better for kids. (2) Two Moments tests gave the lesson switch 5 s; that wait is now 30 s, since the switch waits on the physics loop.
 - CI on `399d396` was 137 passed, 1 failed: the rescue spec's bubble-position poll. The CI trace shows the bubble correctly positioned (`transform: translate(741.5px, 467.8px)…`); the poll's first read had not returned within the 5 s default. The rescue spec now gives every default wait 30 s (`expect.configure`).
+
+## 2026-10-25 · Claude Code · Beam XP tolerance and levels
+
+- Repro (DEV, fast-stepped real physics, 100 g at 20 cm): the 200 g at 10.0/10.1/10.2/10.3/10.4/10.6 cm tilts 0.00/0.53/1.07/1.60/2.44/4.50°; the 100 g at 20.2/20.4/20.6 cm tilts 0.53/1.07/1.60°. A chat set_balance to 10.4/20 landed at 10.35/20.00 cm, 1.99°, no XP. That outcome is correct: it is not balanced.
+- `objectives.ts`: `beamBalanced` with `OBJECTIVE_LEVEL_DEG` 1.5 (held 1 s), so a push 1–2 mm off still counts. `beamLevel` (Usman's test) stays at < 0.5°. Also adds `balanceHint` ("200 g is 0.4 cm too far out (or move the 100 g to 20.8 cm).", shown within 3 cm of the balance point) and `xpOf`.
+- Levels ported from 3ca07e9 into `progress/levels.ts`, with new tests. The Objectives card shows "Level N" and a bar to the next level. `LevelUpToast` fires only when an earn crosses a level, never on load.
+- The ExperimentPanel steppers stay at 1 cm because sandbox.spec expects "15 cm" after 5 clicks. Its results already show 0.1 cm.
+- Checks: pnpm check 229/229. Desktop Playwright `--workers=1`: beam-xp-levels 2/2, plus sandbox, console-entry and rescue-navigation 8/8.
