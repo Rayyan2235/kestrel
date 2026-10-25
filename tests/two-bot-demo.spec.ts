@@ -665,3 +665,111 @@ test.describe("phone budget", () => {
     await expect(page.getByTestId("ask-peer")).toBeVisible();
   });
 });
+
+test.describe("polish: dwell, stopped bubbles, handback in view", () => {
+  test("dwell: Pip's reply shows before the handoff pill replaces it (fake clock)", async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await open(page);
+    await send(page, "why does it tilt?");
+    await page.clock.fastForward(1050); // call 1 returns: reply and handoff land together
+    const pipBubble = page.locator('[data-testid="bubble"][data-anchor="pip"]');
+    await expect(pipBubble).toHaveAttribute("data-to", "you");
+    await expect(pipBubble).toContainText("Let me check with Nova");
+    await page.clock.fastForward(500);
+    await expect(pipBubble).toHaveAttribute("data-to", "you");
+    await page.clock.fastForward(300); // past the 700 ms dwell
+    await expect(pipBubble).toHaveAttribute("data-to", "nova");
+    await expect(pipBubble).toHaveAttribute("data-variant", "bot-to-bot");
+  });
+
+  test("dwell is view-only: the ledger still has both events in order", async ({
+    page,
+  }) => {
+    await open(page);
+    await send(page, "why does it tilt?");
+    await expect(page.getByTestId("handback-strip")).toBeVisible({
+      timeout: 8000,
+    });
+    await expect(
+      page.getByTestId("thread-entry").filter({ hasText: "Let me check" }),
+    ).toHaveCount(1);
+    await expect(
+      page.locator('[data-testid="channel-entry"][data-kind="handoff"]'),
+    ).toHaveCount(1);
+  });
+
+  test("a chain that finishes normally leaves no stopped bubble", async ({
+    page,
+  }) => {
+    await open(page);
+    await page.getByTestId("ask-peer").click();
+    await expect(page.getByTestId("handback-strip")).toBeVisible({
+      timeout: 8000,
+    });
+    await page.waitForTimeout(900);
+    await expect(
+      page.locator('[data-testid="bubble"][data-stale="true"]'),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("bubble-stopped")).toHaveCount(0);
+  });
+
+  test("Stop marks earlier bubbles stopped; a newer turn is normal; Reset clears", async ({
+    page,
+  }) => {
+    await open(page, 3000);
+    await page.getByTestId("ask-peer").click();
+    await expect(
+      page.locator('[data-testid="channel-entry"][data-kind="handoff"]'),
+    ).toHaveCount(1, { timeout: 8000 });
+    await expect(page.getByTestId("bubble").first()).toBeVisible();
+    await page.getByTestId("stop").click();
+    const stale = page.locator('[data-testid="bubble"][data-stale="true"]');
+    await expect(stale.first()).toBeVisible();
+    await expect(stale.first().getByTestId("bubble-stopped")).toHaveText(
+      /stopped/i,
+    );
+    expect(
+      await stale
+        .first()
+        .evaluate((e) => parseFloat(getComputedStyle(e).opacity)),
+    ).toBeLessThan(1);
+    // the ledger is not rewritten by Stop
+    await expect(
+      page.locator('[data-testid="channel-entry"][data-kind="handoff"]'),
+    ).toHaveCount(1);
+    // a newer turn's bubble is normal
+    await send(page, "left weight to 30");
+    const fresh = page.locator(
+      '[data-testid="bubble"][data-source="built-in"]',
+    );
+    await expect(fresh).toBeVisible();
+    await expect(fresh).toHaveAttribute("data-stale", "false");
+    await expect(fresh.getByTestId("bubble-stopped")).toHaveCount(0);
+    await page.getByRole("button", { name: "Reset lab" }).click();
+    await expect(page.getByTestId("bubble")).toHaveCount(0);
+    await expect(page.getByTestId("bubble-stopped")).toHaveCount(0);
+  });
+
+  test.describe("phone", () => {
+    test.use({ viewport: { width: 390, height: 664 } });
+
+    test("the handback strip is scrolled into view and focus is not moved", async ({
+      page,
+    }) => {
+      await open(page);
+      const field = page.getByRole("textbox", { name: "Message your robot" });
+      await field.fill("left weight to");
+      await field.focus();
+      await page
+        .getByTestId("ask-peer")
+        .evaluate((b: HTMLElement) => b.click());
+      const strip = page.getByTestId("handback-strip");
+      await expect(strip).toBeVisible({ timeout: 8000 });
+      await expect(strip).toBeInViewport({ ratio: 0.9 });
+      await expect(field).toBeFocused();
+      await expect(field).toHaveValue("left weight to");
+    });
+  });
+});
