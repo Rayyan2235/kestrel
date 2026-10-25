@@ -239,14 +239,14 @@
 .console {
   position: absolute;
   z-index: 3;
-  top: 84px;
+  top: 16px;
   right: 16px;
   bottom: 16px;
-  width: 340px;
-  padding: var(--space-5);
+  width: 352px;
+  padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 10px;
 }
 .consoleHead {
   display: flex;
@@ -457,7 +457,7 @@
   position: absolute;
   z-index: 4;
   bottom: 16px;
-  right: 372px;
+  right: 384px;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -598,4 +598,204 @@
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+}
+
+/* Console accordion: the log and the two conversation panes, one open at a time. */
+.windows {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.windows > * {
+  min-height: 0;
+}
+.windows > :last-child {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.window {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-xl);
+  background: #ffffffb3;
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+.window[data-open="true"] {
+  flex: 1;
+  min-height: 150px;
+}
+.window h2 {
+  margin: 0;
+  font: 500 14px/21px var(--font-sans);
+  letter-spacing: -0.15px;
+}
+.fold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.app .fold:focus-visible {
+  outline-offset: -4px;
+  border-radius: 10px;
+}
+.chevron {
+  flex: none;
+  margin-left: auto;
+  transition: transform 250ms;
+}
+.fold[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #c9ecdc;
+  color: var(--control-solid);
+  font: 600 11px/18px var(--font-sans);
+  text-align: center;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.window .log {
+  min-height: 0;
+  padding: 0 12px 12px;
+}
+.log[hidden] {
+  display: none;
+}
+
+/* Who the learner is talking to, beside Pause and the routing chip. */
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-secondary);
+}
+.picker button {
+  min-height: 32px;
+}
+.addressChip {
+  width: 100%;
+  color: var(--ink-muted);
+}
+
+/* Teammate overlays (bubbles, capsule) and progress panels read these tokens. */
+.overlayTokens,
+.lightScope {
+  --ink: #2c2c2c;
+  --muted: #646464;
+  --panel: #ffffffe6;
+  --dock: #1f1f29;
+  --on-dark: #ffffff;
+  --on-dark-muted: #ffffffb3;
+  --accent: #c9ecdc;
+  --shadow: 0 1px 8px 0 #0000000d;
+  color: var(--ink);
+}
+.overlayTokens {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.lightScope {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px;
+  border-radius: var(--radius-xl);
+  background: #ffffff8c;
+  box-shadow: var(--shadow-card);
+  font: 500 13px/19.5px var(--font-sans);
+}
+@media (prefers-reduced-motion: reduce) {
+  .chevron {
+    transition: none;
+  }
+}
+/* The rail only takes spare height while one of its panes is open. */
+.windows > :last-child {
+  flex: none;
+}
+.windows > :last-child:has([data-open="true"]) {
+  flex: 1;
+}
+/* Teammate progress controls in GIC dress: tag-like buttons, hairline frames. */
+.lightScope button {
+  min-height: 32px;
+  padding: 4px 12px;
+  border: 1px solid var(--tag-border);
+  border-radius: var(--radius-lg);
+  background: #ffffffb3;
+  box-shadow: var(--shadow-pill);
+  color: var(--ink);
+  font: 500 13px/18.2px var(--font-sans);
+  cursor: pointer;
+}
+.lightScope button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lightScope :is([data-testid="xp-pill"], [data-testid="challenge-banner"], [data-testid="prediction-prompt"]) {
+  border-width: 1px;
+  border-color: var(--line-strong);
+  box-shadow: var(--tag-shadow);
+}
+/* Lesson-flow additions from main, in GIC glass. */
+.recipient {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-muted);
+  font: 500 13px/18.2px var(--font-sans);
+}
+.recipient select {
+  padding: 6px 10px;
+  border: 1px solid var(--line-field);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  color: var(--ink);
+  font: inherit;
+}
+.demoStatus {
+  position: fixed;
+  z-index: 50;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 16px;
+  border: 1px solid var(--wash-toast);
+  border-radius: var(--radius-2xl);
+  background: var(--wash-toast);
+  -webkit-backdrop-filter: blur(var(--blur-toast));
+  backdrop-filter: blur(var(--blur-toast));
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  font: 600 13px/19.5px var(--font-sans);
+}
+.skills button[data-active="true"] {
+  border-color: var(--control-solid-border);
+  background-color: var(--control-solid);
+  color: var(--white);
 }

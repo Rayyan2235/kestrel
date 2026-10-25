@@ -295,15 +295,18 @@ function BubbleAnchor({
   bubble: React.RefObject<HTMLDivElement | null>;
 }) {
   const pose = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
+  const other = useMemo(() => ({ pos: [0, 0, 0] as [number, number, number], quat: [1, 0, 0, 0] as [number, number, number, number] }), []);
   const { camera } = useThree();
   const head = useMemo(() => new THREE.Vector3(), []);
   const { size } = useThree();
   useFrame(() => {
     sim.readTrunk(pose, "pip");
+    sim.readTrunk(other, "nova");
     // Anchor the speech bubble just above the duck's head, in screen space.
     const el = bubble.current;
     if (el) {
-      head.set(pose.pos[0], pose.pos[2] + 0.2, -pose.pos[1]).project(camera);
+      const speaking = el.dataset.speaker === "nova" ? other.pos : pose.pos;
+      head.set(speaking[0], speaking[2] + 0.2, -speaking[1]).project(camera);
       const x = ((head.x + 1) / 2) * size.width;
       const y = ((1 - head.y) / 2) * size.height;
       el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
@@ -373,7 +376,7 @@ export function SandboxScene({
   tint: string;
   onProgress: (filled: string[]) => void;
   /** Latest public reply from the duck, shown next to it. */
-  bubble: { id: number; text: string } | null;
+  bubble: { id: number; text: string; speaker: BotId } | null;
 }) {
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<CameraMode>("follow");
@@ -457,7 +460,7 @@ export function SandboxScene({
         <button type="button" aria-label="Reset view" onClick={() => sendCamera("reset")} title="Reset view"><RotateCcw size={16} /></button>
       </div>
       {bubble && (
-        <div key={bubble.id} ref={bubbleRef} className={styles.bubble} role="status">
+        <div key={bubble.id} ref={bubbleRef} data-speaker={bubble.speaker} className={styles.bubble} role="status">
           {bubble.text}
         </div>
       )}
