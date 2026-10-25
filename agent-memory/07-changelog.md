@@ -207,3 +207,14 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - `tests/two-bot-real-sim.spec.ts` 2/2 on desktop: "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)."; readout "Left 10.1 cm · Right 20 cm" equals the sim's measured rail; Pip's paddle contact in the contact ledger; Stop mid-push keeps the weight where it stood.
 - **Not changed:** Moments physics, navigation, contracts.
 - **Not run:** live provider or voice with the real sim; the mobile project for the real-sim spec (skipped by design).
+
+## 2026-10-25 · Claude Code (side session for the owner) · Live Claude for Pip and Nova in the two-bot demo (`two-bot-real-sim`)
+
+- **API:** `POST /api/two-bot/respond` (`apps/api/src/twoBot.ts`), registered in `live.ts`. It makes one Bedrock call per bot turn (`AnthropicBedrock`, `BEDROCK_MODEL_ID`, `AWS_REGION`), uses a persona per bot, forces a flat `respond` tool, maps it onto `Respond` and validates with Zod. A peer turn can never ask again. Keys stay server-side.
+- **Web:** `provider/live.ts` sits behind the existing `Provider`. It is labelled `live`; any API or contract failure falls back to the mock, labelled `mock`; an abort rejects. The demo uses it only for `?provider=live` when `/api/health` reports `liveAi`. The banner and hint say so. The default (`/?demo=two-bot`) is unchanged.
+- **Contracts:** `SourceSchema` gains `live`. The ledger test now rejects an unknown label instead of `live`.
+- **Checks:**
+  - `pnpm check` pass.
+  - New tests: 3 API with mocked Bedrock, 3 live provider with mocked fetch.
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - Live check `scripts/two-bot-live-check.mjs` (paid, cents): Pip handed off to Nova, Nova pushed the right weight 20 → 24.9 cm (measured), then a live handback, 15.7 s in all.

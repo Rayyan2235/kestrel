@@ -2,10 +2,12 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AgentRequestSchema, validConversation } from "../../../packages/contracts/src/index.js";
 import { agentTurn } from "./agent.js";
+import { TwoBotRequestSchema, twoBotTurn } from "./twoBot.js";
 import { ProviderError, speak, transcribe } from "./voice.js";
 
-export const liveProviders = { agentTurn, speak, transcribe };
-export function registerLive(app: FastifyInstance, providers = liveProviders) {
+export const liveProviders = { agentTurn, speak, transcribe, twoBotTurn };
+export type LiveProviders = Omit<typeof liveProviders, "twoBotTurn"> & Partial<Pick<typeof liveProviders, "twoBotTurn">>;
+export function registerLive(app: FastifyInstance, providers: LiveProviders = liveProviders) {
   // No provider bodies, audio, history, or credentials are logged or persisted.
   app.addHook("onRequest", async (request, reply) => {
     reply.header("Cache-Control", "no-store");
@@ -31,6 +33,13 @@ export function registerLive(app: FastifyInstance, providers = liveProviders) {
     if (!parsed.success || !validConversation(parsed.data.messages)) return reply.code(400).send({ message: "Invalid agent request or unpaired action results." });
     if (!process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_PROFILE) return reply.code(503).send({ message: "Set Bedrock credentials in the server .env." });
     return run(request, reply, signal => providers.agentTurn(parsed.data, signal));
+  });
+  app.post("/api/two-bot/respond", async (request, reply) => {
+    const parsed = TwoBotRequestSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ message: "Invalid two-bot request." });
+    if (!process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_PROFILE) return reply.code(503).send({ message: "Set Bedrock credentials in the server .env." });
+    const turn = providers.twoBotTurn ?? twoBotTurn;
+    return run(request, reply, signal => turn(parsed.data, signal));
   });
   app.addContentTypeParser(/^audio\/(webm|ogg|wav|mpeg|mp4)(;.*)?$/, { parseAs: "buffer", bodyLimit: 10 * 1024 * 1024 }, (_request, body, done) => done(null, body));
   app.post("/api/voice/transcribe", { bodyLimit: 10 * 1024 * 1024 }, async (request, reply) => {

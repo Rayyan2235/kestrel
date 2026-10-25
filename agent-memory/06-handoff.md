@@ -10,8 +10,11 @@ Cut from `two-duck-lab` (PR #6), so it stacks on #6 → #5. `/?demo=two-bot&sim=
 - **Adapter:** `apps/web/src/simulation/real/` (`index.ts` pure and unit-tested against a fake DuckSim; `load.ts` boots DuckSim on the Moments kit, lazily imported).
 - **Verified:** `pnpm check` (183 tests); stub specs `two-bot-demo`, `pacing`, `integration` (108/108 passed); new `tests/two-bot-real-sim.spec.ts` 2/2 (a real 20 → 10.1 cm push with the measured result in the rail and readout; Stop mid-push leaves the weight clamped where it stood).
 
+- **Live Claude for Pip and Nova** (`&provider=live`): API route `/api/two-bot/respond` (`apps/api/src/twoBot.ts`) and `provider/live.ts`; mock fallback stays labelled. Live check passed: Pip asked Nova, Nova pushed the right weight 20 → 24.9 cm.
+- PR #7's base is still `two-duck-lab`; #6 is merged into `moments-floor-push`, so the base should move there once the owner approves.
+
 **Next:**
-1. The teammate (PR #4 author) reviews the seam change.
+1. The teammate (PR #4 author) reviews the seam change and the live provider.
 2. Demo follow-ups in `11-remaining-steps.md`: release-and-measure so the room shows measured tilt; a "moving…" cue during the push; reply text after the measured result.
 3. Merge order: #5, then #6, then this PR.
 

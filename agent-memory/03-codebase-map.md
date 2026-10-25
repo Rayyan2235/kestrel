@@ -98,7 +98,7 @@ Tests: `src/app.test.ts`. Compiled smoke test: `scripts/check-api.mjs`.
 - `coordinator/` owns the ledger, per-bot state, abort/epoch, chain budget (2 calls, 1 hop; the cap counts talk time from call-1 dispatch and pauses while a bot acts), `actTimeoutMs` per action (default 60 s), and the world-version check on every action. A failed or measured action adds a `notice` with the sim's summary; a handback stays last.
 - Invariants: every ledger event has a required `to`; bubbles, chips, gaze and aria all derive from `to` only; a late or stale result is dropped; Stop and Reset abort the chain.
 - `presentation/` paces the room (one bubble, reading-time holds). It never changes the ledger or coordinator timing.
-- `provider/mock.ts` is deterministic and offline. A live provider would use the same `Provider` call shape.
+- `provider/mock.ts` is deterministic and offline. `provider/live.ts` (`?provider=live`, only when `/api/health` reports `liveAi`) calls `POST /api/two-bot/respond` in `apps/api/src/twoBot.ts` (Bedrock, server-side) and returns the same `Respond` labelled `live`, falling back to the mock (labelled `mock`) on any failure.
 
 ## Planned runtime components (from docs/ARCHITECTURE.md and the planning notes; not built)
 

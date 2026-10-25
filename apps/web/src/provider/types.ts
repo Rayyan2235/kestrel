@@ -9,7 +9,7 @@ export type ProviderRequest = {
   peer: { from: BotId; question: string; evidence: string } | null;
 };
 
-export type ProviderReply = { respond: Respond; source: "mock" };
+export type ProviderReply = { respond: Respond; source: "mock" | "live" };
 
 /** The call shape a live provider will also use. Abortable. */
 export interface Provider {

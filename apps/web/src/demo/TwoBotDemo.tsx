@@ -1,6 +1,7 @@
 // TEMPORARY demo page for the two-bot conversation: stub simulation, mock
 // provider, 2D placeholder stage. Reached only via ?demo=two-bot; add
-// &sim=mujoco to drive the real MuJoCo Microducks instead of the stub.
+// &sim=mujoco to drive the real MuJoCo Microducks instead of the stub, and
+// &provider=live for live Claude replies when the API reports liveAi.
 import { balance, BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { useReducedMotion } from "motion/react";
 import {
@@ -19,6 +20,7 @@ import { createCoordinator } from "../coordinator/index.js";
 import { parseFast, type Side } from "../fastpath/index.js";
 import { ChannelPanel } from "../handoff/ChannelPanel.js";
 import { deriveChannel } from "../handoff/model.js";
+import { createLiveProvider } from "../provider/live.js";
 import { createMockProvider } from "../provider/mock.js";
 import type { Provider } from "../provider/types.js";
 import { usePresentation } from "../presentation/usePresentation.js";
@@ -100,13 +102,38 @@ function DemoRoom({
   const focus = useRef<Side | null>(null);
   const undo = useRef<{ side: Side; cm: number }[]>([]);
   const input = useRef<HTMLInputElement>(null);
+  // Live only when asked for and the API has model credentials; else the mock.
+  const wantsLive =
+    new URLSearchParams(window.location.search).get("provider") === "live";
+  const [live, setLive] = useState(false);
+  const liveRef = useRef(false);
+  liveRef.current = live;
+  useEffect(() => {
+    if (!wantsLive) return;
+    let on = true;
+    fetch("/api/health")
+      .then((r) => r.json())
+      .then((h) => on && setLive(Boolean(h?.capabilities?.liveAi)))
+      .catch(() => {});
+    return () => {
+      on = false;
+    };
+  }, [wantsLive]);
 
   const { sim, c } = useMemo(() => {
     const sim = lab;
     // Reads the delay at call time so the selector applies to the next call.
-    const provider: Provider = {
+    const mock: Provider = {
       respond: (req, signal) =>
         createMockProvider({ delayMs: delayRef.current }).respond(req, signal),
+    };
+    const claude = createLiveProvider({
+      world: () => sim.snapshot(),
+      fallback: mock,
+    });
+    const provider: Provider = {
+      respond: (req, signal) =>
+        (liveRef.current ? claude : mock).respond(req, signal),
     };
     return { sim, c: createCoordinator({ sim, provider }) };
   }, [lab]);
@@ -287,7 +314,16 @@ function DemoRoom({
   return (
     <div className={styles.page}>
       <div className={styles.banner} data-testid="demo-banner" role="note">
-        {mujoco ? (
+        {live ? (
+          <>
+            <strong>Temporary demo.</strong>{" "}
+            {mujoco
+              ? "Real MuJoCo Microducks push the weights; positions are measured."
+              : "Stub simulation."}{" "}
+            Pip and Nova answer with <b>live</b> Claude; if a call fails, the
+            labelled mock answers.
+          </>
+        ) : mujoco ? (
           <>
             <strong>Temporary demo.</strong> Real MuJoCo Microducks push the
             weights; positions are measured. Scripted <b>mock</b> provider. No
@@ -506,7 +542,7 @@ function DemoRoom({
               aria-live="polite"
             >
               {step ??
-                "Commands like “right weight to forty” run instantly. Questions go to the mock."}
+                `Commands like “right weight to forty” run instantly. Questions go to ${live ? "Claude" : "the mock"}.`}
             </p>
           </section>
         </section>
