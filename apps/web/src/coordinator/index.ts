@@ -10,6 +10,7 @@ import {
   type Source,
 } from "@kestrel/contracts";
 import { notImplemented } from "../notImplemented.js";
+import type { LabEventLog } from "../progress/events.js";
 import type { Provider, ProviderRequest } from "../provider/types.js";
 import type { SimAdapter } from "../simulation/types.js";
 import {
@@ -26,6 +27,8 @@ export type CoordinatorDeps = {
   sim: SimAdapter;
   provider: Provider;
   config?: Partial<CoordinatorConfig>;
+  /** Optional lab event log: challenge moves and predictions are appended here. */
+  log?: LabEventLog;
 };
 
 export * from "./types.js";
@@ -289,6 +292,8 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       start(from, `Ask ${BOT_NAMES[to]}`, `Ask ${BOT_NAMES[to]}`, to),
     heldTurn: () => notImplemented("coordinator.heldTurn"),
     startChallenge: () => notImplemented("coordinator.startChallenge"),
+    endChallenge: () => notImplemented("coordinator.endChallenge"),
+    challengeId: () => notImplemented("coordinator.challengeId"),
     stop: () => {
       supersede();
       emit();

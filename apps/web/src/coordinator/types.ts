@@ -83,7 +83,11 @@ export interface Coordinator {
     context: HeldMoveContext,
   ): HeldMove;
   /** Resets (clears epoch, chat ledger and held move), then applies each setup move tagged `setup`. */
-  startChallenge(setup: SetupMove[]): void;
+  startChallenge(challengeId: string, setup: SetupMove[]): void;
+  /** Leaves the active challenge: cancels any held move; later asks and moves are free play. */
+  endChallenge(): void;
+  /** Active challenge id, or null. */
+  challengeId(): string | null;
   /** Aborts the chain and drops late results. */
   stop(): void;
   /** Aborts, resets the world, bumps epoch and version. */
