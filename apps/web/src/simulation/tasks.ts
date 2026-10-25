@@ -322,9 +322,10 @@ export class TaskRunner {
     const goal = run.goal!;
     const remaining = dist(prop, goal);
     const slot = task.toward === "slot" ? world.kit.slots.find(s => s.forProp === task.target) : undefined;
+    const targetReached = slot ? slotFilled(prop, slot) : remaining <= 0.04;
     // Same tolerance as slotFilled(), so "done" and the lit slot agree. Then
     // back off the square (forward would shove it), so the next move starts clear.
-    if (run.phase === "withdraw" || run.phase === "settle" || (run.phase === "push" && remaining <= (slot ? slot.side * 0.12 : 0.04))) {
+    if (run.phase === "withdraw" || run.phase === "settle" || targetReached) {
       if (run.phase !== "withdraw" && run.phase !== "settle") run.phase = "withdraw";
       if (dist(run.lastProp ?? prop, prop) > 0.003) {
         run.lastProp = prop;

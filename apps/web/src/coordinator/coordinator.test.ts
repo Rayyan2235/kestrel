@@ -86,7 +86,7 @@ describe("L2 gate: coordinator", () => {
     expect(new Set(led.map((e) => e.rootTurnId)).size).toBe(1);
   });
 
-  it("binds the recipient at press-start", () => {
+  it("the target is fixed at resolution: a dispatched turn keeps its recipient", () => {
     const { calls, provider } = controlledProvider();
     const { c } = setup(provider);
     const h = c.learnerTurn("hello", "nova");

@@ -21,12 +21,14 @@ function ScrollLog({
   label,
   live,
   testId,
+  role,
   children,
 }: {
   count: number;
   label: string;
   live: "polite" | "off";
   testId: string;
+  role: "log" | "region";
   children: ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
@@ -50,7 +52,7 @@ function ScrollLog({
       <div
         ref={box}
         className={styles.log}
-        role="log"
+        role={role}
         aria-live={live}
         aria-label={label}
         tabIndex={0}
@@ -87,6 +89,7 @@ export function ChannelPanel({
   running,
   onAsk,
   onStop,
+  embedded = false,
 }: {
   view: ChannelView;
   /** The bot the learner is talking to; titles the light thread. */
@@ -94,6 +97,8 @@ export function ChannelPanel({
   running: boolean;
   onAsk: (from: BotId, to: BotId) => void;
   onStop: () => void;
+  /** Mounted beside another console that already has a log and a Stop (the real console). */
+  embedded?: boolean;
 }) {
   const peer: BotId = threadBot === "pip" ? "nova" : "pip";
   const [prediction, setPrediction] = useState<string | null>(null);
@@ -124,7 +129,11 @@ export function ChannelPanel({
     compact && t !== tab && counts[t] > seen[t];
 
   return (
-    <aside className={styles.rail} aria-label="Conversation" data-testid="rail">
+    <aside
+      className={`${styles.rail} ${embedded ? styles.embedded : ""}`}
+      aria-label="Conversation"
+      data-testid="rail"
+    >
       {compact && (
         <div
           role="tablist"
@@ -174,6 +183,7 @@ export function ChannelPanel({
           label="Messages between you and the robots"
           live="polite"
           testId="you-thread"
+          role={embedded ? "region" : "log"}
         >
           {view.youThread.length === 0 && (
             <p className={styles.empty}>
@@ -248,6 +258,7 @@ export function ChannelPanel({
           label="Messages between the robots"
           live="off"
           testId="bot-channel"
+          role={embedded ? "region" : "log"}
         >
           {view.botChannel.length === 0 && (
             <p className={styles.emptyDark}>No robot-to-robot messages yet.</p>
@@ -292,6 +303,7 @@ export function ChannelPanel({
         </button>
         <button
           data-testid="stop"
+          aria-label={embedded ? "Stop the robots" : undefined}
           className={styles.stop}
           disabled={!running}
           onClick={onStop}

@@ -48,12 +48,18 @@ export class AgentSession {
   private soundSource: AudioBufferSourceNode | null = null;
   private soundDone: (() => void) | null = null;
   private recipient: Recipient = "pip";
+  private botId: BotId = "pip";
+  /** The console resolves spoken names and conversation context before dispatch. */
+  onTranscript?: (text: string) => void | Promise<void>;
   robotSound = true;
   phase: AgentPhase = "Ready";
 
   constructor(private sim: DuckSim, private add: (who: "you" | "duck", text: string, ok?: boolean, speaker?: BotId) => void, private change: (phase: AgentPhase) => void, private onLearningAction: (action: "book" | "quiz", lesson: LessonId) => void = () => {}) {}
   private setPhase(phase: AgentPhase) { this.phase = phase; this.change(phase); }
-  setRecipient(recipient: Recipient) { this.recipient = recipient; }
+  setRecipient(recipient: Recipient, speaker?: BotId) {
+    this.recipient = recipient;
+    this.botId = speaker ?? (recipient === "both" ? this.botId : recipient);
+  }
   private alive(signal: AbortSignal) { if (signal.aborted) throw aborted(); }
   private silence() {
     try { this.playbackCancel?.(); } catch { /* A source that failed before start cannot be stopped. */ }
@@ -128,7 +134,7 @@ export class AgentSession {
     this.alive(signal);
     text = concisePublicText(text);
     if (!text) return;
-    this.add("duck", text, true, this.recipient === "nova" ? "nova" : "pip");
+    this.add("duck", text, true, this.botId);
     if (!this.robotSound) return;
     await this.playRobotSound(signal);
   }
@@ -136,7 +142,7 @@ export class AgentSession {
     const signal = this.controller.signal;
     const concise = concisePublicText(text);
     if (!concise) return;
-    this.add("duck", concise, ok, this.recipient === "nova" ? "nova" : "pip");
+    this.add("duck", concise, ok, this.botId);
     if (this.robotSound && playSound) {
       try { await this.playRobotSound(signal); }
       finally { if (!signal.aborted) this.setPhase("Ready"); }
@@ -234,10 +240,10 @@ export class AgentSession {
       return outcome;
     } finally { if (!signal.aborted) this.setPhase("Ready"); }
   }
-  async submit(text: string, recipient: Recipient = this.recipient, mode: "normal" | "follow-up" = "normal") {
+  async submit(text: string, recipient: Recipient = this.recipient, mode: "normal" | "follow-up" = "normal", speaker?: BotId) {
     text = text.trim();
     if (!text) return;
-    this.recipient = recipient;
+    this.setRecipient(recipient, speaker);
     this.cancel();
     this.primeRobotSound();
     this.add("you", text);
@@ -253,7 +259,7 @@ export class AgentSession {
       for (let step = 0; step <= 6; step++) {
         this.alive(signal);
         this.setPhase("Thinking");
-        const request: AgentRequest = { botId: recipient, worldVersion: version, world: this.world(recipient), messages, final: step === 6 };
+        const request: AgentRequest = { botId: this.botId, worldVersion: version, world: this.world(recipient), messages, final: step === 6 };
         const response = AgentResponseSchema.parse(await (await checked(await fetch("/api/agent/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.any([signal, AbortSignal.timeout(55000)]) }))).json());
         this.alive(signal);
         if (response.worldVersion !== this.version) throw aborted();
@@ -353,7 +359,8 @@ export class AgentSession {
       const { text } = await response.json();
       this.alive(signal);
       if (!text?.trim()) throw new Error("I didn't hear speech. Please try again.");
-      await this.submit(text);
+      if (this.onTranscript) await this.onTranscript(text);
+      else await this.submit(text);
     } catch (error) {
       if (!signal.aborted) { this.add("duck", (error as Error).message, false); this.setPhase("Ready"); }
     }
