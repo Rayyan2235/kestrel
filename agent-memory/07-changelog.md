@@ -372,3 +372,8 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - Contracts `progress.ts`; API `progress.ts` (`pg` 8.23.1, `attempts` hypertable on `at`, `POST /api/progress`, `GET /api/progress/:learner`, 503 without `TIGER_DATABASE_URL`, driver errors hidden); `/api/health` gains `capabilities.progress`. Web `progress.ts`: anonymous learner ID, localStorage fallback, silent failures; `SandboxApp` loads earned objectives on mount and logs wins with beam tilt and weight positions.
 - Tests: `apps/api/src/progress.test.ts`, `apps/web/src/sandbox/progress.test.ts` (database and fetch mocked). `pnpm check` passed (29 files, 221 tests, builds, API smoke). Not yet verified against a real Tiger Data service.
+
+## 2026-10-25 · Claude Code · Tiger Data verified for real
+
+- Ran `connectProgress` + `buildApp` against the owner's Tiger Cloud service (one-off script, URL never printed). Hypertable `attempts` created with a time dimension on `at`; 3 POSTs → 201; GET → `{"earned":["balance-beam","rescue-pip"],"attempts":{"balance-beam":2,"rescue-pip":1}}`; rows read back with the measured tilt and cm values.
+- The strict TLS check failed first with `SELF_SIGNED_CERT_IN_CHAIN` (the new service's temporary certificate from `ca.timescale.com`). The fallback behaved as designed: one log line with the code only, and no crash. The verification run used `uselibpqcompat=true&sslmode=require` for that command only; `.env` and the code are unchanged.

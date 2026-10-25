@@ -124,5 +124,5 @@ Latest owner playtest target is four-path letter graph, not the earlier zigzag. 
 
 ## 2026-10-25 — Tiger Data progress
 
-27. **[owner] Verify Tiger Data for real.** Set `TIGER_DATABASE_URL`, restart the API, check `/api/health` shows `progress: true`, then a real insert and read, and a won objective surviving a refresh. Accept only if a row is in the `attempts` hypertable.
+27. **[done 2026-10-25: insert/read verified; in-browser refresh check still to do] Verify Tiger Data for real.** Set `TIGER_DATABASE_URL`, restart the API, check `/api/health` shows `progress: true`, then a real insert and read, and a won objective surviving a refresh. Accept only if a row is in the `attempts` hypertable.
 28. **[later] Log failed attempts too**, so attempt counts mean more than wins.
