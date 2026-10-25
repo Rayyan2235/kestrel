@@ -19,7 +19,7 @@ test("challenge on /console: prompt holds the real move, +25 on the pill, Worksh
 
   await page.goto("/console?profile=demo");
   await expect(page.getByTestId("duck-mode")).toBeVisible({ timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: "Robot reply sound" }).click();
   await page.getByRole("navigation", { name: "Lesson" }).getByText("Moments").click();
   const pill = page.getByTestId("xp-pill");
   await expect(pill).toBeVisible({ timeout: 90000 });

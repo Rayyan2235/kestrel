@@ -73,6 +73,7 @@ export class DuckSim {
   private standKey = 0;
   private propBodies = new Map<string, number>();
   private propOfBody = new Map<number, string>();
+  private slotHolds = new Map<string, { body: number; dof: number; slot: LabKit["slots"][number] }>();
   private geomBody: ArrayLike<number> = [];
   private robots: Robot[] = [];
   private byId = new Map<BotId, Robot>();
@@ -180,11 +181,17 @@ export class DuckSim {
     this.duckOfBody = new Map(this.robots.flatMap((r) => [...r.bodies].map((b) => [b, r.id] as const)));
     this.propBodies = new Map(kit.props.map((p) => [p.id, m.mj_name2id(this.model, BODY, p.id)]));
     this.propOfBody = new Map([...this.propBodies].map(([id, b]) => [b, id]));
+    const joint = (name: string) => this.model.jnt(name);
+    this.slotHolds = new Map(kit.slots.flatMap((slot) => {
+      const prop = kit.props.find((p) => p.id === slot.forProp && p.joint === "free");
+      if (!prop) return [];
+      const body = this.propBodies.get(prop.id)!;
+      return [[prop.id, { body, dof: joint(`${prop.id}_free`).dofadr, slot }] as const];
+    }));
     // Copy, don't keep the view: typed arrays over WASM memory go stale
     // (detached, every read undefined) whenever the WASM heap grows.
     this.geomBody = Int32Array.from(this.model.geom_bodyid as ArrayLike<number>);
     const plank = kit.props.find((p) => p.role === "plank" && p.joint === "hinge");
-    const joint = (name: string) => this.model.jnt(name);
     this.pin = plank
       ? { q: joint(`${plank.id}_hinge`).qposadr, v: joint(`${plank.id}_hinge`).dofadr, state: "locked" }
       : null;
@@ -338,7 +345,7 @@ export class DuckSim {
     return {
       world: (id) => this.world(id),
       start: (id, task) => this.startOn(id, task),
-      busy: (id) => this.robot(id).tasks.active !== null,
+      busy: (id) => this.robot(id).tasks.active !== null || this.robot(id).recovery !== null,
       clearFor: () => this.data.time - this.lastApparatusContact,
       stiffness: () => this.balanceK,
     };
@@ -452,6 +459,30 @@ export class DuckSim {
       if (r.brake === null) continue;
       qpos[r.q] = r.brake;
       qvel[r.v] = 0;
+    }
+    // Once a tile is seated, give it a gentle spring toward its slot while
+    // another tile is being pushed. This counters incidental contact without
+    // teleporting the tile or constraining the active push target.
+    const activePushes = new Set(this.robots.flatMap((r) => {
+      const task = r.tasks.active;
+      return task?.kind === "push" ? [task.target] : [];
+    }));
+    const pushing = activePushes.size > 0;
+    const applied = this.data.xfrc_applied as Float64Array;
+    for (const [id, hold] of this.slotHolds) {
+      const offset = hold.body * 6;
+      applied[offset] = 0;
+      applied[offset + 1] = 0;
+      if (!pushing || activePushes.has(id)) continue;
+      const pos = this.data.xpos as Float64Array;
+      const vel = this.data.qvel as Float64Array;
+      const dx = hold.slot.pos[0] - pos[hold.body * 3]!;
+      const dy = hold.slot.pos[1] - pos[hold.body * 3 + 1]!;
+      if (!slotFilled([pos[hold.body * 3]!, pos[hold.body * 3 + 1]!], hold.slot)) continue;
+      const fx = Math.max(-1.2, Math.min(1.2, 3 * dx - 0.35 * vel[hold.dof]!));
+      const fy = Math.max(-1.2, Math.min(1.2, 3 * dy - 0.35 * vel[hold.dof + 1]!));
+      applied[offset] = fx;
+      applied[offset + 1] = fy;
     }
   }
 
