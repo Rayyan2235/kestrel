@@ -9,6 +9,10 @@
 	}
 
 	handle /api/* {
+		# The API accepts only local Origins; present this site's own Origin as local.
+		# Any other Origin passes through unchanged and is still refused.
+		@self header Origin https://{$KESTREL_HOST}
+		request_header @self Origin http://127.0.0.1
 		reverse_proxy 127.0.0.1:5181
 	}
 
