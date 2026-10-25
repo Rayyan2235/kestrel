@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 // These boot the full MuJoCo lab and then drive the camera through several
-// modes. On CI's software WebGL the whole sequence ran past 120 s at its very
-// last click, so the budget is 180 s.
-test.setTimeout(180000);
+// modes. A CI trace showed every action taking 3–20 s on the runner's software
+// WebGL (the sequence reached its last click at 172 s), so the budget is 300 s.
+test.setTimeout(300000);
 
 test("explore camera persists, controls frame and reset, and keyboard stays out of robot input", async ({
   page,

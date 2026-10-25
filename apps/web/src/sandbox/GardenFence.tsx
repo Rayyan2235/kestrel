@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { ROOM_HALF } from "../simulation/constants";
-import { Foliage, type Canopy } from "./Foliage";
+import { Foliage, SimpleCanopies, type Canopy } from "./Foliage";
 
 // A storybook garden fence on MuJoCo's boundary wall: scalloped cream pickets,
 // two rails, ball-capped posts, climbing roses on the far sides and a flower
@@ -39,7 +39,7 @@ function picketGeometry() {
   return new THREE.ExtrudeGeometry(s, { depth: PICKET_T, bevelEnabled: false, curveSegments: 4 });
 }
 
-export function GardenFence({ reducedMotion }: { reducedMotion: boolean }) {
+export function GardenFence({ reducedMotion, lowPower = false }: { reducedMotion: boolean; lowPower?: boolean }) {
   const { meshes, roses, dispose } = useMemo(() => {
     const up = new THREE.Vector3(0, 0, 1);
     const m = new THREE.Matrix4();
@@ -132,7 +132,7 @@ export function GardenFence({ reducedMotion }: { reducedMotion: boolean }) {
       {meshes.map((mesh, i) => (
         <primitive key={i} object={mesh} />
       ))}
-      <Foliage canopies={roses} reducedMotion={reducedMotion} />
+      {lowPower ? <SimpleCanopies canopies={roses} /> : <Foliage canopies={roses} reducedMotion={reducedMotion} />}
     </group>
   );
 }
