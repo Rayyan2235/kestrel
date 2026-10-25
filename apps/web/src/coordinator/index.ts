@@ -1,6 +1,7 @@
 import {
   BOT_NAMES,
   RespondSchema,
+  CrewRespondSchema,
   balance,
   eventId,
   type Addressee,
@@ -9,6 +10,7 @@ import {
   type LedgerKind,
   type Respond,
   type PredictionChoice,
+  type CrewRespond,
   type Source,
   type World,
 } from "@kestrel/contracts";
@@ -54,6 +56,9 @@ type CallResult =
   { ok: true; respond: Respond; source: Source } | { ok: false };
 /** `summary`: the sim's own words for what it measured or why it refused. */
 type ActResult = { ok: boolean; summary?: string };
+/** The peer's built-in reply in a wrong-rail handoff, and the question it is asked. */
+type PeerReply = LocalReply & { question: string };
+type CrewPlan = { fast: CrewRespond | null };
 
 export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
   const { sim, provider } = deps;
@@ -87,6 +92,8 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
   const ownerOf = (side: "left" | "right"): BotId =>
     side === "left" ? "pip" : "nova";
   let pushingBot: BotId | null = null;
+  /** The robot that made the last measured move: crew-turn lead when nothing else decides. */
+  let lastTrial: BotId | null = null;
   /** The world once positions stop changing, so the outcome is read after the plank settles. */
   const settled = async (first: World, token: number): Promise<World> => {
     const gap = deps.settleMs ?? 0;
@@ -124,6 +131,8 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     learnerText: string,
     pull: BotId | null,
     local: LocalReply | null,
+    peerLocal: PeerReply | null = null,
+    crew: CrewPlan | null = null,
   ): Promise<void> => {
     const alive = () => token === epoch;
     let last: string | null = null;
@@ -227,6 +236,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       try {
         const applied = await sim.apply(task, version, actCtl.signal);
         if (!applied.ok) sim.release(task);
+        else lastTrial = who;
         return { ok: applied.ok, summary: applied.summary };
       } finally {
         clearTimeout(timer);
@@ -260,6 +270,66 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       add("you", bot, "learner", learnerText, "built-in", 0);
       setState(bot, "thinking");
       const v1 = sim.snapshot().version;
+      if (crew) {
+        // One reply for the crew: one call (or none on the fast path), one actor at most.
+        let reply: CrewRespond | null = crew.fast;
+        let source: Source = "built-in";
+        if (!reply && provider.crew) {
+          budget = { ...budget, callsUsed: budget.callsUsed + 1 };
+          try {
+            const got = await provider.crew(
+              {
+                bot,
+                rootTurnId: `t${token}`,
+                worldVersion: v1,
+                input,
+                peer: null,
+              },
+              signal,
+            );
+            const parsed = CrewRespondSchema.safeParse(got.crew);
+            reply = parsed.success ? parsed.data : null;
+            source = got.source;
+          } catch {
+            reply = null;
+          }
+        }
+        if (!alive()) return;
+        if (!reply) {
+          add(
+            bot,
+            "you",
+            "notice",
+            "I did not get an answer in time. Try again?",
+            "scripted",
+            0,
+          );
+          return;
+        }
+        const action = reply.lead.action;
+        // Only a weight's own robot may move it; the lead is ours to choose, not the model's.
+        const actor = action ? (action.side === "left" ? "pip" : "nova") : bot;
+        if (action && actor !== reply.lead.bot)
+          add(
+            actor,
+            "you",
+            "notice",
+            `${BOT_NAMES[actor]} works the ${action.side} rail.`,
+            "scripted",
+            0,
+          );
+        const moved = await act(
+          actor,
+          { say: reply.lead.say, action, ask_peer: null },
+          v1,
+        );
+        if (!alive()) return;
+        add(bot, "you", "say", reply.lead.say, source, 0);
+        report(actor, moved);
+        if (reply.second)
+          add(other(bot), "you", "say", reply.second.say, source, 0);
+        return;
+      }
       // A built-in command answers locally: no provider call, labelled `built-in`.
       const r1: CallResult = local
         ? {
@@ -296,20 +366,31 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         pull ?? (ask && ask.to !== bot && cfg.maxHops >= 1 ? ask.to : null);
       if (!peer) return;
 
-      const question = ask?.question ?? "Can you check this with me?";
+      const question =
+        peerLocal?.question ?? ask?.question ?? "Can you check this with me?";
       const evidence = ask?.evidence ?? "Balance reading";
       budget = { ...budget, hopsUsed: 1 };
       add(bot, peer, "handoff", question, r1.source, 1, evidence);
       setState(bot, "waiting");
       setState(peer, "thinking");
       const v2 = sim.snapshot().version;
-      const r2 = await call({
-        bot: peer,
-        rootTurnId: `t${token}`,
-        worldVersion: v2,
-        input,
-        peer: { from: bot, question, evidence },
-      });
+      const r2: CallResult = peerLocal
+        ? {
+            ok: true,
+            respond: {
+              say: peerLocal.say,
+              action: peerLocal.action,
+              ask_peer: null,
+            },
+            source: "built-in",
+          }
+        : await call({
+            bot: peer,
+            rootTurnId: `t${token}`,
+            worldVersion: v2,
+            input,
+            peer: { from: bot, question, evidence },
+          });
       if (!alive()) return;
       // A second ask would be a second hop: the fixed handback replaces it.
       if (!r2.ok || r2.respond.ask_peer !== null) {
@@ -344,13 +425,25 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     learnerText: string,
     pull: BotId | null,
     local: LocalReply | null = null,
+    peerLocal: PeerReply | null = null,
+    crew: CrewPlan | null = null,
   ): TurnHandle => {
     supersede();
     const token = epoch;
     chain = new AbortController();
     budget = { callsUsed: 0, hopsUsed: 0, capMs: cfg.chainCapMs };
     // Dispatched synchronously: the recipient is bound now, not when the reply lands.
-    const done = run(token, chain.signal, bot, input, learnerText, pull, local);
+    const done = run(
+      token,
+      chain.signal,
+      bot,
+      input,
+      learnerText,
+      pull,
+      local,
+      peerLocal,
+      crew,
+    );
     return { rootTurnId: `t${token}`, recipient: bot, done };
   };
 
@@ -561,6 +654,11 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       return () => void listeners.delete(listener);
     },
     learnerTurn: (text, recipient) => start(recipient, text, text, null),
+    delegate: (from, to, text, fromSay, peer) =>
+      start(from, text, text, to, { say: fromSay, action: null }, peer),
+    crewTurn: (text, lead, fast = null) =>
+      start(lead, text, text, null, null, null, { fast }),
+    lastTrial: () => lastTrial,
     localTurn: (recipient, text, reply) =>
       start(recipient, text, text, null, reply),
     askPeer: (from, to) => {

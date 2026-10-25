@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BotSchema } from "./bot.js";
 import { DuckTaskSchema } from "./lab.js";
 
 const Text = z.object({ type: z.literal("text"), text: z.string().min(1).max(2400) }).strict();
@@ -11,7 +12,7 @@ export const AgentMessageSchema = z.discriminatedUnion("role", [
 export type AgentMessage = z.infer<typeof AgentMessageSchema>;
 const XY = z.tuple([z.number().finite(), z.number().finite()]);
 export const AgentRequestSchema = z.object({
-  botId: z.literal("pip"),
+  botId: BotSchema,
   worldVersion: z.number().int().nonnegative(),
   world: z.object({
     lesson: z.enum(["pythagoras", "moments", "free"]),

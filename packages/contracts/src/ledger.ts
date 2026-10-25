@@ -75,3 +75,24 @@ export const RespondSchema = z
   })
   .strict();
 export type Respond = z.infer<typeof RespondSchema>;
+
+/**
+ * One model call voices a crew turn: the lead (who may act) and at most one
+ * short second line, which can never carry an action.
+ */
+export const CrewRespondSchema = z
+  .object({
+    lead: z
+      .object({
+        bot: BotSchema,
+        say: z.string().trim().min(1).max(500),
+        action: RespondSchema.shape.action,
+      })
+      .strict(),
+    second: z
+      .object({ bot: BotSchema, say: z.string().trim().min(1).max(300) })
+      .strict()
+      .nullable(),
+  })
+  .strict();
+export type CrewRespond = z.infer<typeof CrewRespondSchema>;

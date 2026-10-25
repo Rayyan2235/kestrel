@@ -1,5 +1,6 @@
 import type {
   Addressee,
+  CrewRespond,
   PredictionChoice,
   BotId,
   LedgerEvent,
@@ -42,7 +43,7 @@ export type Budget = { callsUsed: number; hopsUsed: number; capMs: number };
 
 export type TurnHandle = {
   rootTurnId: string;
-  /** Recipient bound at press-start; later selection changes never retarget it. */
+  /** Recipient fixed when the turn is resolved and dispatched; later selection changes never retarget it. */
   recipient: BotId;
   /** Settles when the chain ends (done, aborted, handback or error). */
   done: Promise<void>;
@@ -73,6 +74,21 @@ export interface Coordinator {
   learnerTurn(text: string, recipient: BotId): TurnHandle;
   /** Learner command answered by the fast path: no provider call, source `built-in`. Aborts any running chain. */
   localTurn(recipient: BotId, text: string, reply: LocalReply): TurnHandle;
+  /**
+   * Wrong rail: `from` was addressed but `to` owns the weight. `from` says its
+   * line, hands off, and `to` makes the move (built in) and hands back.
+   */
+  delegate(
+    from: BotId,
+    to: BotId,
+    text: string,
+    fromSay: string,
+    peer: LocalReply & { question: string },
+  ): TurnHandle;
+  /** One reply for the crew: one call (none on the fast path), the lead may act, owner-only. */
+  crewTurn(text: string, lead: BotId, fast?: CrewRespond | null): TurnHandle;
+  /** The robot that made the last measured move, or null. */
+  lastTrial(): BotId | null;
   /** Learner pulls a handoff: `from` asks `to`, `to` answers the learner. */
   askPeer(from: BotId, to: BotId): TurnHandle;
   /**

@@ -23,6 +23,7 @@ import { deriveChannel } from "../handoff/model.js";
 import { usePresentation } from "../presentation/usePresentation.js";
 import { createMockProvider } from "../provider/mock.js";
 import { consoleSim, createConversation, threadOf } from "./conversation";
+import { crewLead, OWNER, pressStart, resolveAddressees, type AddressContext, type Resolution } from "../addressing/resolve.js";
 import { Contained } from "./Contained";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
@@ -118,6 +119,15 @@ export function SandboxApp() {
   const selected = useSyncExternalStore(conv.subscribe, conv.selected);
   const selectedRef = useRef<BotId>("pip");
   selectedRef.current = selected;
+  /** The robot the current agent turn is bound to. */
+  const turnBot = useRef<BotId | null>(null);
+  /** A selection made since the last turn, and the open question thread. */
+  const selectedSince = useRef<BotId | null>(null);
+  const thread = useRef<{ bot: BotId; at: number } | null>(null);
+  /** Routing context taken at press-start (stale-voice rule). */
+  const pressed = useRef<AddressContext | null>(null);
+  const lastRoute = useRef<{ text: string; bot: BotId; at: number } | null>(null);
+  const [chip, setChip] = useState<{ label: string; heard: string | null; reaction: string | null } | null>(null);
   const reducedMotion = Boolean(useReducedMotion());
   const [paused, setPaused] = useState(false);
   /** DuckSim events fanned out to the SimAdapter that the coordinator reads. */
@@ -128,8 +138,10 @@ export function SandboxApp() {
     const id = nextId.current++;
     setLog((l) => [...l, { id, who, text: line, ok }].slice(-40));
     // Every line also enters the conversation: the learner to the selected robot, a reply from a robot to the learner.
-    if (who === "you") conv.record("you", selectedRef.current, "learner", line, "built-in");
-    else conv.record(bot ?? selectedRef.current, "you", "say", line, source);
+    if (who === "you") conv.record("you", turnBot.current ?? selectedRef.current, "learner", line, "built-in");
+    else conv.record(bot ?? turnBot.current ?? selectedRef.current, "you", "say", line, source);
+    // A robot's question to the learner keeps the thread open for 30 s.
+    if (who === "duck" && line.trim().endsWith("?")) thread.current = { bot: bot ?? turnBot.current ?? selectedRef.current, at: Date.now() };
   }, [conv]);
   /** The agent's own lines are the Claude agent's (live); the rest are built in. */
   const agentAdd = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => add(who, line, ok, undefined, who === "duck" && ok !== false ? "live" : "built-in"), [add]);
@@ -156,6 +168,7 @@ export function SandboxApp() {
         s.start();
         setSim(s);
         session.current = new AgentSession(s, agentAdd, setPhase);
+        session.current.onTranscript = (heard) => routeRef.current(heard, pressed.current ?? currentRef.current());
         // Dev-only handle for browser tests and debugging.
         if (import.meta.env.DEV) (window as unknown as { kestrelSim: DuckSim }).kestrelSim = s;
       })
@@ -166,6 +179,11 @@ export function SandboxApp() {
       created?.stop();
     };
   }, [onEvent, agentAdd]);
+
+  // The session can be created after the learner already turned spoken replies off.
+  useEffect(() => {
+    session.current?.setVoice(voice);
+  }, [voice, sim]);
 
   // Ask Pip / Ask Nova: the labelled mock hands off between the robots and back to the learner.
   // On the Moments lesson the coordinator drives the real robots through the SimAdapter
@@ -312,7 +330,7 @@ export function SandboxApp() {
     const down = (e: KeyboardEvent) => {
       if (e.key === "Escape") { e.preventDefault(); session.current?.cancel(); add("duck", "Stopped."); return; }
       if (typing(e) || e.metaKey || e.ctrlKey) return;
-      if (e.code === "Space") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); return; }
+      if (e.code === "Space") { e.preventDefault(); if (!e.repeat) talk(); return; }
       const k = e.key.toLowerCase();
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
         e.preventDefault();
@@ -354,29 +372,118 @@ export function SandboxApp() {
     };
   }, [sim, skill, add]);
 
+  // The session is created once; these refs always point at the latest router.
+  const routeRef = useRef<(cmd: string, ctx: AddressContext) => void>(() => {});
+  const currentRef = useRef<() => AddressContext>(() => ({ selected: null, thread: null }));
+  useEffect(() => {
+    routeRef.current = route;
+    currentRef.current = currentContext;
+    // Dev-only handle for browser tests: a fixture transcript, as if spoken (no mic, no Scribe).
+    if (import.meta.env.DEV)
+      (window as unknown as { kestrelVoice: unknown }).kestrelVoice = {
+        press: () => (pressed.current = pressStart(currentContext())),
+        transcript: (heard: string) => route(heard, pressed.current ?? currentContext()),
+      };
+  });
+
   function send(e: FormEvent) {
     e.preventDefault();
     if (!sim || !text.trim()) return;
-    const cmd = text.trim();
-    // While a challenge is active, a fast-path move waits for the learner's prediction.
-    const world = adapterRef.current?.snapshot();
-    const id = coordinator.challengeId();
-    if (id && world) {
-      const r = parseFast(cmd, { focus: null, leftCm: world.leftCm, rightCm: world.rightCm, undo: [] });
-      if (r.kind === "move") {
-        const challenge = challengeById(id)!;
-        held.current = coordinator.heldTurn(
-          selected,
-          cmd,
-          { say: "Lock your prediction, then I'll move it.", action: { side: r.side, cm: r.cm } },
-          { challengeId: id, promptId: challenge.prompts[0]!.promptId },
-        );
-        setText("");
-        return;
-      }
-    }
-    void session.current?.submit(cmd);
+    route(text.trim(), currentContext());
     setText("");
+  }
+
+  function currentContext(): AddressContext {
+    const open = thread.current && Date.now() - thread.current.at < 30_000 ? thread.current.bot : null;
+    return { selected: selectedSince.current, thread: open };
+  }
+
+  /** Hold-to-talk: the no-name target is taken now, before the transcript arrives. */
+  function talk() {
+    pressed.current = pressStart(currentContext());
+    void session.current?.startCapture();
+  }
+
+  /** One router for typed and spoken turns: name first, then the precedence rules. */
+  function route(cmd: string, ctx: AddressContext) {
+    let r: Resolution;
+    try {
+      r = resolveAddressees(cmd, ctx);
+    } catch {
+      r = { to: [selectedRef.current], mode: "selected", body: cmd, mentions: [], heard: null, unsure: false, side: null };
+    }
+    selectedSince.current = null;
+    const world = adapterRef.current?.snapshot();
+    const fast = world ? parseFast(r.body, { focus: null, leftCm: world.leftCm, rightCm: world.rightCm, undo: [] }) : null;
+    const move = fast?.kind === "move" ? { side: fast.side, cm: fast.cm } : null;
+    const crew = r.to.length > 1;
+    const bot = r.to[0]!;
+    const other = (b: BotId): BotId => (b === "pip" ? "nova" : "pip");
+    const label = crew ? "to Crew" : `to ${BOT_NAMES[bot]}${r.unsure ? "?" : ""}`;
+    setChip({
+      label: crew ? `${label} · one reply for the crew` : label,
+      heard: r.heard,
+      reaction: r.mode === "owner" ? `${BOT_NAMES[other(bot)]} turns and nods` : null,
+    });
+    if (r.mode === "clarify") {
+      turnBot.current = bot;
+      add("you", cmd);
+      add("duck", "Which weight? The left one (200 g) or the right one (100 g)?", true, bot);
+      return;
+    }
+    // While a challenge is active, a fast-path move waits for the learner's prediction.
+    const id = coordinator.challengeId();
+    if (id && move) {
+      const challenge = challengeById(id)!;
+      held.current = coordinator.heldTurn(
+        crew ? OWNER[move.side] : bot,
+        cmd,
+        { say: "Lock your prediction, then I'll move it.", action: move },
+        { challengeId: id, promptId: challenge.prompts[0]!.promptId },
+      );
+      return;
+    }
+    if (crew) {
+      const lead = crewLead(move?.side ?? r.side, coordinator.lastTrial(), null);
+      void coordinator.crewTurn(
+        cmd,
+        lead,
+        move
+          ? {
+              lead: { bot: OWNER[move.side], say: `Moving the ${move.side} weight to ${move.cm} cm.`, action: move },
+              second: { bot: other(OWNER[move.side]), say: "I'll watch the tilt." },
+            }
+          : null,
+      );
+      return;
+    }
+    // Wrong rail: the named robot answers, then hands the push to the weight's owner.
+    if (move && OWNER[move.side] !== bot) {
+      const owner = OWNER[move.side];
+      void coordinator.delegate(bot, owner, cmd, `That's ${BOT_NAMES[owner]}'s rail. ${BOT_NAMES[owner]}, can you?`, {
+        say: `Moving the ${move.side} weight to ${move.cm} cm.`,
+        action: move,
+        question: `Can you move the ${move.side} weight to ${move.cm} cm?`,
+      });
+      return;
+    }
+    turnBot.current = bot;
+    lastRoute.current = { text: cmd, bot, at: Date.now() };
+    void session.current?.submit(cmd, bot);
+  }
+
+  /** Tapping the other robot within 3 s, before anything moves, sends the turn to it instead. */
+  function selectBot(b: BotId) {
+    conv.select(b);
+    selectedSince.current = b;
+    const last = lastRoute.current;
+    if (last && last.bot !== b && Date.now() - last.at < 3000 && session.current?.phase !== "Acting") {
+      lastRoute.current = null;
+      session.current?.cancel();
+      turnBot.current = b;
+      setChip({ label: `to ${BOT_NAMES[b]}`, heard: null, reaction: null });
+      void session.current?.submit(last.text, b);
+    }
   }
 
   const name = (id: string) => sim?.kit.props.find((p) => p.id === id)?.label ?? id;
@@ -561,10 +668,17 @@ export function SandboxApp() {
           )}
           <div className={styles.picker} role="group" aria-label="Who are you talking to">
             {(["pip", "nova"] as const).map((b) => (
-              <button key={b} aria-pressed={selected === b} aria-label={`Select ${BOT_NAMES[b]}`} onClick={() => conv.select(b)}>
+              <button key={b} aria-pressed={selected === b} aria-label={`Select ${BOT_NAMES[b]}`} onClick={() => selectBot(b)}>
                 {BOT_NAMES[b]}
               </button>
             ))}
+            {chip && (
+              <span className={styles.chip} data-testid="address-chip">
+                {chip.label}
+                {chip.heard && <small> · heard: {chip.heard}</small>}
+                {chip.reaction && <small data-testid="reaction"> · {chip.reaction}</small>}
+              </span>
+            )}
             <button data-testid="pause" aria-pressed={paused} onClick={() => setPaused((p) => !p)}>
               {paused ? <Play size={13} aria-hidden="true" /> : <Pause size={13} aria-hidden="true" />} {paused ? "Resume" : "Pause"}
             </button>
@@ -624,11 +738,11 @@ export function SandboxApp() {
               disabled={!sim}
               aria-label="Hold to talk"
               aria-pressed={phase === "Listening"}
-              onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); void session.current?.startCapture(); }}
+              onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); talk(); }}
               onPointerUp={() => session.current?.endCapture()}
               onPointerCancel={() => session.current?.cancel()}
               onLostPointerCapture={() => session.current?.endCapture()}
-              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); } }}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) talk(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
             >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</button>
             <button type="button" aria-label="Spoken replies" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
