@@ -1,59 +1,26 @@
-# Handoff
+# Handoff — product entry integration, 2026-10-25
 
-_Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, after resuming from Codex and pushing `as-kestrel`)._
+## Current task
 
-## Two-bot demo branch (added 2026-10-24, implementer session)
+Owner explicitly requested merging the landing page and actual console to main after removing the old scripted view and adding a dark purple glass tint. Changes are on `glass-windows`, PR #8. The original `welcome-preview` worktree is preserved; only its landing components/assets were copied, avoiding its older simulation ancestors.
 
-Branch `feat/two-bot-demo` holds the two-bot conversation demo (see `04-status.md` and `03-codebase-map.md`) merged with `origin/main` (PR #2). It stays behind `?demo=two-bot`. **Next task, separate PR:** implement `SimAdapter` over `duckSim` and wire the coordinator to it; do not change layers above `SimAdapter`. Open for the owner: default presentation speed, and whether Pause also holds an in-flight model call (currently it does not).
+## Delivered
 
-## The goal (teammate slice, see `08-current-scope.md`)
+- `/` is the illustrated landing page; all Open console links lead to `/console`, the real MuJoCo/ONNX SandboxApp. Home returns to `/`. `/lab` and `/sandbox.html` remain usable.
+- Old App screen, preview scene and preview store removed with obsolete tests. Separate `?demo=two-bot` teammate demo preserved, lazily loaded.
+- Console runs outside StrictMode to initialize WASM once; landing does not load physics. Purple glass tint and existing pill controls use the owner palette.
+- Landing FAQ describes current AI/voice honestly, including server configuration and current single robot. Other two-robot physics branches are not included in this UI integration.
+- README, design, provenance and codebase map updated. Local installed design skill remains untracked.
 
-The learner speaks to the duck; Claude decides whether to answer, act, or both; the duck acts in the physics lab; replies appear in a bubble beside the duck and in the chat, and are spoken aloud. Pythagoras squares are the first lesson; Moments is next.
+## Verification
 
-## Where the code lives
+- `pnpm check`: passed, 139 tests, types, web/API builds and API smoke. Eight obsolete preview-store tests were removed with the store.
+- Landing/navigation/real-console Playwright: 16/16 desktop/mobile, including actual movement at `/console` and Stop/Reset at `/sandbox.html`, with mocked AI.
+- Production screenshots inspected at desktop and phone sizes: no page errors or horizontal overflow; purple glass and Open console/Home navigation confirmed.
+- Code review caught a stale root-page integration assertion; corrected to the landing contract. Follow-up integration checks and GitHub CI gate the requested merge.
 
-- Branch **`as-kestrel`** on `usmannsiddiqui/kestrel` (public). It was cut from `73a294c` and is **not** rebased on `origin/main` (`32c575d`).
-- The owner's branch **`origin/microduck-lab-windows`** also builds a Microduck lab with per-bot agent windows. It overlaps heavily; compare before merging either.
-- Local secrets live in `.env` (gitignored): ElevenLabs key, AWS IAM key (`AKIA…`, no session token), `AWS_REGION=us-east-1` and `BEDROCK_MODEL_ID=global.anthropic.claude-sonnet-4-6`. Never print or commit them.
+## Next
 
-## Works (verified live on 2026-10-24)
+Finish integration/CI checks, merge PR #8 using a merge commit as authorized, and verify origin/main includes it. Teammates pull main, install frozen dependencies, and run pnpm dev; each supplies their own .env for live AI/voice. Do not merge unrelated simulation PRs.
 
-- **Voice loop:** hold-to-talk (or Space) → MediaRecorder → ElevenLabs `scribe_v2` → Claude Sonnet 4.6 on Bedrock → duck acts → ElevenLabs `eleven_flash_v2_5` speaks. "Please walk forward 20 centimeters" made the duck move 18 cm, followed by spoken replies.
-- **All typed text goes to Claude.** The fixed parser is no longer used in the UI.
-- **"What is the Pythagorean theorem?"** puts the explanation in the bubble and chat, then the duck pushes squares in the same turn.
-- **"Move the crate to the right"** (Free play) pushes the crate 16 cm **screen-right**, and Claude reports the measured result accurately.
-- **Claude's honesty:** results include measured distances, and the closing summary describes the current world, failures included.
-- **Moments physics:** the plank tips to about −12° under the 200 g weight, after the pivot was rotated (`yaw: π/2`).
-- **Moments display:** the camera frames the duck plus the lesson apparatus (`LabKit.focus`), so the tipping plank is visible.
-- **Tests:** 27/27 unit tests and `tsc` clean.
-
-## Unreliable or broken
-
-1. **Three-square demo.** Individual pushes reach 3–4 cm, but across a full demo the duck sometimes falls afterwards, or pushing the 5×5 stalls and disturbs placed tiles.
-   - A proposed fix is **not applied**: prompt order largest-first (5 → 4 → 3) in `apps/api/src/agent.ts`, and push budget 120 → 150 s in `tasks.ts`, with the test loop updated to match.
-2. **Moments isn't an experiment yet.**
-   - The duck can't put a weight on the plank (the plank top is about 7 cm up; push only works along the floor).
-   - Claude's system prompt has only Pythagoras guidance.
-   - Moments is untested with Claude and voice.
-3. **First live voice run timed out once** (no "Moved" within 90 s). It was flaky and not reproduced.
-4. **Disk** is about 0.15 GB free on C:. Headless Chromium crashed once mid-demo, probably because of it. Check free space before installs or long runs.
-
-## Next steps, in order
-
-This is the short list; the full backlog with acceptance checks is in `11-remaining-steps.md`.
-
-1. **Moments as a real lesson:**
-   - Add a bounded `place_weight` task: `{ weight, side: left|right, cm: 5–30 }`. It sets the weight onto the plank at that distance (an authored station action, honestly labelled; not a physical lift), and its result reports the measured tilt.
-   - Add Moments guidance to the agent prompt: explain moment = mass × distance, predict, place, observe the tilt, balance (200 g × 20 cm = 100 g × 40 cm).
-   - Verify by voice: "balance the plank".
-2. Apply the largest-first demo fix and re-run `tests/.probe-demo.mjs` (paid, about $0.10 per run) until the 3-square demo succeeds repeatably. Then investigate the post-push fall.
-3. Turn the useful probes (`tests/.probe-demo.mjs`, `.probe-right.mjs`, `.probe-moments.mjs`; gitignored) into Playwright specs with mocked Claude. Keep `scripts/live-voice-check.mjs` as the paid end-to-end check.
-4. Compare with and reconcile against the owner's `microduck-lab-windows` before opening a PR.
-5. Later: a second duck (good teacher / bad teacher).
-
-## Blocked / needs owner
-
-- TTS and provider choice: ElevenLabs plus Claude on Bedrock instead of the planned OpenAI.
-- Youth data terms.
-- Microduck asset licences (vendored under the upstream Space's Apache-2.0).
-- Bedrock access: Haiku 5.5, Sonnet 5 and Sonnet 5.5 are unavailable to this account, and Haiku 4.5 needs Marketplace subscribe permissions.
+Integration follow-up: 8/8 desktop/mobile checks passed, including actual `/console` physics boot without automatic external/provider calls and the preserved teammate demo. Combined relevant browser checks: 24/24.
