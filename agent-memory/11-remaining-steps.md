@@ -121,3 +121,8 @@ Owner playtest: try three-checkpoint zigzag using real microphone/STT. Check puz
 ## 2026-10-25 — Four-path network
 
 Latest owner playtest target is four-path letter graph, not the earlier zigzag. Test voice recognition of letter sequences using real STT. Observe shortest-run battery margin; never raise budget above the next-shortest path without revisiting geometry.
+
+## 2026-10-25 — Tiger Data progress
+
+27. **[owner] Verify Tiger Data for real.** Set `TIGER_DATABASE_URL`, restart the API, check `/api/health` shows `progress: true`, then a real insert and read, and a won objective surviving a refresh. Accept only if a row is in the `attempts` hypertable.
+28. **[later] Log failed attempts too**, so attempt counts mean more than wins.

@@ -21,6 +21,7 @@ it("rejects malformed commands and reports the actual provider capability", asyn
       liveAi: false,
       speech: false,
       mujoco: false,
+      progress: false,
     });
   } finally {
     await app.close();

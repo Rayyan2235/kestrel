@@ -198,4 +198,5 @@ Rescue-navigation is the base. On top of it: robot sound instead of TTS, one-sen
 
 - **Verified live (real MuJoCo, browser):** Balance the beam tips the plank 5.8° left. Two different learner solutions read level at 0.4° and fill the bar to 100 XP. Pip's handoff, each robot's measured move and the joint result appear in Pip and Nova. A live Claude turn walked Pip 20 cm with the robot clip and no TTS call.
 - **Seen, not judged:** two Build-the-triangle runs in a hidden (throttled) browser tab each had one robot fall, so only 1 of 3 squares landed and XP correctly stayed 0. Re-check `build_squares` in a visible tab before demoing it.
+- **Progress storage (branch `tiger-data-progress`):** won objectives survive refresh via localStorage, and via a Tiger Data hypertable when `TIGER_DATABASE_URL` is set. Unit-tested with a mocked database; a real insert/read is not yet verified.
 - **Not ported from main:** the coordinator and two-bot LLM conversation, the progress store and levels, and #11–#17's other UI.

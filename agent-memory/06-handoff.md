@@ -1,16 +1,12 @@
-# Current handoff — rescue-main
+# Current handoff — tiger-data-progress
 
-Branch `rescue-main` (worktree `kestrel-crew-windows`). The owner chose the rescue-navigation code as the new main: it keeps rescue's tree, and `main` is recorded as merged with `-s ours`, so none of #11–#17 is in it except what was re-added below.
+Branch `tiger-data-progress` (from `rescue-main`), PR to `main`. Do not merge; do not touch PR #21.
 
-Done on this branch:
-- Robots answer with a short robot sound (`/audio/bd1-reply.mp3`, owner-supplied) instead of ElevenLabs speech; their words stay in the think bubble and log. The system prompt asks for one short sentence.
-- `normalizeTask` folds a stray `direction` into the sign and drops extra fields, so a `move` with `direction: "forward"` no longer fails the strict schema (this was why Pip ignored commands on main).
-- Objectives board with XP: Balance the beam loads Moments and releases the plank so it tips left; the bar fills only when the released plank reads level for 1 s with no robot working. Build the triangle and Rescue Pip reuse the slot and charger measurements.
-- Collapsible You and Pip / Pip and Nova windows. Pip and Nova shows the simulator's real crew handoffs (set_balance, build_squares, Nova's weight) and each robot's measured result. It is not a second language model.
+Done: learner progress for the Tiger Data prize. Wins are logged to `localStorage` and, with `TIGER_DATABASE_URL`, to the `attempts` hypertable (see `03-codebase-map.md`, Progress). `pnpm check` is green with the database mocked.
 
-- Polish: a Controls pill, "Your Kestrel", no provider note, a mute icon, confetti on wins, and pixel-art think bubbles.
-- Free play fight: Pip and Nova charge in rounds. A fast clash means an explosion plus a random loser knocked over by `DuckSim.knock` (scripted, not crash physics).
+Next:
+1. Owner creates the Tiger Data service and sets `TIGER_DATABASE_URL` in the root `.env`.
+2. Restart the API; `/api/health` should show `progress: true`. Verify a real insert (`POST /api/progress`) and read (`GET /api/progress/:learner`), then win an objective in the console, refresh, and check the board keeps it.
+3. Possible follow-up: log failed attempts too (for example a beam experiment that finishes tipped), so attempt counts mean more than wins.
 
-Not ported (owner said it did not work): main's coordinator, the two-bot LLM conversation, and the progress store and levels.
-
-PR #21 (`rescue-main` to `main`) is open. The owner said not to merge yet. Re-run CI after each push; merge only on the owner's word.
+Previous handoff (rescue-main, PR #21) is unchanged: see `07-changelog.md`.

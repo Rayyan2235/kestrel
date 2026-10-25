@@ -367,3 +367,8 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - CI on #21 failed 2 of 144 on timing: the rescue route never reached "Battery died!" in 170 s, and the camera spec ran out of its 120 s budget. Main's `e13e51d` (lighter low-power scene, camera budget 300 s) had been dropped when rescue's tree replaced main's, so it is cherry-picked back (`1578f95`).
 - Rescue spec: each route gets 480 s, the respawn 120 s, and the test 20 min. The CI job limit is now 40 min.
+
+## 2026-10-25 · Claude Code · Tiger Data learner progress (branch `tiger-data-progress`)
+
+- Contracts `progress.ts`; API `progress.ts` (`pg` 8.23.1, `attempts` hypertable on `at`, `POST /api/progress`, `GET /api/progress/:learner`, 503 without `TIGER_DATABASE_URL`, driver errors hidden); `/api/health` gains `capabilities.progress`. Web `progress.ts`: anonymous learner ID, localStorage fallback, silent failures; `SandboxApp` loads earned objectives on mount and logs wins with beam tilt and weight positions.
+- Tests: `apps/api/src/progress.test.ts`, `apps/web/src/sandbox/progress.test.ts` (database and fetch mocked). `pnpm check` passed (29 files, 221 tests, builds, API smoke). Not yet verified against a real Tiger Data service.

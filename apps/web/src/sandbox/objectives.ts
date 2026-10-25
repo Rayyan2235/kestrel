@@ -1,8 +1,8 @@
-import type { KitId } from "@kestrel/contracts";
+import type { KitId, ObjectiveId } from "@kestrel/contracts";
 import type { SimStatus } from "../simulation/duckSim";
 import { balanceSnapshot } from "./agentSession";
 
-export type ObjectiveId = "balance-beam" | "build-triangle" | "rescue-pip";
+export type { ObjectiveId };
 
 export type Objective = {
   id: ObjectiveId;
