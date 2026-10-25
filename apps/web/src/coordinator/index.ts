@@ -11,6 +11,7 @@ import {
   type PredictionChoice,
   type Source,
 } from "@kestrel/contracts";
+import { challengeById } from "../progress/challenges.js";
 import type { LabEventLog } from "../progress/events.js";
 import type { Provider, ProviderRequest } from "../provider/types.js";
 import type { SimAdapter } from "../simulation/types.js";
@@ -69,6 +70,8 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
   let voidHeld: ((reason: string) => void) | null = null;
   /** Resolved attempts per prompt: labels events only, scoring never reads it. */
   const resolved = new Map<string, number>();
+  /** Challenges already completed since they started: complete is logged once. */
+  const completed = new Set<string>();
   const objectOf = (side: "left" | "right") =>
     side === "left" ? ("left-weight" as const) : ("right-weight" as const);
   const stamp = () => ({ epoch, worldVersion: sim.snapshot().version });
@@ -362,6 +365,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         reason,
         ...stamp(),
       });
+      emit();
     };
     const finish = (attempt: number | undefined): boolean => {
       const applied = sim.apply(task, baseVersion);
@@ -375,6 +379,19 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         epoch: token,
         worldVersion: applied.world.version,
       });
+      if (
+        challenge === context.challengeId &&
+        !completed.has(challenge) &&
+        balance(applied.world) === challengeById(challenge)?.goal
+      ) {
+        completed.add(challenge);
+        deps.log?.append({
+          type: "challenge_complete",
+          challengeId: challenge,
+          epoch: token,
+          worldVersion: applied.world.version,
+        });
+      }
       say(
         recipient,
         "you",
@@ -431,6 +448,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     budget = { callsUsed: 0, hopsUsed: 0, capMs: cfg.chainCapMs };
     sim.reset();
     challenge = null;
+    completed.clear();
   };
 
   return {
@@ -496,6 +514,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       emit();
     },
     challengeId: () => challenge,
+    holding: () => voidHeld !== null,
     stop: () => {
       supersede();
       emit();

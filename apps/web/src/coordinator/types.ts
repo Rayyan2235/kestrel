@@ -86,6 +86,8 @@ export interface Coordinator {
   startChallenge(challengeId: string, setup: SetupMove[]): void;
   /** Leaves the active challenge: cancels any held move; later asks and moves are free play. */
   endChallenge(): void;
+  /** True while a held move waits for its prediction. */
+  holding(): boolean;
   /** Active challenge id, or null. */
   challengeId(): string | null;
   /** Aborts the chain and drops late results. */
