@@ -119,7 +119,7 @@ describe("G2 gate: held move and startChallenge", () => {
 
   it("startChallenge loads authored cm values as tagged setup, with no attempt", () => {
     const { sim, log, c } = rig();
-    c.startChallenge(challengeById("moments-2")!.setup);
+    c.startChallenge("moments-2", challengeById("moments-2")!.setup);
     const w = sim.snapshot();
     expect([w.leftCm, w.rightCm]).toEqual([15, 45]);
     const moves = log.events().filter((e) => e.type === "move_applied");
@@ -135,7 +135,7 @@ describe("G2 gate: held move and startChallenge", () => {
   it("startChallenge clears epoch state: a held move from before is voided", () => {
     const { log, c } = rig();
     held(c);
-    c.startChallenge(challengeById("moments-1")!.setup);
+    c.startChallenge("moments-1", challengeById("moments-1")!.setup);
     expect(types(log)).toContain("prediction_voided");
   });
 

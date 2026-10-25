@@ -46,10 +46,9 @@ describe("G3 gate: frozen v1 fixture", () => {
     expect(p.equipped).toEqual(FIXTURE.equipped);
     expect(p.seen).toEqual(FIXTURE.seen);
     expect(p.awards).toEqual(FIXTURE.awards);
-    expect(levelOf(sum(p.awards))).toBe(levelOf(165 + 50 + 20 + 20 + 50 - 165 + 165)); // 175 XP... recomputed below
   });
 
-  it("derived level from the fixture is stable: 175 XP... computed from awards only", () => {
+  it("derived level from the fixture is stable, computed from awards only", () => {
     const total = sum(FIXTURE.awards);
     expect(total).toBe(10 + 15 + 50 + 20 + 10 + 10 + 50);
     expect(levelOf(total)).toBe(2);
