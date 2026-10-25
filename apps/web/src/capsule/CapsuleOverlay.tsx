@@ -1,77 +1,61 @@
 import type { LedgerEvent } from "@kestrel/contracts";
 import { ArrowDownToLine, ClipboardCheck } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, type CSSProperties } from "react";
 import type { Anchors, Point } from "../bubbles/BubbleLayer.js";
-import { planCapsule, type CapsulePlan } from "./model.js";
+import type { Beat, CapsuleState } from "../presentation/director.js";
 import styles from "./CapsuleOverlay.module.css";
 
 /** Where a handback lands: the command dock under the stage. */
 export const DOCK_POINT: Point = { x: 50, y: 108 };
-/** How long a landed capsule stays visible before the overlay returns to idle. */
-const LINGER_MS = 900;
-
-type Active = { plan: CapsulePlan; event: LedgerEvent; landed: boolean };
 
 const pointOf = (who: LedgerEvent["to"], anchors: Anchors): Point =>
   who === "you" ? DOCK_POINT : anchors[who];
 
 /**
- * One capsule per handoff/handback ledger event. Timing comes from
- * planCapsule(), so a fake clock drives it deterministically.
- * Reduced motion: no flight element, a still glyph beside the speaker.
+ * Draws the capsule of the beat the presentation director is showing. State
+ * (idle, flying, landed) comes from the director, so pause, speed and a fake
+ * clock all apply. Reduced motion: a still glyph beside the speaker, no flight.
  */
 export function CapsuleOverlay({
-  ledger,
+  beat,
+  state,
   anchors,
   reducedMotion,
+  paused,
+  speed,
 }: {
-  ledger: readonly LedgerEvent[];
+  beat: Beat | null;
+  state: CapsuleState;
   anchors: Anchors;
   reducedMotion: boolean;
+  paused: boolean;
+  speed: number;
 }) {
-  const [active, setActive] = useState<Active | null>(null);
-  const seen = useRef<string | null>(null);
   const token = useRef<HTMLDivElement>(null);
+  const anim = useRef<Animation | null>(null);
+  const plan = beat?.capsule ?? null;
+  const event = beat?.event ?? null;
+  const live = useRef({ paused, speed });
+  live.current = { paused, speed };
 
+  // One flight per beat; the director decides when it is over.
+  const beatId = event?.id ?? null;
   useEffect(() => {
-    const last = ledger.at(-1);
-    if (!last) {
-      seen.current = null;
-      setActive(null);
-      return;
-    }
-    if (last.id === seen.current) return;
-    seen.current = last.id;
-    const plan = planCapsule(last, { reducedMotion });
-    if (!plan) return;
-    setActive({ plan, event: last, landed: false });
-    const land = window.setTimeout(
-      () => setActive((a) => (a ? { ...a, landed: true } : a)),
-      plan.durationMs,
-    );
-    const clear = window.setTimeout(
-      () => setActive(null),
-      plan.durationMs + LINGER_MS,
-    );
-    return () => {
-      window.clearTimeout(land);
-      window.clearTimeout(clear);
-    };
-  }, [ledger, reducedMotion]);
-
-  useEffect(() => {
-    if (!active || reducedMotion || active.landed) return;
+    anim.current = null;
     const el = token.current;
-    if (!el || typeof el.animate !== "function") return;
-    const from = pointOf(active.event.from, anchors);
-    const to = pointOf(active.event.to, anchors);
-    const travel = active.plan.phases.find((p) => p.name === "travel");
+    if (!el || !plan || !event || reducedMotion) return;
+    if (typeof el.animate !== "function") return;
+    const travel = plan.phases.find((p) => p.name === "travel");
     if (!travel) return;
-    const arcY = Math.min(from.y, to.y) - 14;
-    const anim = el.animate(
+    const from = pointOf(event.from, anchors);
+    const to = pointOf(event.to, anchors);
+    const a = el.animate(
       [
         { left: `${from.x}%`, top: `${from.y - 10}%` },
-        { left: `${(from.x + to.x) / 2}%`, top: `${arcY}%` },
+        {
+          left: `${(from.x + to.x) / 2}%`,
+          top: `${Math.min(from.y, to.y) - 14}%`,
+        },
         { left: `${to.x}%`, top: `${to.y - 10}%` },
       ],
       {
@@ -81,29 +65,25 @@ export function CapsuleOverlay({
         fill: "both",
       },
     );
-    return () => anim.cancel();
-  }, [active, anchors, reducedMotion]);
+    a.playbackRate = live.current.speed;
+    if (live.current.paused) a.pause();
+    anim.current = a;
+    return () => a.cancel();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [beatId, reducedMotion]);
 
-  if (!active) {
-    return reducedMotion ? null : (
-      <div className={styles.overlay} data-testid="capsule" data-state="idle" />
-    );
-  }
-  const { plan, event } = active;
-  const Icon = plan.kind === "handoff" ? ClipboardCheck : ArrowDownToLine;
-  const label = plan.kind === "handoff" ? "Check my reading" : "Back to you";
-  const body = (
-    <>
-      <Icon size={16} aria-hidden="true" />
-      <span className={styles.label}>{label}</span>
-      {event.evidence && (
-        <span className={styles.evidence}>{event.evidence}</span>
-      )}
-    </>
-  );
+  useEffect(() => {
+    const a = anim.current;
+    if (!a) return;
+    a.playbackRate = speed;
+    if (paused) a.pause();
+    else a.play();
+  }, [paused, speed]);
 
   if (reducedMotion) {
-    const at = anchors[event.from as keyof Anchors];
+    if (!plan || !event || state === "idle" || event.from === "you")
+      return null;
+    const at = anchors[event.from];
     return (
       <div className={styles.overlay}>
         <div
@@ -113,17 +93,21 @@ export function CapsuleOverlay({
           data-glyph-only="true"
           style={{ left: `${at.x}%`, top: `${at.y - 10}%` } as CSSProperties}
         >
-          {body}
+          <Body kind={plan.kind} evidence={event.evidence} />
         </div>
       </div>
     );
   }
+  if (!plan || !event || state === "idle")
+    return (
+      <div className={styles.overlay} data-testid="capsule" data-state="idle" />
+    );
   const start = pointOf(event.from, anchors);
   return (
     <div
       className={styles.overlay}
       data-testid="capsule"
-      data-state={active.landed ? "landed" : "flying"}
+      data-state={state}
       data-kind={plan.kind}
       data-from={event.from}
       data-to={event.to}
@@ -131,13 +115,32 @@ export function CapsuleOverlay({
     >
       <div
         ref={token}
-        className={`${styles.token} ${active.landed ? styles.landed : ""}`}
+        className={`${styles.token} ${state === "landed" ? styles.landed : ""}`}
         style={
           { left: `${start.x}%`, top: `${start.y - 10}%` } as CSSProperties
         }
       >
-        {body}
+        <Body kind={plan.kind} evidence={event.evidence} />
       </div>
     </div>
+  );
+}
+
+function Body({
+  kind,
+  evidence,
+}: {
+  kind: "handoff" | "handback";
+  evidence?: string;
+}) {
+  const Icon = kind === "handoff" ? ClipboardCheck : ArrowDownToLine;
+  return (
+    <>
+      <Icon size={16} aria-hidden="true" />
+      <span className={styles.label}>
+        {kind === "handoff" ? "Check my reading" : "Back to you"}
+      </span>
+      {evidence && <span className={styles.evidence}>{evidence}</span>}
+    </>
   );
 }

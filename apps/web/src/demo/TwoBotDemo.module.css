@@ -219,3 +219,18 @@
     border-color: CanvasText;
   }
 }
+
+.paused {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--panel);
+  font-size: 13px;
+  font-weight: 700;
+}
