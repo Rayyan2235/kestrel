@@ -16,7 +16,7 @@ type In = Record<string, unknown> & { type: string };
 const fresh = (awards: Award[] = []): Run => ({ awards, rejected: [], events: [] });
 let SEQ = 0;
 const feed = (run: Run, e: In, opts: { now?: number; epoch?: number } = {}): Run => {
-  const event = { worldVersion: 0, epoch: 0, ...e, seq: SEQ++ } as unknown as LabEvent;
+  const event = { worldVersion: 0, epoch: opts.epoch ?? 0, ...e, seq: SEQ++ } as unknown as LabEvent;
   const state: RuleState = {
     awards: run.awards,
     events: run.events,
@@ -65,7 +65,7 @@ describe("G1 gate: pure award rules", () => {
   });
 
   it("an older-epoch event earns nothing", () => {
-    const r = feedAll(fresh(), [{ ...lock("balanced"), epoch: 0 }, move("balanced", 1)], { epoch: 3 });
+    const r = feedAll(fresh(), [{ ...lock("balanced"), epoch: 0 }, { ...move("balanced", 1), epoch: 0 }], { epoch: 3 });
     expect(xp(r)).toBe(0);
   });
 
@@ -95,7 +95,7 @@ describe("G1 gate: pure award rules", () => {
   });
 
   it("replay: the same events twice give identical awards", () => {
-    const es = [lock("left-down"), move("left", 1), lock("balanced", 2), move("balanced", 2), complete(), explain()];
+    const es = [lock("left-down"), move("right", 1), lock("balanced", 2), move("balanced", 2), complete(), explain()];
     const strip = (r: Run) => r.awards.map((x) => [x.awardId, x.ruleId, x.xp]);
     const a = strip(feedAll(fresh(), es));
     const b = strip(feedAll(fresh(), es));
@@ -126,19 +126,19 @@ describe("G1 gate: pure award rules", () => {
 
   it("incentive order: right first 25, wrong then right 20, wrong only 10", () => {
     expect(xp(prompt("balanced", "balanced"))).toBe(25);
-    expect(xp(prompt("balanced", "balanced", 2, prompt("left-down", "left")))).toBe(20);
-    expect(xp(prompt("left-down", "left"))).toBe(10);
+    expect(xp(prompt("balanced", "balanced", 2, prompt("left-down", "right")))).toBe(20);
+    expect(xp(prompt("left-down", "right"))).toBe(10);
   });
 
   it("always-wrong-then-correct never out-earns lock-right and never exceeds 25 per prompt", () => {
     let r = fresh();
-    for (let a = 1; a <= 4; a++) r = prompt("right-down", "right", a, r);
+    for (let a = 1; a <= 4; a++) r = prompt("right-down", "left", a, r);
     r = prompt("balanced", "balanced", 5, r);
     expect(xp(r)).toBeLessThanOrEqual(25);
   });
 
   it("incentive holds across Resets", () => {
-    let r = prompt("left-down", "left", 1);
+    let r = prompt("left-down", "right", 1);
     r = feedAll(r, [lock("balanced", 2), move("balanced", 2)], { epoch: 1 });
     expect(xp(r)).toBe(20);
   });
@@ -150,13 +150,13 @@ describe("G1 gate: pure award rules", () => {
   });
 
   it("comeback: wrong attempt 1 then successful attempt 2 gives +10 and no match", () => {
-    const r = prompt("balanced", "balanced", 2, prompt("left-down", "left"));
+    const r = prompt("balanced", "balanced", 2, prompt("left-down", "right"));
     expect(r.awards.find((a) => a.ruleId === "comeback")?.xp).toBe(10);
     expect(r.awards.some((a) => a.ruleId === "match")).toBe(false);
   });
 
   it("reload: wrong lock, reload, right lock on the same prompt totals 20 (10 + comeback 10, no match)", () => {
-    const before = prompt("left-down", "left");
+    const before = prompt("left-down", "right");
     // reload: awards persisted, events gone, the attempt counter restarts at 1
     const after = prompt("balanced", "balanced", 1, fresh(before.awards));
     expect(xp(after)).toBe(20);
