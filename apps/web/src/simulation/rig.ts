@@ -22,8 +22,22 @@ export type DuckRig = {
   joints: Map<string, { body: THREE.Object3D; axis: THREE.Vector3; base: THREE.Quaternion; range: [number, number] | null }>;
 };
 
-/** Shell meshes recoloured per bot, so each companion keeps an identity colour. */
-const SHELLS = new Set(["left_shell.stl", "right_shell.stl", "top_head_shell.stl"]);
+/** Matching shell and foot accents keep each companion's palette consistent. */
+const SHELLS = new Set([
+  "left_shell.stl", "right_shell.stl", "top_head_shell.stl",
+  "foot_left.stl", "foot_right.stl", "ankle_left.stl", "ankle_right.stl",
+  "sole_left.stl", "sole_right.stl", "upper_leg_rigidity_plate.stl",
+]);
+const LIGHT_PANELS = new Set([
+  "bottom_head_shell.stl", "jaw.stl",
+  "hip_l.stl", "upper_leg_left.stl", "upper_leg_right.stl", "leg.stl",
+  "neck.stl", "jaw_soft.stl", "soft_mouth_top.stl", "power_support.stl", "np_f970.stl",
+]);
+
+const DARK_PARTS = new Set([
+  "xl330.stl", "lens.stl", "face_part.stl", "motor_support.stl", "noenoeil.stl",
+  "m12_lens_holder.stl", "speaker.stl", "trunk_base.stl", "neck_pitch.stl", "bearing_roll.stl",
+]);
 
 let geometries: Promise<Map<string, THREE.BufferGeometry>> | null = null;
 let kinematics: Promise<KinBody[]> | null = null;
@@ -91,6 +105,8 @@ export async function buildDuckRig(tint?: string): Promise<DuckRig> {
     return m;
   };
   const tinted = tint ? new THREE.MeshStandardMaterial({ color: tint, roughness: 0.5 }) : null;
+  const dark = tint ? new THREE.MeshStandardMaterial({ color: "#222c36", roughness: 0.55 }) : null;
+  const panels = tint ? new THREE.MeshStandardMaterial({ color: "#e4e6e5", roughness: 0.55 }) : null;
 
   const seen = new Set<string>();
   for (const b of bodiesSpec) {
@@ -103,7 +119,7 @@ export async function buildDuckRig(tint?: string): Promise<DuckRig> {
       const geometry = geoms.get(geom.mesh);
       if (!geometry) continue;
       const rgb = geom.color ?? [0.85, 0.85, 0.85];
-      const mesh = new THREE.Mesh(geometry, tinted && SHELLS.has(geom.mesh) ? tinted : material(rgb));
+      const mesh = new THREE.Mesh(geometry, tinted && SHELLS.has(geom.mesh) ? tinted : panels && LIGHT_PANELS.has(geom.mesh) ? panels : dark && DARK_PARTS.has(geom.mesh) ? dark : material(rgb));
       mesh.castShadow = true;
       if (geom.pos) mesh.position.set(geom.pos[0]!, geom.pos[1]!, geom.pos[2]!);
       if (geom.quat) mesh.quaternion.set(geom.quat[1]!, geom.quat[2]!, geom.quat[3]!, geom.quat[0]!);

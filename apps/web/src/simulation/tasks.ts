@@ -1,3 +1,4 @@
+import { RESCUE, rescuePoints, routeIsClear } from "@kestrel/contracts";
 import type { BotId, DuckTask, LabKit, PropSpec, Vec2 } from "@kestrel/contracts";
 import { SCREEN_DIRS } from "./constants";
 import { PlaceWeight } from "./moments";
@@ -108,6 +109,7 @@ export function footprint(p: PropSpec): number {
 }
 
 const TIMEOUT_S: Record<DuckTask["kind"], number> = {
+  rescue_route: 150,
   move: 20,
   turn: 10,
   go_to: 30,
@@ -141,12 +143,20 @@ type Run = {
   /** Release: the pin has been pulled; the plank's last angle and how long it has been still. */
   pulled?: boolean;
   lastAngle?: number;
+  traveled?: number;
+  lastPose?: Vec2;
 };
 
 export class TaskRunner {
   private run: Run | null = null;
   /** The running task's state-machine phase, from its last step. */
   phase: string | null = null;
+
+  get rescueProgress(): { meters: number; battery: number } | null {
+    if (this.run?.task.kind !== "rescue_route") return null;
+    const meters = this.run.traveled ?? 0;
+    return { meters, battery: Math.max(0, 1 - meters / RESCUE.batteryMeters) };
+  }
 
   get active(): DuckTask | null {
     return this.run?.task ?? null;
@@ -161,6 +171,15 @@ export class TaskRunner {
   start(task: DuckTask, world: WorldView): string | null {
     const run: Run = { task, t: 0, start: { ...world.duck }, nav: new Navigator(), phase: "approach" };
     if (task.kind === "set_balance" || task.kind === "build_squares") return "Both robots do this together; the lab coordinates it.";
+    if (task.kind === "rescue_route") {
+      if (world.kit.id !== "rescue" || world.id !== "pip") return "Open Robot rescue and send Pip.";
+      if (dist([world.duck.x, world.duck.y], RESCUE.start) > 0.1) return "Reset the rescue before trying a route.";
+      const points = rescuePoints(task.route);
+      if (points.length < 2 || !routeIsClear(points)) return "Follow connected arrows from A to H.";
+      run.waypoints = points.slice(1);
+      run.traveled = 0;
+      run.lastPose = [world.duck.x, world.duck.y];
+    }
     if (task.kind === "go_to" && !world.props.has(task.target))
       return `There is no ${task.target} in this lab.`;
     if ((task.kind === "release_plank" || task.kind === "lock_plank") && !world.balance)
@@ -228,6 +247,24 @@ export class TaskRunner {
     const { task } = run;
     const duck = world.duck;
     switch (task.kind) {
+      case "rescue_route": {
+        const here: Vec2 = [duck.x, duck.y];
+        run.traveled! += dist(run.lastPose!, here);
+        run.lastPose = here;
+        if (run.traveled! >= RESCUE.batteryMeters)
+          return { ...HOLD, done: { ok: false, summary: "Battery died! That route was too long. Back to the start—try a shorter way." } };
+        if ([...world.touching].some(([id, force]) => id.startsWith("rescue-barrier-") && force > 0.05) || world.others.some(r => dist(here, [r.pose.x, r.pose.y]) < 0.19))
+          return { ...HOLD, done: { ok: false, summary: "Pip met an obstacle. Reset and try again." } };
+        const goal = run.waypoints![0]!;
+        const twist = run.nav.to(duck, world.speed, goal);
+        if (run.nav.status !== "arrived") return { ...twist, phase: "Following your route" };
+        // Recheck physical position: settling alone must not claim a rescue.
+        if (dist(here, goal) > 0.1) return { ...HOLD, done: { ok: false, summary: "Pip drifted away from the route point. Try again." } };
+        run.waypoints!.shift();
+        run.nav.next();
+        if (run.waypoints!.length) return HOLD;
+        return { ...HOLD, done: { ok: true, summary: `Made it! Pip reached the charger with ${Math.max(0, Math.ceil((1-run.traveled!/RESCUE.batteryMeters)*100))}% battery left. Your shorter route saved Pip.` } };
+      }
       case "stop":
         return { vx: 0, wz: 0, done: { ok: true, summary: "Stopped." } };
       case "sit":

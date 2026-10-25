@@ -284,3 +284,51 @@ Applied owner-selected palette to console and rebuilt Workshop; added studioMate
 - Console: full-screen stage, `gic.tsx`/`gic.css` from the owner's design-system artifact, Inter via fontsource, Home link removed (`console-entry.spec.ts` now returns home through the Kestrel mark), nav moved top left, wider desktop follow framing so the lesson board stays visible.
 - Performance: headless SwiftShader measured 1.0 fps full scene, 2.0 fps without the playground, unchanged by removing grass, blur or panels; machine load average ~20. Added a software-renderer low-power path (no shadows, no grass, half resolution, `?hq` override) and a 120 s file timeout to the camera spec, matching `sandbox.spec.ts`.
 - Checks: `pnpm check` passed twice (185 tests, typecheck, web/API builds, API smoke). Playwright camera + console-entry: 11 passed, 1 intentional skip; sandbox spec after the final scene: 9 passed, 1 skipped. Desktop 1440×900 and iPhone 13 screenshots of Pythagoras and Moments inspected (follow, zoomed out, experiment frame). `git diff --check` clean. No paid AI calls. Not committed, pushed or merged.
+
+## 2026-10-25 — Codex: simple Robot Rescue Navigation
+
+- Created `rescue-navigation` from the current playground branch; preserved the newer playground and floating-panel design.
+- Added one deterministic grade 6–8 mission: blocked 200 cm shortcut, clear A/B routes (280 cm), distance prediction/check, optional Nova hint, physical Pip execution, stop/retry and evidence reflection. No battery clock or AI calls.
+- Shared route geometry/clearance drives validation and a fixed MuJoCo barrier. Rescue task uses existing Navigator, settles at each authored point, checks physical arrival/contact and measures trunk travel. No automatic detours or visual teleporting.
+- Added mission panel/map and matching 3D route/dock markers; unrelated voice/manual controls are unavailable in rescue. Existing lessons remain available.
+- Validation and final review results are recorded in current status/handoff below. Local-only skill/config folders remain untracked; no push or main merge.
+- Final validation: `pnpm check` passed (192 tests); final typecheck after mobile-scroll/copy refinement passed. Final Playwright run passed 2/2 (desktop route A, touch mobile route B), including actual physical arrival, prediction invalidation, active-tab reselect regression, reflection, retry, stop and lesson exit. Screenshots inspected. First mobile run was interrupted by source-formatting HMR; clean rerun and final combined run passed. No paid requests observed. Review's stale-tab approval finding fixed. Changes left local for owner review.
+
+## 2026-10-25 — Codex: replace rescue worksheet with spoken obstacle course
+
+- Owner clarified player speaks directions; removed arithmetic gate, equal A/B choices and Pythagoras hint. Added three physical barriers and genuinely unequal named passages.
+- Existing STT endpoint now accepts explicit learner recordings; conservative landmark parser plus typed fallback. Ambiguous and negated speech asks for clarification.
+- Physical travel drains a game battery. Failure shows “Battery died!” in Pip's bubble, then resets after 2.5 simulation seconds. Shorter path succeeds through physical arrival checks.
+- Reviewer caught stale recordings surviving reset and curly-apostrophe negation. Added reset version guard/media cancellation and apostrophe normalization, with regressions. Bubble positioning clamped to scene bounds.
+- Live provider requests were mocked in browser verification; real MuJoCo navigation, battery exhaustion, auto-reset and arrival were exercised. No paid model/voice calls made.
+- Final verification: `pnpm check` passed (193 tests, typecheck, web/API builds and health smoke). Desktop/mobile end-to-end voice-course tests passed (2/2), including delayed transcript rejected after reset, long-route battery death, automatic reset, shorter-route physical success and lesson exit. Additional desktop pass verified the visibly anchored death bubble using a physics-paused screenshot, then resumed and verified reset/success. Removed the stray reset-reason bubble and hid bubbles until anchored. Screenshot inspected. No push/merge; changes remain local.
+
+
+## 2026-10-25 — Zigzag rescue refinement
+
+Researched Blockly maze source and Bebras robot-path excerpts. Replaced two passage choices with staggered walls and ordered blue/orange/mint checkpoints. All six orders clear geometry; only efficient 7.6 m order fits 9 m battery (closest wrong order 9.3 m). Replaced underlined disclosure with keyboard button and focused multiline form. Browser tests passed: desktop physical death/reset/success (2 min), mobile typing smoke (24.6 sec). Screenshots checked; corrected positive charge rounding and outdated passage copy, allowed stop-at speech. pnpm check passed before final copy/parser refinement; final validation recorded below.
+
+Final validation after parser/copy/charge-display refinements: pnpm check passed (193 tests / 23 files, typecheck, web/API builds, API health smoke). git diff --check clean. Browser physics checks preceded only these small refinements; no physics geometry or battery threshold changed afterward.
+
+
+## 2026-10-25 — Four-path network
+
+Owner corrected the puzzle topology: changed zigzag into four distinct directed paths matching supplied diagram. Added shared graph, adjacency schema/parser, visible floor paths/arrows and SVG map with distance labels. Shortest 3.096 m; other paths 4.970, 5.320, 5.959 m; game budget 4.2 m. Unit geometry check caught a supply-island clearance overlap; relocated islands before browser validation. No commits or main changes.
+
+Validation complete: pnpm check passed (194 tests / 23 files, typecheck, web/API builds and health smoke). Desktop browser verified real-physics shortest success and next-shortest failure/reset with mocked STT; mobile entry/focus/stop/reset and overflow checks passed. Inspected desktop/mobile screenshots, enlarged 3D checkpoint letters, then reran mobile browser smoke and typecheck successfully. git diff --check clean. Remains local on rescue-navigation.
+
+
+2026-10-25: Created four preview-only duck material colorways in docs/previews/duck-colorways using actual rigs and simplified playground-colored stage. Production materials unchanged. Await user selection before applying. See README for exact colors and mapping scope.
+
+
+2026-10-25: Owner selected dark grey and navy. Applied Pip #454B54 and Nova #244267 to sandbox shell/foot accents, with neutral #E4E6E5 panels; crew dots match. Existing non-tinted rig materials remain unchanged. Typecheck passed. Selected material render in docs/previews/duck-colorways/selected. Still rescue-navigation, no main push.
+
+
+2026-10-25: Added white lower-head trim (jaw/bottom head shell) to the selected charcoal/navy rigs. Increased NAV cruise .55→.65, approach .30→.35, spin 3→3.6, near spin 1.8→2.1. New scripts/bench/speed-bench.mjs compares six real MuJoCo/ONNX runs per preset: baseline 6/6, mean 5.2 s, 2.5 cm error, 0 falls; faster 6/6, mean 4.2 s, 2.4 cm error, 0 falls. Manual forward now .65, reverse -.4 (outside dead zone), pivot 3.6; moving turns use .35 forward and 1.2 yaw. Physics timestep and simulation clock unchanged. Final rescue/check results recorded below.
+
+Final verification: pnpm check passed (194 tests, typecheck, builds, API health smoke); desktop real-physics rescue test passed with faster rates (shortest arrival, longer-route battery death, reset, stale transcription guard). White head trim inspected in native rig render. git diff --check clean. No main push.
+
+
+2026-10-25: Reproduced owner command “go to B then E then H” returning null with a failing regression. Parser unnecessarily required speaking A despite Pip already starting there. Parser now prepends only known origin A; it never fills missing intermediate nodes. Updated input guidance and browser voice/typed test phrases to omit A. Invalid skips (B→H, C→E→H), negatives and missing junctions remain rejected; task live-pose origin guard remains intact.
+
+Omitted-start fix verified: regression failed before fix, then pnpm check passed (195 tests, typecheck, builds/health smoke). Desktop real-physics browser passed with A omitted in mocked voice transcript and exact typed “go to B then E then H”; Pip physically reached charger. No live STT provider call made. git diff --check clean.

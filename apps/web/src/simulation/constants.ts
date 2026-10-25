@@ -34,10 +34,13 @@ export const TIMESTEP = 0.005;
 export const DECIMATION = 4;
 export const CTRL_DT = TIMESTEP * DECIMATION; // 50 Hz
 
-// Velocity limits the walking policy was trained to track.
-export const VEL_FWD = 0.25;
-export const VEL_BACK = -0.2;
-export const VEL_ANG = 1.0;
+// Manual commands, aligned with the measured Navigator gait.
+// Steering while walking uses a gentler turn command than an in-place pivot.
+export const VEL_FWD = 0.65;
+export const VEL_BACK = -0.4;
+export const VEL_ANG = 3.6;
+export const VEL_STEER = 1.2;
+export const VEL_TURN_WALK = 0.35;
 
 export const KICK_STEPS = 25; // 0.5 s one-shot
 export const POST_KICK_LOCK_STEPS = 20;

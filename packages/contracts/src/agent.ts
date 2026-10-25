@@ -14,7 +14,7 @@ export const AgentRequestSchema = z.object({
   botId: z.literal("pip"),
   worldVersion: z.number().int().nonnegative(),
   world: z.object({
-    lesson: z.enum(["pythagoras", "moments", "free"]),
+    lesson: z.enum(["pythagoras", "moments", "free", "rescue"]),
     duck: z.object({ x: z.number().finite(), y: z.number().finite(), yawDeg: z.number().finite(), mode: z.string().max(30) }).strict(),
     props: z.array(z.object({ id: z.string().max(40), label: z.string().max(80), movable: z.boolean(), position: XY, units: z.number().optional() }).strict()).max(20),
     slots: z.array(z.object({ forProp: z.string().max(40), position: XY, filled: z.boolean() }).strict()).max(10),

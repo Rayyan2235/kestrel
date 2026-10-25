@@ -100,6 +100,9 @@ export class DuckSim {
   private lastExperiment: BalanceResult | null = null;
   private results = new Map<BotId, { ok: boolean; summary: string }>();
   private pendingReset: string | null = null;
+  private rescueRespawnAt: number | null = null;
+  /** Invalidates in-flight user commands whenever the physical world resets. */
+  resetVersion = 0;
   /** The balance's restoring stiffness about its pin (N·m/rad), measured from the model at rest. */
   private balanceK = 0;
 
@@ -215,6 +218,7 @@ export class DuckSim {
 
   private onRobot(id: BotId, e: RobotEvent) {
     if (e.type === "task-done") {
+      if (e.task.kind === "rescue_route" && !e.ok) this.rescueRespawnAt = this.data.time + 2.5;
       this.results.set(id, { ok: e.ok, summary: e.summary });
       this.listener({ type: "task-done", duck: id, task: e.task, ok: e.ok, summary: e.summary });
     } else if (e.type === "fell" || e.type === "recovered") this.listener({ type: e.type, duck: id });
@@ -223,10 +227,13 @@ export class DuckSim {
 
   /** Swap the subject kit. Applied between control steps. */
   setKit(kit: LabKit) {
+    this.stopAll();
     this.pendingKit = kit;
   }
 
   reset(reason = "Reset") {
+    this.resetVersion++;
+    this.rescueRespawnAt = null;
     for (const r of this.robots) r.reset();
     this.apparatus.cancel();
     this.experiment = null;
@@ -269,6 +276,7 @@ export class DuckSim {
    * always moved by the robot that owns it; plank tasks belong to the lab.
    */
   runTask(task: DuckTask, id: BotId = "pip"): string | null {
+    if (task.kind === "rescue_route" && this.rescueRespawnAt !== null) return "Pip is returning to the start.";
     if (task.kind === "release_plank" || task.kind === "lock_plank") {
       if (this.experiment) return "The experiment is running. Stop it first.";
       if (task.kind === "release_plank" && [...this.rails.values()].some((r) => r.brake === null))
@@ -308,7 +316,7 @@ export class DuckSim {
 
   private startOn(id: BotId, task: DuckTask): string | null {
     const robot = this.robot(id);
-    const moves = ["move", "turn", "go_to", "push", "place_weight", "kick", "peck", "roll"].includes(task.kind);
+    const moves = ["rescue_route", "move", "turn", "go_to", "push", "place_weight", "kick", "peck", "roll"].includes(task.kind);
     if (moves && robot.mode === "sitstand") return "The duck is sitting. Ask it to stand up first.";
     if (robot.recovery) return "The duck is getting back on its feet.";
     if (robot.tasks.active && robot.tasks.active !== task) {
@@ -321,6 +329,7 @@ export class DuckSim {
 
   /** Cancel every robot's task and the experiment (Stop). */
   stopAll() {
+    this.rescueRespawnAt = null;
     for (const r of this.robots) {
       r.tasks.cancel();
       r.manual = { vx: 0, wz: 0 };
@@ -495,6 +504,7 @@ export class DuckSim {
   }
 
   private async controlStep() {
+    if (this.rescueRespawnAt !== null && this.data.time >= this.rescueRespawnAt) this.reset("Rescue retry");
     const t0 = performance.now();
     const { mujoco, model, data } = this;
     // 1. Tasks and manual input → each robot's twist; collect apparatus instructions.

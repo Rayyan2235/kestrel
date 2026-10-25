@@ -124,3 +124,22 @@ World/experiment state, per-bot session, crew coordinator (turn/time/token budge
 - `gic.tsx`/`gic.css`: General Intelligence Company tokens and components (`ArrowPill`, `Button`, nav, toast glass, field, tag, icon button). `Sandbox.module.css` holds layout only.
 - `SandboxScene.tsx`: sun/sky lighting, `SOFTWARE_GL` low-power detection (`?hq` override). `StudioLighting.tsx` still supplies the filtered environment.
 - `roomProps()` in contracts now returns no furniture: the court is open in physics too. Removed: `Workshop.tsx`, `studioMaterials.ts`, `scripts/bake-workshop.mjs`, `public/workshop/`.
+
+### Rescue mission
+
+- `packages/contracts/src/rescue.ts`: one authored mission, direct/A/B route points, centimetre lengths and robot-clearance validation; `rescueKit()` creates the physical fixed supply box and bot spawns.
+- `apps/web/src/simulation/tasks.ts`: `rescue_route` follows authored points without automatic rerouting; physical settling, contact failure, arrival validation and measured travel.
+- `apps/web/src/sandbox/RescuePanel.tsx` / `.module.css`: deterministic learner route selection, prediction gate, hint, run/stop/retry and reflection. No model requests. `RescueCourse.tsx` renders matching floor paths/markers without changing physics.
+- `tests/rescue-navigation.spec.ts`: full mission flow, physical arrival, retry, stop, lesson exit and absence of AI calls, desktop/mobile.
+
+Rescue revision: `rescue.ts` now describes unequal blue/orange passages, three fixed blocks, a 3.05 m game battery and a conservative spoken-landmark parser. `rescueVoice.ts` owns microphone/STT lifecycle. `DuckSim.resetVersion` invalidates pre-reset transcripts; failed rescue tasks schedule a physics-time reset after the bubble. `RescuePanel` is voice-led with battery status and typed fallback; old prediction/answer UI removed.
+
+
+## 2026-10-25 — Zigzag rescue refinement
+
+Zigzag rescue: contracts/rescue.ts exports a three-color RescueRoute tuple, shared staggered-wall geometry and reversible corridor edges. RescuePanel uses a keyboard toggle/textarea; RescueCourse renders three checkpoint markers. Parser preserves checkpoint order.
+
+
+## 2026-10-25 — Four-path network
+
+RESCUE_EDGES now defines a directed branching graph (A/B/C/D/E/F/H). isRescueRoute validates actual adjacency; rescuePoints maps exactly the submitted route. RescueCourse shows all links/arrows. RescuePanel includes SVG map with physical segment distances. Supersedes the old reversible zigzag corridor chain.

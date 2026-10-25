@@ -171,3 +171,23 @@ On `lab-workshop-camera`, Botanical room now has a lesson-specific teaching boar
 On `lab-workshop-camera` (uncommitted): the classroom became a full-screen playground on a grass island with an open court, garden picket fence on the boundary wall, swings, slide, seesaw, sandpit, lesson board, Folio-style trees and grass, and clouds. Fixed furniture removed from physics. Console restyled with the owner's General Intelligence Company glass system (light toast glass over the scene, Inter, Home removed). Low-power mode for software WebGL.
 
 Verified: `pnpm check` (185 tests, typecheck, builds, API smoke). Playwright: camera + console-entry 11 passed, 1 intentional skip (after adding a 120 s file timeout to the camera spec; it passed with 120 s alone under load average ~20); sandbox spec 9 passed, 1 skipped on the final scene. Screenshots of both lessons inspected at 1440×900 and iPhone 13. Known: headless SwiftShader renders ~1–2 fps on this machine even without the playground (2 fps bare scene); the board can be clipped at the top in some follow framings on short screens.
+
+## Simple Rescue Navigation — 2026-10-25
+
+Local `rescue-navigation` branch adds a deterministic grade 6–8 mission to the current playground: three route choices, one real obstacle, prediction/check, physical navigation, hint, reflection and retry. No battery timer or model/voice calls. Tests cover route clearance, validation, arrival/settling, contact failure, cancellation and timeout. `pnpm check` passed with 192 tests plus typecheck/build/API health. Both authored detours physically completed in desktop/mobile browser runs; final reviewed regression run recorded in changelog. Actual walking distance differs from geometric route length because of turning/gait sway; displayed separately.
+
+## Owner correction: voice-led obstacle course (supersedes worksheet above)
+
+Removed A/B route buttons, calculation gate and Pythagoras hint. Current rescue has three fixed barriers and unequal blue/orange passages. Player speaks a named passage via existing STT or types directions. Physical travel drains a distance-based battery; longer route fails with a Pip bubble and automatic reset, shorter route reaches dock. Reset generations/cancellation prevent stale speech execution. Current limitation: explicit passage names, not arbitrary freeform navigation. Live STT provider not exercised; browser tests mock transcription while running real MuJoCo.
+
+Voice-course verification: 193 unit tests and full check pass; desktop/mobile browser flows pass, including reset-vs-transcription regression. Final desktop visual check confirms death bubble is above Pip, followed by reset and successful retry. Browser audio/STT is mocked; live microphone/provider still needs owner playtest.
+
+
+## 2026-10-25 — Zigzag rescue refinement
+
+Rescue now uses a three-checkpoint zigzag with six possible orders, actual-distance battery and backtracking. Keyboard fallback redesigned. Desktop real-physics death/reset/success and mobile keyboard smoke passed; microphone/STT mocked. Local rescue-navigation only.
+
+
+## 2026-10-25 — Four-path network
+
+Owner-requested four-path branching network implemented, replacing the one-corridor zigzag. Letters A/B/C/D/E/F/H, directed links, only shortest fits 4.2 m battery. Validation results in latest changelog.

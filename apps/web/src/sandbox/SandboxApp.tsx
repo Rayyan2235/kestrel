@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Bird, Check, Keyboard, RotateCcw, Square } from "lucide-react";
-import { KITS, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
+import { KITS, type DuckTask, type KitId, type LabKit, type RescueRoute } from "@kestrel/contracts";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
-import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
+import { VEL_ANG, VEL_BACK, VEL_FWD, VEL_STEER, VEL_TURN_WALK } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
+import { RescuePanel, type RescueOutcome } from "./RescuePanel";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
@@ -13,12 +14,14 @@ import { ArrowPill, Button } from "./gic";
 type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
 
 const LESSONS: { id: KitId; subject: string; topic: string }[] = [
+  { id: "rescue", subject: "Mission", topic: "Robot rescue" },
   { id: "pythagoras", subject: "Maths", topic: "Pythagorean theorem" },
   { id: "moments", subject: "Physics", topic: "Moments" },
   { id: "free", subject: "Sandbox", topic: "Free play" },
 ];
 
 const OBJECTIVE: Record<KitId, string> = {
+  rescue: "Help Pip reach its charger. Choose a route and predict its distance.",
   pythagoras:
     "Each square goes on the side of the right triangle that matches it. Count the tiles: does 9 + 16 make 25? Pip and Nova can build it together.",
   moments:
@@ -39,6 +42,7 @@ const KEYS: [string, string][] = [
 
 function describe(task: DuckTask, name: (id: string) => string = (id) => id): string {
   switch (task.kind) {
+    case "rescue_route": return "Follow your rescue route";
     case "move":
       return `${task.meters < 0 ? "Back up" : "Walk forward"} ${Math.abs(Math.round(task.meters * 100))} cm`;
     case "turn":
@@ -76,11 +80,14 @@ export function SandboxApp() {
   const [text, setText] = useState("");
   const [filled, setFilled] = useState<string[]>([]);
   const nextId = useRef(0);
+  const stageRef = useRef<HTMLElement>(null);
   const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const session = useRef<AgentSession | null>(null);
   const [phase, setPhase] = useState<AgentPhase>("Ready");
   const [voice, setVoice] = useState(true);
+  const [rescueRoute, setRescueRoute] = useState<RescueRoute | null>(null);
+  const [rescueOutcome, setRescueOutcome] = useState<RescueOutcome | null>(null);
 
   const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => {
     const id = nextId.current++;
@@ -98,10 +105,18 @@ export function SandboxApp() {
   const onEvent = useCallback(
     (e: SimEvent) => {
       session.current?.event(e);
+      if (e.type === "task-done" && e.task.kind === "rescue_route") {
+        setRescueOutcome({ok:e.ok, summary:e.summary});
+        setBubble({id:nextId.current++,text:e.summary}); return;
+      }
+      if (e.type === "reset") {
+        setRescueOutcome({ok:false, summary:e.reason === "Rescue retry" ? "Pip is back at the start. Try a different checkpoint order." : "Course ready. Tell Pip the checkpoint order.",reset:true});
+        setRescueRoute(null); setBubble(null);
+      }
       if (e.type === "task-done") add("duck", e.summary, e.ok);
       else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false);
       else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true);
-      else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset") add("duck", e.reason, false);
+      else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset" && e.reason !== "Rescue retry") add("duck", e.reason, false);
     },
     [add],
   );
@@ -141,13 +156,17 @@ export function SandboxApp() {
   }, [log]);
 
   function chooseLesson(id: KitId) {
+    if (id === kitId) return;
     session.current?.cancel(true);
     const next = KITS[id]();
     setKitId(id);
+    setBubble(null);
+    setRescueOutcome(null);
+    setRescueRoute(null);
     setKit(next);
     setFilled([]);
     sim?.setKit(next);
-    add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
+    if(id !== "rescue") add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
   }
 
   /** A two-robot plan or experiment, started by the learner. */
@@ -180,15 +199,19 @@ export function SandboxApp() {
   // Keyboard: held keys drive the walking command; letters fire skills.
   useEffect(() => {
     if (!sim) return;
+    if (kitId === "rescue") return;
     const held = new Set<string>();
     const apply = () => {
       const fwd = held.has("w") || held.has("arrowup");
       const back = held.has("s") || held.has("arrowdown");
       const left = held.has("a") || held.has("arrowleft");
       const right = held.has("d") || held.has("arrowright");
+      const moving = fwd || back;
+      const turning = left || right;
+      const turnRate = moving ? VEL_STEER : VEL_ANG;
       sim.manual = {
-        vx: fwd ? VEL_FWD : back ? VEL_BACK : 0,
-        wz: left ? VEL_ANG : right ? -VEL_ANG : 0,
+        vx: fwd ? (turning ? VEL_TURN_WALK : VEL_FWD) : back ? VEL_BACK : 0,
+        wz: left ? turnRate : right ? -turnRate : 0,
       };
     };
     const typing = (e: KeyboardEvent) =>
@@ -236,7 +259,7 @@ export function SandboxApp() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [sim, skill, add]);
+  }, [sim, skill, add, kitId]);
 
   function send(e: FormEvent) {
     e.preventDefault();
@@ -276,9 +299,9 @@ export function SandboxApp() {
             </div>
           </nav>
         </header>
-        <section className={styles.stage} aria-label="3D playground">
+        <section ref={stageRef} className={`${styles.stage} ${kitId === "rescue" ? styles.rescueStage : ""}`} aria-label="3D playground">
           {sim ? (
-            <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={bubble} />
+            <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={bubble} rescueRoute={rescueRoute} />
           ) : (
             <div className={styles.boot} role="status">
               <strong>{error ? "The playground could not start" : "Opening the playground…"}</strong>
@@ -289,7 +312,7 @@ export function SandboxApp() {
             </div>
           )}
 
-          <div className={`gic-toast ${styles.lessonCard}`}>
+          {kitId !== "rescue" && <div className={`gic-toast ${styles.lessonCard}`}>
             <p className={`heading-sm ${styles.eyebrow}`}>
               {lesson.subject} · {lesson.topic}
             </p>
@@ -331,9 +354,9 @@ export function SandboxApp() {
               </div>
             )}
             {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
-          </div>
+          </div>}
 
-          <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls">
+          {kitId !== "rescue" && <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls">
             <Keyboard size={15} aria-hidden="true" />
             {KEYS.map(([k, v]) => (
               <span key={k}>
@@ -341,11 +364,18 @@ export function SandboxApp() {
               </span>
             ))}
             <span className={styles.note}>No jump: the base Microduck model has no jump skill.</span>
-          </div>
+          </div>}
         </section>
 
 
-        <aside className={`gic-toast ${styles.console}`} aria-label="Duck console">
+        {kitId === "rescue" ? <aside className={`gic-toast ${styles.console} ${styles.missionConsole}`} aria-label="Mission console">
+          {sim && <RescuePanel sim={sim} outcome={rescueOutcome} onReset={() => {sim.stopAll();sim.reset();setBubble(null);}} onRun={(route) => {
+            session.current?.cancel(); setRescueOutcome(null); setBubble(null); setRescueRoute(route);
+            const refusal = sim.runTask({kind:"rescue_route", route});
+            if (!refusal && window.matchMedia("(max-width: 900px)").matches) stageRef.current?.scrollIntoView({behavior: "auto", block: "start"});
+            return refusal;
+          }} />}
+        </aside> : <aside className={`gic-toast ${styles.console}`} aria-label="Duck console">
           <div className={styles.consoleHead}>
             <p className="heading-sm">
               <span className={styles.dot} />
@@ -476,7 +506,7 @@ export function SandboxApp() {
               <RotateCcw size={15} />
             </button>
           </div>
-        </aside>
+        </aside>}
       </main>
     </div>
   );

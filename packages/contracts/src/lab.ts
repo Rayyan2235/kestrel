@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rescueKit, isRescueRoute } from "./rescue.js";
 import type { BotId } from "./bot.js";
 
 // Modular lab props. One spec drives both the MuJoCo body and its render
@@ -62,7 +63,7 @@ export type SlotSpec = {
 };
 
 export type LabKit = {
-  id: "pythagoras" | "moments" | "free";
+  id: "pythagoras" | "moments" | "free" | "rescue";
   subject: "Maths" | "Physics" | "Sandbox";
   topic: string;
   props: PropSpec[];
@@ -389,7 +390,7 @@ export function roomProps(): PropSpec[] {
   return [];
 }
 
-export const KITS = { pythagoras: pythagorasKit, moments: momentsKit, free: freeKit };
+export const KITS = { rescue: rescueKit, pythagoras: pythagorasKit, moments: momentsKit, free: freeKit };
 export type KitId = keyof typeof KITS;
 
 // ── Duck tasks ─────────────────────────────────────────────────────────
@@ -399,6 +400,7 @@ export type KitId = keyof typeof KITS;
 
 const PropRef = z.string().min(1).max(40);
 export const DuckTaskSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("rescue_route"), route: z.array(z.enum(["A", "B", "C", "D", "E", "F", "H"])).refine(isRescueRoute, "Follow connected arrows from A to H") }).strict(),
   z.object({ kind: z.literal("move"), meters: z.number().min(-1).max(2) }).strict(),
   z.object({ kind: z.literal("turn"), degrees: z.number().min(-360).max(360) }).strict(),
   z.object({ kind: z.literal("go_to"), target: PropRef }).strict(),

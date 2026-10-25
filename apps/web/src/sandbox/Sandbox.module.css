@@ -306,10 +306,10 @@
   display: inline-block;
 }
 .pipDot {
-  background: #3a3a3e;
+  background: #454b54;
 }
 .novaDot {
-  background: #7e49b3;
+  background: #244267;
 }
 .log {
   flex: 1;
@@ -598,4 +598,10 @@
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
+}
+
+.missionConsole { overflow-y: auto; }
+@media (max-width: 900px) {
+  .rescueStage { height: 440px; }
+  .rescueStage .sceneWrap { top: 0; }
 }

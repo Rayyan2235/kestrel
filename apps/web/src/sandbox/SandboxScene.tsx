@@ -11,6 +11,8 @@ import {
   type SlotSpec,
 } from "@kestrel/contracts";
 import { LabCamera } from "./LabCamera";
+import { RescueCourse } from "./RescueCourse";
+import type { RescueRoute } from "@kestrel/contracts";
 import { Playground } from "./Playground";
 import { PLAY } from "./playgroundMaterials";
 import { StudioLighting } from "./StudioLighting";
@@ -306,14 +308,17 @@ function BubbleAnchor({
       head.set(pose.pos[0], pose.pos[2] + 0.2, -pose.pos[1]).project(camera);
       const x = ((head.x + 1) / 2) * size.width;
       const y = ((1 - head.y) / 2) * size.height;
-      el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%)`;
+      const visibleX = Math.max(el.offsetWidth / 2 + 8, Math.min(size.width - el.offsetWidth / 2 - 8, x));
+      const visibleY = Math.max(el.offsetHeight + 8, Math.min(size.height - 8, y));
+      el.style.visibility = "visible";
+      el.style.transform = `translate(${visibleX.toFixed(1)}px, ${visibleY.toFixed(1)}px) translate(-50%, -100%)`;
     }
   });
   return null;
 }
 
 /** Pip in Nox Noir graphite, Nova in Royal Amethyst. */
-export const BOT_TINTS: Record<BotId, string> = { pip: "#3a3a3e", nova: "#7e49b3" };
+export const BOT_TINTS: Record<BotId, string> = { pip: "#454b54", nova: "#244267" };
 
 function Slots({ kit, sim, onProgress }: { kit: LabKit; sim: DuckSim; onProgress: (filled: string[]) => void }) {
   const [filled, setFilled] = useState<string[]>([]);
@@ -367,9 +372,11 @@ export function SandboxScene({
   tint,
   onProgress,
   bubble,
+  rescueRoute = null,
 }: {
   sim: DuckSim;
   kit: LabKit;
+  rescueRoute?: RescueRoute | null;
   tint: string;
   onProgress: (filled: string[]) => void;
   /** Latest public reply from the duck, shown next to it. */
@@ -433,6 +440,7 @@ export function SandboxScene({
       />
       <Playground kit={kit} reducedMotion={reducedMotion} lowPower={SOFTWARE_GL} onFocus={() => sendCamera("experiment")} />
       <LabCamera sim={sim} focus={kit.focus} command={command} onMode={setMode} reducedMotion={reducedMotion} />
+      {kit.id === "rescue" && <RescueCourse route={rescueRoute} />}
       <Slots kit={kit} sim={sim} onProgress={onProgress} />
       {kit.id === "moments" && <MomentsDressing sim={sim} />}
       <MjFrame>
@@ -457,7 +465,7 @@ export function SandboxScene({
         <button type="button" aria-label="Reset view" onClick={() => sendCamera("reset")} title="Reset view"><RotateCcw size={16} /></button>
       </div>
       {bubble && (
-        <div key={bubble.id} ref={bubbleRef} className={styles.bubble} role="status">
+        <div key={bubble.id} ref={bubbleRef} style={{visibility:"hidden"}} className={styles.bubble} role="status">
           {bubble.text}
         </div>
       )}

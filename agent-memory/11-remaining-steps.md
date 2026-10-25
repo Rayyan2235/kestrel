@@ -106,3 +106,18 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 - [x] Playground: open court, garden fence on the boundary wall, equipment outside it, Folio-style foliage/grass, clouds, GIC glass console, low-power mode.
 - [owner] Review the playground branch; choose whether to commit, then merge.
 - [next] Optional: a gate arch with roses in the fence, a hedge or flower border variant, and a real-GPU frame-time check on a phone.
+
+### Rescue Navigation (owner, separate branch)
+
+- [x] One simple grade 6–8 mission with route choice, distance prediction, physical rescue and retry on `rescue-navigation`.
+- [ ] Owner playtest: decide whether next challenge should introduce a clear diagonal or route budget. Neither is part of the first mission.
+
+
+## 2026-10-25 — Zigzag rescue refinement
+
+Owner playtest: try three-checkpoint zigzag using real microphone/STT. Check puzzle difficulty and near-empty correct-route arrival across devices. No main push or merge authorized for rescue feature.
+
+
+## 2026-10-25 — Four-path network
+
+Latest owner playtest target is four-path letter graph, not the earlier zigzag. Test voice recognition of letter sequences using real STT. Observe shortest-run battery margin; never raise budget above the next-shortest path without revisiting geometry.
