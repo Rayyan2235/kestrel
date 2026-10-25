@@ -17,7 +17,7 @@ export const LANDING = {
   cards: [
     { title: "Balance the beam", subject: "Physics · Moments", art: "/landing/card-beam.jpg" },
     { title: "Build the right triangle", subject: "Maths · Pythagoras", art: "/landing/card-triangle.jpg" },
-    { title: "Rescue Pip", subject: "Mission · Navigation", art: "/landing/card-rescue.jpg" },
+    { title: "Pip vs Nova", subject: "Free play · Robot fight", art: "/landing/card-fight.jpg" },
   ],
 };
 
@@ -139,7 +139,7 @@ export function WelcomePage() {
 
         <div className={styles.row} id="objectives">
           <h2 className={styles.rowTitle} data-in="row">
-            OBJECTIVES
+            IN THE PLAYGROUND
           </h2>
           <a className={styles.browse} href="/console" data-in="row">
             open the playground <ChevronRight size={18} aria-hidden="true" />

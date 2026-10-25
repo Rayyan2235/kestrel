@@ -44,7 +44,7 @@ test("landing hero is readable before loading the lab and entry/back navigation 
 test("objective cards open the console and phones have no sideways page scroll", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
-  for (const title of ["Balance the beam", "Build the right triangle", "Rescue Pip"]) {
+  for (const title of ["Balance the beam", "Build the right triangle", "Pip vs Nova"]) {
     await expect(page.getByRole("link", { name: new RegExp(title) })).toHaveAttribute("href", "/console");
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
