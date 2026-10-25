@@ -379,3 +379,8 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - The strict TLS check failed first with `SELF_SIGNED_CERT_IN_CHAIN` (the new service's temporary certificate from `ca.timescale.com`). The fallback behaved as designed: one log line with the code only, and no crash. The verification run used `uselibpqcompat=true&sslmode=require` for that command only; `.env` and the code are unchanged.
 
 - 14:27 UTC recheck: the certificate is now issued by Google Trust Services; the same check passes with the unmodified `.env` URL (strict TLS), `health.progress = true`.
+
+## 2026-10-25 · Claude Code · Tiger Data progress verified in the browser
+
+- Console on 5180 (API 5181 restarted via `tsx watch` so it loaded `TIGER_DATABASE_URL`; health `progress: true`). Balance the beam: 200 g at 10 cm, 100 g at 20 cm, run with both robots; won in about 12 s ("1 / 3 done"). The browser sent `POST /api/progress` (201), and Tiger stored `balance-beam ok=true tilt_deg=0.2 left_cm=10 right_cm=20`.
+- Removed the localStorage `earned` copy (kept the learner ID) and reloaded: `GET /api/progress/:learner` (200) restored Balance the beam as done on the board, so progress came back from the database alone.
