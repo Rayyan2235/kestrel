@@ -180,6 +180,11 @@ export function SandboxApp() {
     };
   }, [onEvent, agentAdd]);
 
+  // The session can be created after the learner already turned spoken replies off.
+  useEffect(() => {
+    session.current?.setVoice(voice);
+  }, [voice, sim]);
+
   // Ask Pip / Ask Nova: the labelled mock hands off between the robots and back to the learner.
   // On the Moments lesson the coordinator drives the real robots through the SimAdapter
   // (held challenge moves, measured outcomes); elsewhere it only reads and refuses moves.
