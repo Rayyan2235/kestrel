@@ -78,3 +78,8 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 24. **[later] New trained skills.** A jump, a dedicated push or a gentle "place": train with Isaac Lab and RSL-RL keeping the same 61-input / 14-output policy interface, then export to ONNX. Needs Linux with an NVIDIA GPU (not this machine).
 25. **[later] Projectile Playground** and further missions, reusing the kit/prop/task/agent loop.
 26. **[later] Final Kestrel art** replacing the Microduck shell, keeping the physics body compatible with the policies (see the planning notes on rig versus dynamics).
+
+## Two-bot demo follow-ups
+
+- [next] Implement `SimAdapter` over `duckSim` and wire the two-bot coordinator to it. Acceptance: L2 to L8 unchanged; unit and `tests/two-bot-demo.spec.ts` still green.
+- [owner] Default presentation speed (1x vs 0.75x); whether Pause holds the in-flight model call.

@@ -75,6 +75,14 @@ Tests: `src/app.test.ts`. Compiled smoke test: `scripts/check-api.mjs`.
 - **Unsupported input** never mutates the world.
 - **Science comes from `balance()`**, never from message text.
 
+## Two-bot conversation demo (`apps/web/src/`, `?demo=two-bot`)
+
+- `simulation/types.ts` is the only seam: `SimAdapter` (`snapshot`, `subscribe`, `propose`, `apply(task, version)`, `release`, `reset`). `simulation/fake/` is a TEMPORARY stub; the real sim implements the same interface. No React or model imports there.
+- `coordinator/` owns the ledger, per-bot state, abort/epoch, chain budget (2 calls, 1 hop; cap measured from call-1 dispatch) and the world-version check on every action.
+- Invariants: every ledger event has a required `to`; bubbles, chips, gaze and aria all derive from `to` only; a late or stale result is dropped; Stop and Reset abort the chain.
+- `presentation/` paces the room (one bubble, reading-time holds). It never changes the ledger or coordinator timing.
+- `provider/mock.ts` is deterministic and offline. A live provider would use the same `Provider` call shape.
+
 ## Planned runtime components (from docs/ARCHITECTURE.md and the planning notes; not built)
 
 World/experiment state, per-bot session, crew coordinator (turn/time/token budgets, object locks), speech router (binds the recipient at capture start), model service (OpenAI Responses with strict function tools), task executor, physical bot controller (MuJoCo + ONNX Microduck policy, outside React), presentation layer and lesson content packs.
