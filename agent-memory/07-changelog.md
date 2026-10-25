@@ -367,3 +367,4 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - CI on #21 failed 2 of 144 on timing: the rescue route never reached "Battery died!" in 170 s, and the camera spec ran out of its 120 s budget. Main's `e13e51d` (lighter low-power scene, camera budget 300 s) had been dropped when rescue's tree replaced main's, so it is cherry-picked back (`1578f95`).
 - Rescue spec: each route gets 480 s, the respawn 120 s, and the test 20 min. The CI job limit is now 40 min.
+- CI then failed 3 of 142 on timing. (1) The rescue death bubble expired (12 s of real time) before the test's next check on the slow runner. The rescue result bubble is now sticky until the next reset or run, which is also better for kids. (2) Two Moments tests gave the lesson switch 5 s; that wait is now 30 s, since the switch waits on the physics loop.

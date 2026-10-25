@@ -110,7 +110,8 @@ export function SandboxApp() {
   const [filled, setFilled] = useState<string[]>([]);
   const nextId = useRef(0);
   const stageRef = useRef<HTMLElement>(null);
-  const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
+  // A sticky bubble (the rescue result) stays until the next reset or run instead of timing out.
+  const [bubble, setBubble] = useState<{ id: number; text: string; sticky?: boolean } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const session = useRef<AgentSession | null>(null);
   const [phase, setPhase] = useState<AgentPhase>("Ready");
@@ -174,7 +175,7 @@ export function SandboxApp() {
   }, []);
 
   useEffect(() => {
-    if (!bubble) return;
+    if (!bubble || bubble.sticky) return;
     const t = window.setTimeout(() => setBubble(null), Math.max(12000, bubble.text.length * 70));
     return () => window.clearTimeout(t);
   }, [bubble]);
@@ -192,7 +193,7 @@ export function SandboxApp() {
       }
       if (e.type === "task-done" && e.task.kind === "rescue_route") {
         setRescueOutcome({ok:e.ok, summary:e.summary});
-        setBubble({id:nextId.current++,text:e.summary}); return;
+        setBubble({id:nextId.current++,text:e.summary,sticky:true}); return;
       }
       if (e.type === "reset") {
         setRescueOutcome({ok:false, summary:e.reason === "Rescue retry" ? "Pip is back at the start. Try a different checkpoint order." : "Course ready. Tell Pip the checkpoint order.",reset:true});
