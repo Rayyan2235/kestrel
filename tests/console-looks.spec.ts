@@ -69,6 +69,6 @@ test("equipping a shell and 3D accessory on Pip changes only Pip's 3D robot; the
   expect(after.nova).toEqual(novaBefore);
   expect(await simState(page)).toEqual(simBefore);
 
-  await page.screenshot({ path: "g7-shots/B-console-3d-pip-slate-antenna.png" });
+  await page.screenshot({ path: "g7-shots/B-console-3d-pip-looks.png" });
   expect(live).toEqual([]);
 });
