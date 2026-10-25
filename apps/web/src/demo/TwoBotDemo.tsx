@@ -107,6 +107,8 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
   const running = (["pip", "nova"] as const).some((b) =>
     ["thinking", "waiting", "acting"].includes(status[b]),
   );
+  // A held move can be cancelled with Stop even though no chain is running.
+  const stoppable = running || (progress && c.holding());
   const lastLearner = [...ledger].reverse().find((e) => e.kind === "learner");
   const threadBot: BotId =
     lastLearner && lastLearner.to !== "you" ? lastLearner.to : selected;
@@ -531,7 +533,7 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
               <button
                 data-testid="dock-stop"
                 onClick={stop}
-                disabled={!running}
+                disabled={!stoppable}
               >
                 <Square size={14} aria-hidden="true" /> Stop
               </button>
@@ -552,7 +554,7 @@ export function TwoBotDemo({ progress = false }: { progress?: boolean }) {
         <ChannelPanel
           view={channel}
           threadBot={threadBot}
-          running={running}
+          running={stoppable}
           onAsk={(from, to) => {
             runId.current++;
             c.askPeer(from, to);
