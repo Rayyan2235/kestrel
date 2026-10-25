@@ -1,0 +1,818 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Kestrel judges loop</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Grandstander:wght@900&family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <!--
+  Kestrel loop for the judging table. Open this file in a browser and leave it.
+  Click once (or press F) for full screen. No other controls.
+  Design: General Intelligence Company design system (tokens below are copied exactly).
+  Images in ./assets are the real landing art and real console screenshots.
+-->
+    <style>
+      :root {
+        /* GIC colour tokens */
+        --background: #ffffff;
+        --surface: #fefffc;
+        --surface-raised: #f9faf7;
+        --surface-sunken: #f3f5f2;
+        --ink: #2c2c2c;
+        --ink-secondary: #444141;
+        --ink-muted: #646464;
+        --ink-faint: #b4b8b4;
+        --line: #dee2de;
+        --white: #ffffff;
+        --control-solid: #1f1f29;
+        --control-solid-border: #282834;
+        --rule-1: #334444;
+        --rule-2: #576a6a;
+        --rule-3: #728383;
+        --rule-4: #a5afaf;
+        --rule-5: #cfd3cf;
+        --glass-panel-from: #0000001f;
+        --glass-panel-to: #00000012;
+        --glass-stroke: #ffffff33;
+        --glass-stroke-soft: #ffffff3d;
+        --sheen-solid-from: #ffffff00;
+        --sheen-solid-to: #ffffff1f;
+        --sheen-pill-from: #ffffff29;
+        --sheen-pill-to: #ffffff14;
+        --wash-figure: #dee2de29;
+        --wash-toast: #ffffff99;
+        /* Kestrel's own accent: the lavender full stop of the wordmark */
+        --kestrel-dot: #c4b3f0;
+        /* GIC radii, shadows, blur */
+        --radius-lg: 8px;
+        --radius-xl: 12px;
+        --radius-2xl: 16px;
+        --radius-3xl: 24px;
+        --radius-pill: 50.5px;
+        --shadow-float: 0 2px 6px 0 #00000026;
+        --shadow-card: 0 1px 8px 0 #0000000d;
+        --shadow-pill: 0 1px 1px 0 #0000000a;
+        --blur-glass: 15px;
+        --blur-toast: 20px;
+        --font-sans:
+          "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+        /* Loop timing */
+        --scene: 8s;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--surface);
+        overflow: hidden;
+        cursor: none;
+      }
+      body {
+        font-family: var(--font-sans);
+        color: var(--ink);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* One 1920x1080 stage, scaled to fit the screen */
+      .stage {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 1920px;
+        height: 1080px;
+        transform: translate(-50%, -50%) scale(var(--fit, 1));
+        background: var(--surface);
+        overflow: hidden;
+      }
+
+      .scene {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        visibility: hidden;
+        transition:
+          opacity 900ms ease,
+          visibility 0s linear 900ms;
+      }
+      .scene.on {
+        opacity: 1;
+        visibility: visible;
+        transition:
+          opacity 900ms ease,
+          visibility 0s;
+        z-index: 2;
+      }
+
+      /* Type, from the GIC scale, enlarged for a 1080p screen read from a few metres away */
+      .display-xl {
+        font-size: 104px;
+        line-height: 1.08;
+        letter-spacing: -0.02em;
+        font-weight: 400;
+        margin: 0;
+      }
+      .display-lg {
+        font-size: 84px;
+        line-height: 1.1;
+        letter-spacing: -0.02em;
+        font-weight: 500;
+        margin: 0;
+      }
+      .display-md {
+        font-size: 56px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+        font-weight: 500;
+        margin: 0;
+      }
+      .body {
+        font-size: 28px;
+        line-height: 1.5;
+        letter-spacing: -0.01em;
+        font-weight: 500;
+        margin: 0;
+      }
+      .caption {
+        font-size: 22px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        font-weight: 500;
+        margin: 0;
+      }
+      .faint {
+        color: var(--ink-faint);
+      }
+      .muted {
+        color: var(--ink-muted);
+      }
+
+      /* Imagery, full bleed, slow drift */
+      .bleed {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        transform-origin: 30% 60%;
+      }
+      .scene.on .bleed {
+        animation: drift calc(var(--scene) + 1.5s) linear both;
+      }
+      @keyframes drift {
+        from {
+          transform: scale(1);
+        }
+        to {
+          transform: scale(1.07);
+        }
+      }
+
+      /* Glass: fill + 1px stroke + blur + shadow-float, always all four */
+      .glass {
+        position: absolute;
+        border: 1px solid var(--glass-stroke);
+        border-radius: var(--radius-2xl);
+        padding: 48px 40px 48px 48px;
+        background: linear-gradient(
+          180deg,
+          var(--glass-panel-from),
+          var(--glass-panel-to) 50%,
+          var(--glass-panel-to)
+        );
+        -webkit-backdrop-filter: blur(var(--blur-glass));
+        backdrop-filter: blur(var(--blur-glass));
+        box-shadow: var(--shadow-float);
+        color: var(--white);
+      }
+      .glass .caption {
+        color: var(--white);
+        opacity: 0.85;
+      }
+
+      /* Things enter by rising a short way */
+      .rise {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+      .scene.on .rise {
+        animation: rise 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      .scene.on .rise.d1 {
+        animation-delay: 350ms;
+      }
+      .scene.on .rise.d2 {
+        animation-delay: 700ms;
+      }
+      .scene.on .rise.d3 {
+        animation-delay: 1050ms;
+      }
+      .scene.on .rise.d4 {
+        animation-delay: 1400ms;
+      }
+      @keyframes rise {
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* Kestrel mark */
+      .mark {
+        display: inline-flex;
+        align-items: center;
+        gap: 16px;
+        font:
+          900 56px/1.2 "Grandstander",
+          var(--font-sans);
+        letter-spacing: -0.02em;
+      }
+      .mark svg {
+        width: 76px;
+        height: auto;
+      }
+      .mark .dot {
+        display: inline-block;
+        width: 0.2em;
+        height: 0.2em;
+        margin-left: 0.06em;
+        border-radius: 50%;
+        background: var(--kestrel-dot);
+      }
+      .mark.on-image {
+        color: var(--white);
+        text-shadow: 0 1px 12px rgb(20 40 70 / 35%);
+      }
+      .mark.on-image svg {
+        filter: drop-shadow(0 2px 6px rgb(28 70 120 / 28%));
+      }
+
+      /* Arrow pill and solid button */
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: none;
+        width: 21px;
+        height: 28px;
+        border-radius: var(--radius-pill);
+        border: 1px solid var(--glass-stroke-soft);
+        background: linear-gradient(
+          0deg,
+          var(--sheen-pill-to),
+          var(--sheen-pill-from)
+        );
+        box-shadow: var(--shadow-pill);
+        color: var(--white);
+      }
+      .btn-solid {
+        display: inline-flex;
+        align-items: center;
+        gap: 14px;
+        padding: 14px 20px 15px 28px;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--control-solid-border);
+        background-color: var(--control-solid);
+        background-image: linear-gradient(
+          180deg,
+          var(--sheen-solid-from),
+          var(--sheen-solid-to)
+        );
+        color: var(--white);
+        font-size: 28px;
+        font-weight: 500;
+        letter-spacing: -0.01em;
+      }
+
+      /* Figure frame: the GIC way to show a real screenshot on paper */
+      .figure {
+        position: absolute;
+        margin: 0;
+      }
+      .figure .frame {
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-3xl);
+        background: var(--wash-figure);
+      }
+      .figure .well {
+        border-radius: var(--radius-xl);
+        background: var(--surface);
+        box-shadow: var(--shadow-card);
+        overflow: hidden;
+      }
+      .figure .well img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .scene.on .figure .well img {
+        animation: zoom calc(var(--scene) + 1.5s) linear both;
+      }
+      @keyframes zoom {
+        from {
+          transform: scale(1);
+        }
+        to {
+          transform: scale(1.05);
+        }
+      }
+      .figure figcaption {
+        display: flex;
+        gap: 14px;
+        padding: 14px 24px 0 0;
+        color: var(--ink-muted);
+      }
+
+      /* Stepped rule */
+      .rule {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+      }
+      .rule i {
+        display: block;
+        height: 8px;
+      }
+      .rule b {
+        display: block;
+        height: 3px;
+        background: var(--background);
+      }
+
+      /* Stat columns */
+      .stats {
+        position: absolute;
+        left: 160px;
+        right: 160px;
+        top: 520px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 64px;
+      }
+      .stat {
+        border-top: 1px solid var(--line);
+        padding-top: 32px;
+      }
+      .stat .n {
+        font-size: 96px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+        font-weight: 500;
+      }
+      .stat .k {
+        margin-top: 20px;
+      }
+
+      /* Toast label over a screenshot */
+      .toast {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 20px 26px;
+        border: 1px solid var(--wash-toast);
+        border-radius: var(--radius-2xl);
+        background: var(--wash-toast);
+        -webkit-backdrop-filter: blur(var(--blur-toast));
+        backdrop-filter: blur(var(--blur-toast));
+        box-shadow: var(--shadow-card);
+        color: var(--ink);
+      }
+
+      /* Progress ticks, so a passer-by sees where the loop is */
+      .ticks {
+        position: absolute;
+        z-index: 5;
+        right: 64px;
+        bottom: 56px;
+        display: flex;
+        gap: 10px;
+      }
+      .ticks span {
+        width: 28px;
+        height: 4px;
+        border-radius: 2px;
+        background: #2c2c2c26;
+        overflow: hidden;
+      }
+      .ticks span.on::after {
+        content: "";
+        display: block;
+        height: 100%;
+        background: var(--ink-muted);
+        animation: tick var(--scene) linear forwards;
+      }
+      .ticks span.done {
+        background: var(--ink-muted);
+      }
+      .ticks.light span {
+        background: #ffffff40;
+      }
+      .ticks.light span.on::after,
+      .ticks.light span.done {
+        background: var(--white);
+      }
+      @keyframes tick {
+        from {
+          width: 0;
+        }
+        to {
+          width: 100%;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        :root {
+          --scene: 12s;
+        }
+        .scene,
+        .scene.on {
+          transition: none;
+        }
+        .scene.on .bleed,
+        .scene.on .figure .well img {
+          animation: none;
+        }
+        .rise {
+          opacity: 1;
+          transform: none;
+        }
+        .scene.on .rise {
+          animation: none;
+        }
+        .ticks span.on::after {
+          animation: none;
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="stage" id="stage">
+      <!-- 1. Hook: the companions, full bleed behind glass -->
+      <section class="scene" data-tone="light">
+        <img class="bleed" src="assets/hero-wide.jpg" alt="" />
+        <div
+          class="mark on-image"
+          style="position: absolute; left: 96px; top: 72px"
+        >
+          <svg viewBox="0 0 64 34" aria-hidden="true">
+            <rect x="1" y="1" width="62" height="32" rx="16" fill="#ffffff" />
+            <circle cx="20" cy="17" r="10" fill="#1f1f29" />
+            <circle cx="44" cy="17" r="10" fill="#1f1f29" />
+            <circle cx="22" cy="14" r="3" fill="#ffffff" />
+            <circle cx="46" cy="14" r="3" fill="#ffffff" />
+          </svg>
+          <span>kestrel<i class="dot"></i></span>
+        </div>
+        <div
+          class="glass rise d1"
+          style="right: 96px; bottom: 120px; width: 860px"
+        >
+          <h1 class="display-md">Two small robots who want to know why.</h1>
+          <p class="body" style="margin-top: 20px">
+            Kestrel is a science and maths playground where you tell Pip and
+            Nova what to try, and the physics answers.
+          </p>
+          <p class="caption" style="margin-top: 28px">
+            Concept art. The robots in the console are simulated Microducks.
+          </p>
+        </div>
+      </section>
+
+      <!-- 2. The problem, as a statement on paper -->
+      <section class="scene">
+        <div style="position: absolute; left: 160px; top: 250px; width: 1500px">
+          <h2 class="display-lg rise">
+            Most lessons ask you to imagine the experiment.
+            <span class="faint"
+              >Kestrel lets you run it, predict it and be wrong about it</span
+            >
+            with two robots beside you.
+          </h2>
+          <p class="body muted rise d2" style="margin-top: 56px; width: 1000px">
+            For learners aged 13 to 16. You make the prediction, the simulator
+            measures the result and the robots talk it through with you.
+          </p>
+        </div>
+        <div class="rule">
+          <i style="background: var(--rule-1)"></i><b></b
+          ><i style="background: var(--rule-2)"></i><b></b
+          ><i style="background: var(--rule-3)"></i><b></b
+          ><i style="background: var(--rule-4)"></i><b></b
+          ><i style="background: var(--rule-5)"></i>
+        </div>
+      </section>
+
+      <!-- 3. Objective one: balance the beam (real console screenshot) -->
+      <section class="scene">
+        <div style="position: absolute; left: 120px; top: 200px; width: 560px">
+          <p class="caption muted rise">Physics · Moments</p>
+          <h2 class="display-md rise d1" style="margin-top: 16px">
+            Balance the beam.
+          </h2>
+          <p class="body muted rise d2" style="margin-top: 28px">
+            Choose where Pip's 200 g and Nova's 100 g go, predict which way the
+            plank tips, then let both robots push their weights into place.
+          </p>
+          <p class="body rise d3" style="margin-top: 28px">
+            It counts only when the released plank reads level, under 0.5°, for
+            one second.
+          </p>
+        </div>
+        <figure
+          class="figure rise d1"
+          style="left: 760px; top: 150px; width: 1060px"
+        >
+          <div class="frame">
+            <div class="well" style="height: 606px">
+              <img
+                src="assets/card-beam.jpg"
+                alt="Kestrel console, Physics Moments lesson"
+              />
+            </div>
+          </div>
+          <figcaption class="caption">
+            <span>Fig. 1</span
+            ><span>The Moments lesson in the real console</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <!-- 4. Objective two: build the right triangle -->
+      <section class="scene">
+        <figure
+          class="figure rise"
+          style="left: 100px; top: 150px; width: 1060px"
+        >
+          <div class="frame">
+            <div class="well" style="height: 606px">
+              <img
+                src="assets/card-triangle.jpg"
+                alt="Kestrel console, Pythagorean theorem lesson"
+                style="object-position: 30% 50%"
+              />
+            </div>
+          </div>
+          <figcaption class="caption">
+            <span>Fig. 2</span
+            ><span>The Pythagoras lesson, with the objectives board</span>
+          </figcaption>
+        </figure>
+        <div style="position: absolute; left: 1240px; top: 200px; width: 560px">
+          <p class="caption muted rise d1">Maths · Pythagorean theorem</p>
+          <h2 class="display-md rise d2" style="margin-top: 16px">
+            Build the right triangle.
+          </h2>
+          <p class="body muted rise d3" style="margin-top: 28px">
+            Does 9 + 16 make 25? Pip and Nova push the square tiles onto the
+            sides of a floor triangle, and the slots light up when the tiles
+            land.
+          </p>
+        </div>
+      </section>
+
+      <!-- 5. Rescue Pip and free play -->
+      <section class="scene">
+        <div style="position: absolute; left: 120px; top: 200px; width: 560px">
+          <p class="caption muted rise">Mission · Free play</p>
+          <h2 class="display-md rise d1" style="margin-top: 16px">
+            Rescue Pip, then let them play.
+          </h2>
+          <p class="body muted rise d2" style="margin-top: 28px">
+            Guide the robots to bring Pip home. In free play they charge, really
+            collide in MuJoCo, and the one that falls gets back up with its own
+            get-up policy.
+          </p>
+          <p class="body rise d3" style="margin-top: 28px">
+            The knockdown is a scripted shove. The recovery is the real policy.
+          </p>
+        </div>
+        <figure
+          class="figure rise d1"
+          style="left: 760px; top: 150px; width: 1060px"
+        >
+          <div class="frame">
+            <div class="well" style="height: 606px">
+              <img
+                src="assets/card-fight.jpg"
+                alt="Kestrel console, free play collision"
+                style="object-position: 40% 50%"
+              />
+            </div>
+          </div>
+          <figcaption class="caption">
+            <span>Fig. 3</span
+            ><span>Pip and Nova in free play, back on their feet</span>
+          </figcaption>
+        </figure>
+      </section>
+
+      <!-- 6. What is real underneath -->
+      <section class="scene">
+        <div style="position: absolute; left: 160px; top: 150px; width: 1500px">
+          <h2 class="display-lg rise">
+            Nothing on screen is faked.
+            <span class="faint">The simulator owns the science,</span> and the
+            model only explains what it measured.
+          </h2>
+        </div>
+        <div class="stats">
+          <div class="stat rise d1">
+            <div class="n">50 Hz</div>
+            <p class="body muted k">
+              Real MuJoCo physics and seven ONNX walking, kicking and get-up
+              policies, in the browser.
+            </p>
+          </div>
+          <div class="stat rise d2">
+            <div class="n">Voice</div>
+            <p class="body muted k">
+              Hold to talk. ElevenLabs hears you, Claude on Bedrock plans
+              bounded actions, the robots answer.
+            </p>
+          </div>
+          <div class="stat rise d3">
+            <div class="n">Tiger</div>
+            <p class="body muted k">
+              Every win is a row in a Tiger Data hypertable, with the measured
+              tilt, so progress survives a refresh.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7. Close -->
+      <section class="scene" data-tone="light">
+        <img
+          class="bleed"
+          src="assets/hero.jpg"
+          alt=""
+          style="object-position: 50% 70%; transform-origin: 30% 70%"
+        />
+        <div class="glass rise d1" style="right: 96px; top: 96px; width: 820px">
+          <div class="mark" style="color: var(--white)">
+            <svg viewBox="0 0 64 34" aria-hidden="true">
+              <rect x="1" y="1" width="62" height="32" rx="16" fill="#ffffff" />
+              <circle cx="20" cy="17" r="10" fill="#1f1f29" />
+              <circle cx="44" cy="17" r="10" fill="#1f1f29" />
+              <circle cx="22" cy="14" r="3" fill="#ffffff" />
+              <circle cx="46" cy="14" r="3" fill="#ffffff" />
+            </svg>
+            <span>kestrel<i class="dot"></i></span>
+          </div>
+          <h2 class="display-md" style="margin-top: 24px">
+            Real robots. Real physics.
+          </h2>
+          <p class="body" style="margin-top: 16px">
+            Ask us for the console and try the beam yourself.
+          </p>
+          <div style="margin-top: 32px">
+            <span class="btn-solid"
+              >Open the playground
+              <span class="pill"
+                ><svg
+                  width="10"
+                  height="17"
+                  viewBox="0 0 6 10"
+                  aria-hidden="true"
+                  fill="currentColor"
+                >
+                  <path
+                    d="M1.2131 0L0 0L0 1.2131L1.2131 1.2131L1.2131 0Z"
+                    transform="translate(3.385 4.3923)"
+                  />
+                  <path
+                    d="M1.2131 0L0 0L0 1.2131L1.2131 1.2131L1.2131 0Z"
+                    transform="translate(0.971 1.9745)"
+                  />
+                  <path
+                    d="M1.2131 0L0 0L0 1.2131L1.2131 1.2131L1.2131 0Z"
+                    transform="translate(0.971 6.8122)"
+                  />
+                  <path
+                    d="M1.2131 0L0 0L0 3.6392L1.2131 3.6392L1.2131 0Z"
+                    transform="translate(2.1696 3.179)"
+                  /></svg></span
+            ></span>
+          </div>
+          <p class="caption" style="margin-top: 28px">
+            HackPSU 2026 · Concept art
+          </p>
+        </div>
+      </section>
+
+      <div class="ticks" id="ticks"></div>
+    </div>
+
+    <script>
+      (function () {
+        var stage = document.getElementById("stage");
+        var scenes = Array.prototype.slice.call(
+          document.querySelectorAll(".scene"),
+        );
+        var ticks = document.getElementById("ticks");
+        var reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+        var i = -1;
+        var timer = 0;
+
+        scenes.forEach(function () {
+          ticks.appendChild(document.createElement("span"));
+        });
+        var marks = Array.prototype.slice.call(ticks.children);
+
+        function fit() {
+          var s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+          stage.style.setProperty("--fit", s);
+        }
+
+        function sceneMs() {
+          return reduce.matches ? 12000 : 8000;
+        }
+
+        function show(n) {
+          scenes.forEach(function (el, k) {
+            el.classList.toggle("on", k === n);
+          });
+          marks.forEach(function (el, k) {
+            el.className = k < n ? "done" : "";
+            if (k === n) {
+              void el.offsetWidth; // restart the tick animation
+              el.className = "on";
+            }
+          });
+          ticks.classList.toggle(
+            "light",
+            scenes[n].getAttribute("data-tone") === "light",
+          );
+        }
+
+        // One timer, rescheduled each step, so nothing accumulates over hours.
+        function next() {
+          i = (i + 1) % scenes.length;
+          show(i);
+          clearTimeout(timer);
+          timer = setTimeout(next, sceneMs());
+        }
+
+        // Keep the screen awake where the browser allows it.
+        var lock = null;
+        function wake() {
+          if (
+            !("wakeLock" in navigator) ||
+            document.visibilityState !== "visible"
+          )
+            return;
+          navigator.wakeLock
+            .request("screen")
+            .then(function (l) {
+              lock = l;
+            })
+            .catch(function () {});
+        }
+        document.addEventListener("visibilitychange", function () {
+          if (document.visibilityState === "visible") {
+            wake();
+            next();
+          }
+        });
+
+        // Full screen on a click or the F key. Nothing else is interactive.
+        function full() {
+          var el = document.documentElement;
+          if (!document.fullscreenElement && el.requestFullscreen)
+            el.requestFullscreen().catch(function () {});
+          wake();
+        }
+        document.addEventListener("click", full);
+        document.addEventListener("keydown", function (e) {
+          if (e.key === "f" || e.key === "F") full();
+        });
+
+        // A full reload every 6 hours clears anything a long-running tab collects.
+        setTimeout(
+          function () {
+            location.reload();
+          },
+          6 * 60 * 60 * 1000,
+        );
+
+        window.addEventListener("resize", fit);
+        fit();
+        wake();
+        next();
+      })();
+    </script>
+  </body>
+</html>

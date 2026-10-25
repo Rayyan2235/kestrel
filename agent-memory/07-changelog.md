@@ -387,3 +387,8 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - CI then failed 3 of 142 on timing. (1) The rescue death bubble expired (12 s of real time) before the test's next check on the slow runner. The rescue result bubble is now sticky until the next reset or run, which is also better for kids. (2) Two Moments tests gave the lesson switch 5 s; that wait is now 30 s, since the switch waits on the physics loop.
 - CI on `399d396` was 137 passed, 1 failed: the rescue spec's bubble-position poll. The CI trace shows the bubble correctly positioned (`transform: translate(741.5px, 467.8px)…`); the poll's first read had not returned within the 5 s default. The rescue spec now gives every default wait 30 s (`expect.configure`).
+
+## 2026-10-25 · Claude Code · Judges deck and loop (branch `judges-deck`)
+
+- Added `docs/judges/`: `kestrel-judges.pptx` (11 slides with speaker notes), `loop.html` (7 scenes, 8 s each, 12 s under reduced motion, wake lock, 6-hour self-reload, click or F for full screen), `assets/` (landing art and real console screenshots), `build/render-art.mjs` (glass plates and the mark via Playwright), `build/build-deck.cjs` (pptxgenjs) and `README.md`. Both pieces use the GIC design system with Kestrel's own mark; the purple Pip concept portrait is deliberately not used (owner's request).
+- Checks: the deck validates (pptx skill `validate.py`) and was rendered through PowerPoint to PDF and inspected slide by slide. The loop was screenshotted per scene at 1920×1080 in headless Chromium, and a timed run showed scenes 0→1→2…→6→0 with no console errors.
