@@ -40,7 +40,7 @@ test.describe("G4: HUD and prediction prompt", () => {
     await start(page, "moments-1");
     const before = await page.getByTestId("balance-result").innerText();
     const xp0 = await xpNow(page);
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await expect(page.getByTestId("prediction-prompt")).toBeVisible();
     await expect(page.getByText(/did not understand/i)).toHaveCount(0);
     expect(await page.getByTestId("balance-result").innerText()).toBe(before);
@@ -53,14 +53,14 @@ test.describe("G4: HUD and prediction prompt", () => {
 
   test("a wrong choice pays +10 locked", async ({ page }) => {
     await start(page, "moments-1");
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await page.getByTestId("predict-left-down").click();
     await expect(page.getByTestId("xp-floater")).toContainText("+10");
   });
 
   test("Skip moves with no prediction floater", async ({ page }) => {
     await start(page, "moments-1");
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await page.getByTestId("predict-skip").click();
     await expect(page.getByTestId("prediction-prompt")).toBeHidden();
     await expect(page.getByTestId("xp-floater").filter({ hasText: /prediction/i })).toHaveCount(0);
@@ -70,7 +70,7 @@ test.describe("G4: HUD and prediction prompt", () => {
     await start(page, "moments-1");
     const before = await page.getByTestId("balance-result").innerText();
     const xp0 = await xpNow(page);
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await expect(page.getByTestId("prediction-prompt")).toBeVisible();
     await page.getByRole("button", { name: /stop/i }).first().click();
     await expect(page.getByTestId("prediction-prompt")).toBeHidden();
@@ -88,7 +88,7 @@ test.describe("G4: HUD and prediction prompt", () => {
 
   test("reload keeps XP on a saved profile but the demo profile is never persisted", async ({ page }) => {
     await start(page, "moments-1");
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await page.getByTestId("predict-balanced").click();
     await page.reload();
     const stored = await page.evaluate(() => window.localStorage.getItem("kestrel.progress"));
@@ -97,7 +97,7 @@ test.describe("G4: HUD and prediction prompt", () => {
 
   test("the toast: role=status, never steals focus, Dismiss closes it, reason stays in Recent XP", async ({ page }) => {
     await start(page, "moments-1");
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await page.getByTestId("predict-balanced").click();
     const input = page.getByRole("textbox", { name: "Message your robot" });
     await input.focus();
@@ -116,7 +116,7 @@ test.describe("G4: HUD and prediction prompt", () => {
     await page.goto("/?demo=two-bot");
     await expect(page.getByTestId("demo-banner")).toBeVisible();
     await expect(page.getByTestId("prediction-prompt")).toHaveCount(0);
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await expect(page.getByTestId("prediction-prompt")).toHaveCount(0);
   });
 
@@ -136,7 +136,7 @@ test.describe("G4: HUD and prediction prompt", () => {
   test("reduced motion: floater reason text still present", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await start(page, "moments-1");
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await page.getByTestId("predict-balanced").click();
     await expect(page.getByTestId("xp-floater")).toContainText(/matched/i);
   });
@@ -165,7 +165,7 @@ test.describe("G6: Workshop", () => {
     const offers = page.getByTestId("reward-offers");
     await expect(offers).toBeVisible();
     const pick = offers.locator('[data-testid^="reward-pick-"]').first();
-    const shellBefore = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const shellBefore = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     await pick.click();
     await expect(page.getByTestId("reward-offers").locator('[data-testid^="reward-pick-"]')).toHaveCount(await offers.locator('[data-testid^="reward-pick-"]').count());
     expect(shellBefore).toBeTruthy();
@@ -176,12 +176,12 @@ test.describe("G6: Workshop", () => {
     await page.getByTestId("workshop-tab-shell").click();
     const locked = page.locator('[data-testid^="item-"][aria-disabled="true"]').first();
     await expect(locked).toBeVisible();
-    const before = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const before = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     await locked.click({ force: true });
     await locked.focus();
     await page.keyboard.press("Enter");
     await page.keyboard.press("Space");
-    const after = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const after = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     expect(after).toBe(before);
   });
 
@@ -195,20 +195,20 @@ test.describe("G6: Workshop", () => {
   test("equipping an allowed shell changes --shell on bot-pip only; data-shape and name tag stay", async ({ page }) => {
     await open(page);
     await page.getByTestId("workshop-tab-shell").click();
-    const shapeBefore = await page.getByTestId("bot-pip").getAttribute("data-shape");
-    const novaBefore = await page.getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
-    const pipBefore = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const shapeBefore = await page.getByTestId("stage").getByTestId("bot-pip").getAttribute("data-shape");
+    const novaBefore = await page.getByTestId("stage").getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const pipBefore = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     const free = page.locator('[data-testid^="item-shell-"]:not([aria-disabled="true"])');
     const n = await free.count();
     let changed = false;
     for (let i = 0; i < n && !changed; i++) {
       await free.nth(i).click();
-      const now = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+      const now = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
       changed = now !== pipBefore;
     }
     expect(changed).toBe(true);
-    expect(await page.getByTestId("bot-pip").getAttribute("data-shape")).toBe(shapeBefore);
-    expect(await page.getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"))).toBe(novaBefore);
+    expect(await page.getByTestId("stage").getByTestId("bot-pip").getAttribute("data-shape")).toBe(shapeBefore);
+    expect(await page.getByTestId("stage").getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"))).toBe(novaBefore);
   });
 
   test("tooltip/label says the item is cosmetic", async ({ page }) => {
@@ -222,7 +222,7 @@ test.describe("G6: Workshop", () => {
     for (let i = 0; i < 50; i++) {
       await shuffle.click();
       const [pip, nova] = await Promise.all(
-        ["bot-pip", "bot-nova"].map((id) => page.getByTestId(id).evaluate((el) => getComputedStyle(el).getPropertyValue("--shell").trim())),
+        ["bot-pip", "bot-nova"].map((id) => page.getByTestId("stage").getByTestId(id).evaluate((el) => getComputedStyle(el).getPropertyValue("--shell").trim())),
       );
       expect(pip).not.toBe(nova);
     }
@@ -232,7 +232,7 @@ test.describe("G6: Workshop", () => {
 test.describe("G7: sample run", () => {
   test("moments-1 correct, moments-2 wrong then right (comeback), explanation, level-up path reaches the Workshop", async ({ page }) => {
     await start(page, "moments-1");
-    await say(page, "move the right weight to 40 cm");
+    await say(page, "move the right weight to 30 cm");
     await page.getByTestId("predict-balanced").click();
     await expect(page.getByTestId("xp-floater")).toContainText("+25");
     await page.getByTestId("explain-open").click();
@@ -242,9 +242,9 @@ test.describe("G7: sample run", () => {
 
     await page.getByTestId("start-challenge-moments-2").click();
     await say(page, "move the right weight to 25 cm");
-    await page.getByTestId("predict-left-down").click();
+    await page.getByTestId("predict-balanced").click();
     await expect(page.getByTestId("xp-floater")).toContainText("+10");
-    await say(page, "move the right weight to 30 cm");
+    await say(page, "move the right weight to 20 cm");
     await page.getByTestId("predict-balanced").click();
     await expect(page.getByTestId("xp-floater").filter({ hasText: /comeback/i }).first()).toBeVisible();
 
