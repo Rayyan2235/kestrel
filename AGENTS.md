@@ -1,5 +1,7 @@
 # Working on Kestrel
 
+Shared agent memory: read `agent-memory/README.md` first (overview, runbook, codebase map, status, decisions, handoff, changelog). After every change, update it as its update protocol describes. A local, gitignored copy of the planning project may be at `context/HackPSU-2026/`.
+
 Planning source of truth: the local Obsidian project `01-Projects/HackPSU-2026`. Resolve the vault root from the ignored `CLAUDE.local.md` pointer or the `KESTREL_VAULT` environment variable, then read `_context.md` and `build-order.md` first, followed by only the relevant notes. Use local vault access; never copy private vault content into this public repo. If the vault is unavailable, request access/location before treating unresolved planning as settled. PRODUCT.md, DESIGN.md and docs/ROADMAP.md are portable project snapshots; README records implemented capabilities. Do not create Orca feature worktrees until the owner requests them.
 
 - This is the fresh product repo. Do not migrate practice code or private Obsidian notes wholesale.
