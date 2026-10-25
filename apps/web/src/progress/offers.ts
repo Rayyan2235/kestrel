@@ -6,8 +6,12 @@ export const offer = (
   seed: number,
   level: number,
   unlocked: ReadonlySet<string>,
+  /** Restricts the pool before drawing (e.g. to what the current robots can wear). */
+  allow: (id: string) => boolean = () => true,
 ): string[] => {
-  const pool = CATALOG.filter((i) => i.minLevel <= level && !unlocked.has(i.id))
+  const pool = CATALOG.filter(
+    (i) => i.minLevel <= level && !unlocked.has(i.id) && allow(i.id),
+  )
     .map((i) => i.id)
     .sort();
   const rand = mulberry32(seed);

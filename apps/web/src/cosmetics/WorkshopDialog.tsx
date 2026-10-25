@@ -65,7 +65,8 @@ export function WorkshopDialog({
           seedFrom(`offers:${view.picks.length}`),
           view.level,
           view.unlocked,
-        ).filter(visible)
+          (id) => id !== "none" && visible(id),
+        )
       : [];
 
   const shuffle = () => {
