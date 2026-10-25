@@ -473,37 +473,43 @@ export class DuckSim {
     const { mujoco, model, data } = this;
     const n = data.ncon;
     if (!n) return;
+    // Each read of data.contact is a fresh C++ copy of the whole list that JS
+    // must free, or the wasm heap grows ~2 MB/s until MuJoCo aborts.
     const contacts = data.contact;
     const now = data.time;
     const dt = model.opt.timestep;
-    for (let i = 0; i < n; i++) {
-      const c = contacts.get(i);
-      const b1 = this.geomBody[c.geom1]!;
-      const b2 = this.geomBody[c.geom2]!;
-      const dist = c.dist as number;
-      c.delete?.();
-      const d1 = this.duckOfBody.get(b1);
-      const d2 = this.duckOfBody.get(b2);
-      if (!d1 && !d2) continue;
-      if (d1 && d2 && d1 === d2) continue; // a robot's own linkage
-      const duck = (d1 ?? d2)!;
-      const other = d1 && d2 ? (d1 === duck ? d2 : d1) : this.propOfBody.get(d1 ? b2 : b1);
-      if (!other) continue; // the floor and walls
-      mujoco.mj_contactForce(model, data, i, this.force);
-      const f = (this.force.GetView() as Float64Array)[0]!;
-      if (f <= 1e-7) continue;
-      const key = d1 && d2 ? "pip↔nova" : `${duck}↔${other}`;
-      const rec = this.ledger.get(key) ?? { first: now, last: now, samples: 0, impulseNs: 0, peakN: 0, maxPenetrationM: 0 };
-      rec.last = now;
-      rec.samples++;
-      rec.impulseNs += f * dt;
-      rec.peakN = Math.max(rec.peakN, f);
-      rec.maxPenetrationM = Math.max(rec.maxPenetrationM, Math.max(0, -dist));
-      this.ledger.set(key, rec);
-      const t = this.touching.get(duck)!;
-      t.set(other, Math.max(t.get(other) ?? 0, f));
-      if (d1 && d2) this.touching.get(other as BotId)!.set(duck, f);
-      if (APPARATUS.has(other)) this.lastApparatusContact = now;
+    try {
+      for (let i = 0; i < n; i++) {
+        const c = contacts.get(i);
+        const b1 = this.geomBody[c.geom1]!;
+        const b2 = this.geomBody[c.geom2]!;
+        const dist = c.dist as number;
+        c.delete?.();
+        const d1 = this.duckOfBody.get(b1);
+        const d2 = this.duckOfBody.get(b2);
+        if (!d1 && !d2) continue;
+        if (d1 && d2 && d1 === d2) continue; // a robot's own linkage
+        const duck = (d1 ?? d2)!;
+        const other = d1 && d2 ? (d1 === duck ? d2 : d1) : this.propOfBody.get(d1 ? b2 : b1);
+        if (!other) continue; // the floor and walls
+        mujoco.mj_contactForce(model, data, i, this.force);
+        const f = (this.force.GetView() as Float64Array)[0]!;
+        if (f <= 1e-7) continue;
+        const key = d1 && d2 ? "pip↔nova" : `${duck}↔${other}`;
+        const rec = this.ledger.get(key) ?? { first: now, last: now, samples: 0, impulseNs: 0, peakN: 0, maxPenetrationM: 0 };
+        rec.last = now;
+        rec.samples++;
+        rec.impulseNs += f * dt;
+        rec.peakN = Math.max(rec.peakN, f);
+        rec.maxPenetrationM = Math.max(rec.maxPenetrationM, Math.max(0, -dist));
+        this.ledger.set(key, rec);
+        const t = this.touching.get(duck)!;
+        t.set(other, Math.max(t.get(other) ?? 0, f));
+        if (d1 && d2) this.touching.get(other as BotId)!.set(duck, f);
+        if (APPARATUS.has(other)) this.lastApparatusContact = now;
+      }
+    } finally {
+      contacts.delete();
     }
   }
 

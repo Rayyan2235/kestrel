@@ -387,3 +387,10 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - CI then failed 3 of 142 on timing. (1) The rescue death bubble expired (12 s of real time) before the test's next check on the slow runner. The rescue result bubble is now sticky until the next reset or run, which is also better for kids. (2) Two Moments tests gave the lesson switch 5 s; that wait is now 30 s, since the switch waits on the physics loop.
 - CI on `399d396` was 137 passed, 1 failed: the rescue spec's bubble-position poll. The CI trace shows the bubble correctly positioned (`transform: translate(741.5px, 467.8px)…`); the poll's first read had not returned within the 5 s default. The rescue spec now gives every default wait 30 s (`expect.configure`).
+
+## 2026-10-25 · Claude Code · Fix the MuJoCo contact-list memory leak
+
+- A demo tab crashed with `Cannot enlarge memory … limit is 2147483648 bytes` and `Aborted(native code called abort())` from `audit()` → `controlStep()`.
+- Cause: `data.contact` returns a fresh C++ copy of the whole contact list on every read (an embind object with `.delete()`); `audit()` read it every substep and never freed it. Measured in the browser: 50,000 reads without `.delete()` grew the wasm heap 722 MB, with `.delete()` 0 MB; the running sim grew ~28 MB per 15 s (2 GB in about 17 minutes). `data.xpos` (a typed-array view) and `model.opt.timestep` did not grow it.
+- Fix (`apps/web/src/simulation/duckSim.ts`): the audit loop runs in `try { … } finally { contacts.delete(); }`. After the fix the heap stayed at 56.9 MB over 30 s of sim with 24 contacts.
+- Checks: `pnpm typecheck` pass; `pnpm test` 221/221.
