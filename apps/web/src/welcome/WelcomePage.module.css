@@ -81,10 +81,11 @@
   top: calc(20 * var(--u));
   display: inline-flex;
   align-items: center;
-  gap: calc(8 * var(--u));
+  gap: calc(10 * var(--u));
   color: var(--white);
   text-decoration: none;
-  font: 900 calc(29.5 * var(--u)) / 1.2 "Grandstander", sans-serif;
+  font: 900 calc(34 * var(--u)) / 1.2 "Grandstander", sans-serif;
+  letter-spacing: -0.02em;
   text-shadow: var(--shadow-text);
 }
 .nav .links {
@@ -99,6 +100,20 @@
   gap: calc(54 * var(--u));
   padding: 0;
   border-radius: calc(25 * var(--u));
+}
+.eyes {
+  width: calc(46 * var(--u));
+  height: auto;
+  filter: drop-shadow(0 calc(2 * var(--u)) calc(6 * var(--u)) rgb(28 70 120 / 28%));
+}
+/* The lavender full stop after the wordmark. */
+.dot {
+  display: inline-block;
+  width: 0.2em;
+  height: 0.2em;
+  margin-left: 0.06em;
+  border-radius: 50%;
+  background: #c4b3f0;
 }
 .links a {
   color: var(--white);
@@ -316,6 +331,9 @@
     left: 16px;
     top: 18px;
     font-size: 26px;
+  }
+  .eyes {
+    width: 36px;
   }
   .nav .links {
     display: none;

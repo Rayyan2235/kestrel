@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Bird, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { ArrowPill } from "../sandbox/gic";
 import styles from "./WelcomePage.module.css";
 
@@ -20,6 +20,19 @@ export const LANDING = {
     { title: "Pip vs Nova", subject: "Free play · Robot fight", art: "/landing/card-fight.jpg" },
   ],
 };
+
+/** The Kestrel mark: a pill with two looking-up eyes. */
+function Eyes() {
+  return (
+    <svg className={styles.eyes} viewBox="0 0 64 34" aria-hidden="true">
+      <rect x="1" y="1" width="62" height="32" rx="16" fill="#ffffff" />
+      <circle cx="20" cy="17" r="10" fill="#1f1f29" />
+      <circle cx="44" cy="17" r="10" fill="#1f1f29" />
+      <circle cx="22" cy="14" r="3" fill="#ffffff" />
+      <circle cx="46" cy="14" r="3" fill="#ffffff" />
+    </svg>
+  );
+}
 
 function Play() {
   return (
@@ -99,8 +112,10 @@ export function WelcomePage() {
 
         <header className={styles.nav} data-in="nav">
           <a className={styles.logo} href="/" aria-label="Kestrel home">
-            <Bird size={26} strokeWidth={2} aria-hidden="true" />
-            Kestrel
+            <Eyes />
+            <span>
+              kestrel<i className={styles.dot} />
+            </span>
           </a>
           <nav className={`gic-nav ${styles.links}`} aria-label="Sections">
             <a href="#objectives">Objectives</a>
