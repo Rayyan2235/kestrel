@@ -165,7 +165,7 @@ test.describe("G6: Workshop", () => {
     const offers = page.getByTestId("reward-offers");
     await expect(offers).toBeVisible();
     const pick = offers.locator('[data-testid^="reward-pick-"]').first();
-    const shellBefore = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const shellBefore = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     await pick.click();
     await expect(page.getByTestId("reward-offers").locator('[data-testid^="reward-pick-"]')).toHaveCount(await offers.locator('[data-testid^="reward-pick-"]').count());
     expect(shellBefore).toBeTruthy();
@@ -176,12 +176,12 @@ test.describe("G6: Workshop", () => {
     await page.getByTestId("workshop-tab-shell").click();
     const locked = page.locator('[data-testid^="item-"][aria-disabled="true"]').first();
     await expect(locked).toBeVisible();
-    const before = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const before = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     await locked.click({ force: true });
     await locked.focus();
     await page.keyboard.press("Enter");
     await page.keyboard.press("Space");
-    const after = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const after = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     expect(after).toBe(before);
   });
 
@@ -195,20 +195,20 @@ test.describe("G6: Workshop", () => {
   test("equipping an allowed shell changes --shell on bot-pip only; data-shape and name tag stay", async ({ page }) => {
     await open(page);
     await page.getByTestId("workshop-tab-shell").click();
-    const shapeBefore = await page.getByTestId("bot-pip").getAttribute("data-shape");
-    const novaBefore = await page.getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
-    const pipBefore = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const shapeBefore = await page.getByTestId("stage").getByTestId("bot-pip").getAttribute("data-shape");
+    const novaBefore = await page.getByTestId("stage").getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+    const pipBefore = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
     const free = page.locator('[data-testid^="item-shell-"]:not([aria-disabled="true"])');
     const n = await free.count();
     let changed = false;
     for (let i = 0; i < n && !changed; i++) {
       await free.nth(i).click();
-      const now = await page.getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
+      const now = await page.getByTestId("stage").getByTestId("bot-pip").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"));
       changed = now !== pipBefore;
     }
     expect(changed).toBe(true);
-    expect(await page.getByTestId("bot-pip").getAttribute("data-shape")).toBe(shapeBefore);
-    expect(await page.getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"))).toBe(novaBefore);
+    expect(await page.getByTestId("stage").getByTestId("bot-pip").getAttribute("data-shape")).toBe(shapeBefore);
+    expect(await page.getByTestId("stage").getByTestId("bot-nova").evaluate((el) => getComputedStyle(el).getPropertyValue("--shell"))).toBe(novaBefore);
   });
 
   test("tooltip/label says the item is cosmetic", async ({ page }) => {
@@ -222,7 +222,7 @@ test.describe("G6: Workshop", () => {
     for (let i = 0; i < 50; i++) {
       await shuffle.click();
       const [pip, nova] = await Promise.all(
-        ["bot-pip", "bot-nova"].map((id) => page.getByTestId(id).evaluate((el) => getComputedStyle(el).getPropertyValue("--shell").trim())),
+        ["bot-pip", "bot-nova"].map((id) => page.getByTestId("stage").getByTestId(id).evaluate((el) => getComputedStyle(el).getPropertyValue("--shell").trim())),
       );
       expect(pip).not.toBe(nova);
     }
