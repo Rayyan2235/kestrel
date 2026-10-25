@@ -35,7 +35,7 @@ export function TwoBotDemo() {
   const [text, setText] = useState("");
   const [delay, setDelay] = useState<number>(1000);
   const [step, setStep] = useState<string | null>(null);
-  const [pulse, setPulse] = useState(0);
+  const [pulsing, setPulsing] = useState(false);
   const delayRef = useRef(delay);
   delayRef.current = delay;
   const runId = useRef(0);
@@ -73,13 +73,12 @@ export function TwoBotDemo() {
   const handbackId = view.handback?.id ?? null;
   useEffect(() => {
     if (!handbackId) return;
-    setPulse((n) => n + 1);
+    setPulsing(true);
+    const off = window.setTimeout(() => setPulsing(false), 700);
+    // Never steal focus: only take it when nothing at all is focused.
     const active = document.activeElement;
-    const typing = active instanceof HTMLInputElement && active.value !== "";
-    const onField =
-      active instanceof HTMLInputElement ||
-      active instanceof HTMLTextAreaElement;
-    if (!typing && !onField) input.current?.focus();
+    if (!active || active === document.body) input.current?.focus();
+    return () => window.clearTimeout(off);
   }, [handbackId]);
 
   function command(raw: string, bot: BotId) {
@@ -265,8 +264,7 @@ export function TwoBotDemo() {
             className={styles.dock}
             aria-label="Command dock"
             data-testid="dock"
-            data-pulse={pulse}
-            key={reducedMotion ? "static" : pulse}
+            data-pulsing={pulsing && !reducedMotion}
           >
             <div
               className={styles.picker}

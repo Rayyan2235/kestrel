@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { BotGlyph } from "../bubbles/BubbleLayer.js";
+import { useCompact } from "../bubbles/useCompact.js";
 import type { ChannelView } from "./model.js";
 import styles from "./ChannelPanel.module.css";
 
@@ -99,13 +100,67 @@ export function ChannelPanel({
   const handbackId = view.handback?.id ?? null;
   useEffect(() => setPrediction(null), [handbackId]);
   const { callsUsed, hopsUsed } = view.budget;
+  const compact = useCompact();
+  const [tab, setTab] = useState<"you" | "bots">("you");
+  const counts = { you: view.youThread.length, bots: view.botChannel.length };
+  const [seen, setSeen] = useState(counts);
+  // Reading a pane marks it seen; a reset (fewer entries) never leaves a stale count.
+  useEffect(() => {
+    setSeen((s) => ({
+      you: Math.min(compact && tab !== "you" ? s.you : counts.you, counts.you),
+      bots: Math.min(
+        compact && tab !== "bots" ? s.bots : counts.bots,
+        counts.bots,
+      ),
+    }));
+  }, [compact, tab, counts.you, counts.bots]);
+  const unread = (t: "you" | "bots") =>
+    compact && t !== tab && counts[t] > seen[t];
 
   return (
     <aside className={styles.rail} aria-label="Conversation" data-testid="rail">
+      {compact && (
+        <div
+          role="tablist"
+          aria-label="Conversation panes"
+          className={styles.tabs}
+        >
+          {(
+            [
+              ["you", `You and ${BOT_NAMES[threadBot]}`],
+              ["bots", `${BOT_NAMES[threadBot]} and ${BOT_NAMES[peer]}`],
+            ] as const
+          ).map(([t, label]) => (
+            <button
+              key={t}
+              role="tab"
+              id={`tab-${t}`}
+              aria-selected={tab === t}
+              aria-controls={`pane-${t}`}
+              data-testid={`tab-${t}`}
+              onClick={() => setTab(t)}
+            >
+              {label}
+              {unread(t) && (
+                <i
+                  className={styles.dot}
+                  data-testid={`unread-${t}`}
+                  role="img"
+                  aria-label="new messages"
+                />
+              )}
+            </button>
+          ))}
+        </div>
+      )}
       <section
         className={styles.you}
+        id="pane-you"
+        role={compact ? "tabpanel" : undefined}
+        aria-labelledby={compact ? "tab-you" : undefined}
+        hidden={compact && tab !== "you"}
         data-surface="light"
-        aria-label={`You and ${BOT_NAMES[threadBot]}`}
+        aria-label={compact ? undefined : `You and ${BOT_NAMES[threadBot]}`}
       >
         <h2>You and {BOT_NAMES[threadBot]}</h2>
         <ScrollLog
@@ -141,8 +196,14 @@ export function ChannelPanel({
 
       <section
         className={styles.channel}
+        id="pane-bots"
+        role={compact ? "tabpanel" : undefined}
+        aria-labelledby={compact ? "tab-bots" : undefined}
+        hidden={compact && tab !== "bots"}
         data-surface="dark"
-        aria-label={`${BOT_NAMES[threadBot]} and ${BOT_NAMES[peer]}`}
+        aria-label={
+          compact ? undefined : `${BOT_NAMES[threadBot]} and ${BOT_NAMES[peer]}`
+        }
       >
         <h2>
           <BotGlyph bot={threadBot} /> {BOT_NAMES[threadBot]} and{" "}
@@ -213,45 +274,46 @@ export function ChannelPanel({
             </article>
           ))}
         </ScrollLog>
-        <div className={styles.controls}>
-          <button
-            data-testid="ask-peer"
-            disabled={running}
-            onClick={() => onAsk(threadBot, peer)}
-          >
-            Ask {BOT_NAMES[peer]}
-          </button>
-          <button
-            data-testid="stop"
-            className={styles.stop}
-            disabled={!running}
-            onClick={onStop}
-          >
-            <Square size={13} aria-hidden="true" /> Stop
-          </button>
-        </div>
-        {view.handback && (
-          <div
-            className={styles.handback}
-            data-testid="handback-strip"
-            data-source={view.handback.source}
-            role="status"
-          >
-            <strong>Back to you: what do you predict?</strong>
-            <div role="group" aria-label="Your prediction">
-              {["Left side down", "Balanced", "Right side down"].map((p) => (
-                <button
-                  key={p}
-                  aria-pressed={prediction === p}
-                  onClick={() => setPrediction(p)}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </section>
+      {/* Controls and the handback stay visible whichever pane a phone shows. */}
+      <div className={styles.controls}>
+        <button
+          data-testid="ask-peer"
+          disabled={running}
+          onClick={() => onAsk(threadBot, peer)}
+        >
+          Ask {BOT_NAMES[peer]}
+        </button>
+        <button
+          data-testid="stop"
+          className={styles.stop}
+          disabled={!running}
+          onClick={onStop}
+        >
+          <Square size={13} aria-hidden="true" /> Stop
+        </button>
+      </div>
+      {view.handback && (
+        <div
+          className={styles.handback}
+          data-testid="handback-strip"
+          data-source={view.handback.source}
+          role="status"
+        >
+          <strong>Back to you: what do you predict?</strong>
+          <div role="group" aria-label="Your prediction">
+            {["Left side down", "Balanced", "Right side down"].map((p) => (
+              <button
+                key={p}
+                aria-pressed={prediction === p}
+                onClick={() => setPrediction(p)}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

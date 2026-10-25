@@ -103,6 +103,8 @@
   border-radius: 16px;
   background: var(--dock);
   color: var(--on-dark);
+}
+.dock[data-pulsing="true"] {
   animation: dockPulse 0.7s ease-out;
 }
 .picker {
@@ -207,7 +209,7 @@
   .bot[data-state] {
     animation: none;
   }
-  .dock {
+  .dock[data-pulsing] {
     animation: none;
   }
 }

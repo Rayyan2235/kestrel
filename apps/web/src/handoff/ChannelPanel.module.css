@@ -137,6 +137,43 @@ h2 {
 .controls {
   display: flex;
   gap: 8px;
+  padding: 10px 14px;
+  border-radius: 16px;
+  background: var(--dock);
+}
+.you[hidden],
+.channel[hidden] {
+  display: none;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+.tabs button {
+  position: relative;
+  flex: 1;
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 13px;
+}
+.tabs button[aria-selected="true"] {
+  background: var(--ink);
+  color: var(--panel);
+}
+.dot {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--ink);
 }
 .controls button,
 .handback button {

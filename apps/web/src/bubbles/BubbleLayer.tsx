@@ -2,6 +2,7 @@ import { BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { Eye } from "lucide-react";
 import { type CSSProperties } from "react";
 import type { Bubble } from "./model.js";
+import { useCompact } from "./useCompact.js";
 import styles from "./BubbleLayer.module.css";
 
 export type Point = { x: number; y: number };
@@ -59,13 +60,35 @@ export function placeBubble(
   };
 }
 
+const seqOf = (b: Bubble) => Number(b.eventId.split("-")[1]);
+/**
+ * Phones show one in-room bubble: the newest, with a bubble to the learner
+ * taking priority. Bot-to-bot text stays in the rail.
+ */
+const onePerRoom = (bubbles: Bubble[]): Bubble[] => {
+  const toYou = bubbles.filter((b) => b.variant === "to-you");
+  const pool = toYou.length > 0 ? toYou : bubbles;
+  const newest = pool.reduce<Bubble | null>(
+    (best, b) => (best && seqOf(best) > seqOf(b) ? best : b),
+    null,
+  );
+  return newest ? [newest] : [];
+};
+/** At most 80 characters in the room on phones, name included. */
+const shorten = (text: string, name: string): string => {
+  const room = 80 - name.length - 1;
+  return text.length <= room ? text : `${text.slice(0, room - 1)}…`;
+};
+
 export function BubbleLayer({
-  bubbles,
+  bubbles: all,
   anchors,
 }: {
   bubbles: Bubble[];
   anchors: Anchors;
 }) {
+  const compact = useCompact();
+  const bubbles = compact ? onePerRoom(all) : all;
   let slot = 0;
   return (
     <div className={styles.layer} data-testid="bubble-layer">
@@ -104,7 +127,8 @@ export function BubbleLayer({
               </span>
             </div>
             <p className={styles.text}>
-              <strong>{BOT_NAMES[b.anchor]}</strong> {b.text}
+              <strong>{BOT_NAMES[b.anchor]}</strong>{" "}
+              {compact ? shorten(b.text, BOT_NAMES[b.anchor]) : b.text}
             </p>
           </div>
         );

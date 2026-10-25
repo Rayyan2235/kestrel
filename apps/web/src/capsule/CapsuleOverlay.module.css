@@ -32,7 +32,7 @@
 }
 .landed {
   opacity: 0;
-  transition: opacity 0.4s ease-out 0.3s;
+  transition: opacity 0.2s ease-out;
 }
 .still {
   opacity: 1;
