@@ -414,7 +414,6 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       emit();
       return inert;
     }
-    const baseVersion = proposed.baseVersion;
     const key = `${context.challengeId}|${context.promptId}`;
     let open = true;
     let idle: ReturnType<typeof setTimeout> | null = null;
@@ -448,7 +447,9 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       pushingBot = ownerOf(action.side);
       emit();
       try {
-        applied = await sim.apply(task, baseVersion, ctl.signal);
+        // The version is read at the learner's lock: a real sim keeps re-measuring
+        // (settling) while a move is held, which must not read as a stale world.
+        applied = await sim.apply(task, sim.snapshot().version, ctl.signal);
       } finally {
         clearTimeout(timer);
         if (inflight === ctl) inflight = null;
@@ -457,7 +458,12 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       }
       if (token !== epoch) return false;
       if (!applied.ok) {
-        if (applied.summary) say(recipient, "you", "notice", applied.summary);
+        say(
+          recipient,
+          "you",
+          "notice",
+          applied.summary ?? "The lab changed, so I did not make that move.",
+        );
         return false;
       }
       const world = await settled(applied.world, token);
