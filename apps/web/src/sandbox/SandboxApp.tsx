@@ -529,7 +529,7 @@ export function SandboxApp() {
             </button>
           </div>
         </aside>
-        <ChannelPanel view={channel} threadBot={selected} running={asking} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
+        <ChannelPanel embedded view={channel} threadBot={selected} running={asking} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
       </main>
     </div>
   );
