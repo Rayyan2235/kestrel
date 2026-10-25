@@ -342,3 +342,9 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - Checks: `pnpm check` passed (typecheck, unit tests, builds, API health smoke).
 - `b0ea98b`: `runTask` emits a `plan` event for set_balance and build_squares; the Pip and Nova window uses it for Pip's handoff. Polling `status().task` missed build_squares because each robot's own push masks the crew task.
 - Local desktop e2e on the dev server: sandbox, console-entry and integration passed (11). The rescue spec timed out once while `duckSim.ts` hot-reloaded mid-run, then passed alone (5.8 min).
+
+## 2026-10-25 · Claude Code · Landing hero rebuilt in GIC style (branch `landing-redesign`)
+
+- `apps/web/src/welcome/WelcomePage.tsx` and `.module.css` replaced: one 1440×1280 frame scaled by `--u = 100vw/1440`; one still plate (`LANDING.plate`, placeholder `public/landing/hero.jpg`) with an optional aligned loop (`LANDING.video`, null for now); Grandstander kicker and two-line headline; GIC solid and glass pills; three objective cards linking to `/console`; one Web Animations entrance timeline, cancelled under reduced motion; phone layout at ≤820px. Removed the old balance demo, FAQ, companion picker and `welcome/arc/`.
+- Tests: `tests/welcome.spec.ts` rewritten for the new hero (the old content is gone); `console-entry.spec.ts` heading updated. Both specs passed on desktop and mobile (10/10) against a dev server.
+- To swap art: replace `public/landing/hero.jpg` (2160×1920 fills the frame exactly) and the card paths in `LANDING`.
