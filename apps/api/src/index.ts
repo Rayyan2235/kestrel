@@ -1,4 +1,9 @@
 import { buildApp } from "./app.js";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+// pnpm starts in apps/api; built entry may also run from the repository root.
+const envFile = [resolve("../../.env"), resolve(".env")].find(existsSync);
+if (envFile) process.loadEnvFile(envFile);
 const app = buildApp();
 try {
   await app.listen({
