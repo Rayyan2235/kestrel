@@ -362,3 +362,8 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - Merged `landing-redesign` (PR #22) into `rescue-main` (`f8afb2e`); the only conflict was this changelog, and both entries are kept. `tests/integration.spec.ts` still expected the old landing heading, so it now expects "Real robots.Real physics.".
 - Checks: `pnpm check` passed (212 tests, builds, API smoke). welcome, console-entry and integration e2e passed on desktop and mobile (18).
+
+## 2026-10-25 · Claude Code · CI budget for rescue-main (PR #21)
+
+- CI on #21 failed 2 of 144 on timing: the rescue route never reached "Battery died!" in 170 s, and the camera spec ran out of its 120 s budget. Main's `e13e51d` (lighter low-power scene, camera budget 300 s) had been dropped when rescue's tree replaced main's, so it is cherry-picked back (`1578f95`).
+- Rescue spec: each route gets 480 s, the respawn 120 s, and the test 20 min. The CI job limit is now 40 min.

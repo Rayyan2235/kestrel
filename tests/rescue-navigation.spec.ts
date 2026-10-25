@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-test.setTimeout(360000);
+// Real physics walks two whole routes. On CI's software WebGL, sharing the
+// runner with another spec, the long route did not reach "Battery died!" in
+// 170 s (it passes locally in under 6 min end to end), so each route gets 480 s.
+test.setTimeout(1200000);
 test("spoken long route drains battery, shows death bubble, resets, then shorter route rescues Pip", async ({
   page,
 }, info) => {
@@ -115,7 +118,7 @@ test("spoken long route drains battery, shows death bubble, resets, then shorter
   );
   await expect(
     page.getByRole("region", { name: "3D playground" }).getByRole("status"),
-  ).toContainText("Battery died!", { timeout: 170000 });
+  ).toContainText("Battery died!", { timeout: 480000 });
   // Freeze only physics for the screenshot; otherwise screenshot capture can outlast the death bubble.
   await page.evaluate(() => (window as any).kestrelSim.stop());
   await expect(
@@ -139,7 +142,8 @@ test("spoken long route drains battery, shows death bubble, resets, then shorter
   await page.evaluate(() => (window as any).kestrelSim.start());
   await expect(page.getByTestId("rescue-feedback")).toContainText(
     "back at the start",
-    { timeout: 20000 },
+    // The respawn is 2.5 s of simulated time, much longer in real time on CI.
+    { timeout: 120000 },
   );
   const start = await page.evaluate(
     () => (window as any).kestrelSim.status().pose,
@@ -157,7 +161,7 @@ test("spoken long route drains battery, shows death bubble, resets, then shorter
   await page.getByLabel("Your checkpoint order").fill("go to B then E then H");
   await page.getByRole("button", { name: "Send route" }).click();
   await expect(page.getByTestId("rescue-feedback")).toContainText("Made it!", {
-    timeout: 170000,
+    timeout: 480000,
   });
   const pose = await page.evaluate(
     () => (window as any).kestrelSim.status().pose,
