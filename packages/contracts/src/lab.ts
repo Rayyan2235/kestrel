@@ -1,0 +1,376 @@
+import { z } from "zod";
+
+// Modular lab props. One spec drives both the MuJoCo body and its render
+// mesh, so a subject kit (Pythagoras tiles, Moments plank and weights) is
+// just data. Coordinates are MuJoCo ground coordinates in metres: +x is
+// the duck's spawn heading, +y is to its left, +z is up.
+
+export type Vec2 = [number, number];
+export type Vec3 = [number, number, number];
+
+/** How a prop is attached to the world. */
+export type PropJoint = "fixed" | "free" | "hinge";
+
+export type PropShape =
+  | { type: "box"; size: Vec3 }
+  /** Right-triangle prism: legs along local +x and +y, extruded along z. */
+  | { type: "triangle"; legs: Vec2; height: number }
+  /** Triangular prism lying along local y (a pivot wedge). */
+  | { type: "wedge"; width: number; length: number; height: number };
+
+export type PropSpec = {
+  id: string;
+  label: string;
+  role: "tile" | "plank" | "weight" | "pivot" | "triangle" | "furniture";
+  shape: PropShape;
+  joint: PropJoint;
+  /** Position of the body origin. Box and wedge origins are their centers. */
+  pos: Vec3;
+  /** Rotation about +z, in radians. */
+  yaw: number;
+  mass: number;
+  color: string;
+  /** Hinge axis in body coordinates, for joint "hinge". */
+  axis?: Vec3;
+  /** Side length in Pythagoras units, drawn as an n × n grid on tiles. */
+  units?: number;
+};
+
+/** Visual-only floor target: where a tile belongs in a puzzle. */
+export type SlotSpec = {
+  id: string;
+  forProp: string;
+  pos: Vec2;
+  yaw: number;
+  side: number;
+  label: string;
+};
+
+export type LabKit = {
+  id: "pythagoras" | "moments" | "free";
+  subject: "Maths" | "Physics" | "Sandbox";
+  topic: string;
+  props: PropSpec[];
+  slots: SlotSpec[];
+  /** Lines of the right triangle drawn on the floor, in metres. */
+  outline?: Vec2[];
+};
+
+/** One Pythagoras unit, in metres. The duck stands about 0.25 m tall. */
+export const UNIT = 0.04;
+const TILE_THICKNESS = 0.03;
+
+export function tile(
+  id: string,
+  units: number,
+  pos: Vec2,
+  color: string,
+  yaw = 0,
+): PropSpec {
+  const side = units * UNIT;
+  return {
+    id,
+    label: `${units}×${units} square`,
+    role: "tile",
+    shape: { type: "box", size: [side, side, TILE_THICKNESS] },
+    joint: "free",
+    pos: [pos[0], pos[1], TILE_THICKNESS / 2 + 0.002],
+    yaw,
+    // Light enough for the walking policy to shove without falling.
+    mass: 0.012 * units,
+    color,
+    units,
+  };
+}
+
+export function block(
+  id: string,
+  label: string,
+  size: Vec3,
+  pos: Vec2,
+  color: string,
+  opts: { mass?: number; joint?: PropJoint; yaw?: number } = {},
+): PropSpec {
+  return {
+    id,
+    label,
+    role: opts.joint === "fixed" ? "furniture" : "weight",
+    shape: { type: "box", size },
+    joint: opts.joint ?? "free",
+    pos: [pos[0], pos[1], size[2] / 2 + 0.001],
+    yaw: opts.yaw ?? 0,
+    mass: opts.mass ?? 0.05,
+    color,
+  };
+}
+
+/**
+ * Floor slots for squares on the sides of a right triangle with legs
+ * a (along +x) and b (along +y), right angle at `origin`. Each square sits
+ * outside the triangle; the hypotenuse square is rotated to match its edge.
+ */
+export function pythagorasSlots(
+  a: number,
+  b: number,
+  origin: Vec2,
+  ids: { a: string; b: string; c: string },
+): { slots: SlotSpec[]; outline: Vec2[]; c: number } {
+  const c = Math.hypot(a, b);
+  const [ox, oy] = origin;
+  const u = UNIT;
+  const hyp = Math.atan2(b, -a); // direction of the edge from (a,0) to (0,b)
+  // Outward normal of the hypotenuse, away from the right angle.
+  const n: Vec2 = [b / c, a / c];
+  const mid: Vec2 = [(a / 2) * u, (b / 2) * u];
+  const slots: SlotSpec[] = [
+    {
+      id: "slot-a",
+      forProp: ids.a,
+      pos: [ox + (a / 2) * u, oy - (a / 2) * u],
+      yaw: 0,
+      side: a * u,
+      label: `a² = ${a * a}`,
+    },
+    {
+      id: "slot-b",
+      forProp: ids.b,
+      pos: [ox - (b / 2) * u, oy + (b / 2) * u],
+      yaw: 0,
+      side: b * u,
+      label: `b² = ${b * b}`,
+    },
+    {
+      id: "slot-c",
+      forProp: ids.c,
+      pos: [ox + mid[0] + n[0] * (c / 2) * u, oy + mid[1] + n[1] * (c / 2) * u],
+      yaw: hyp - Math.PI / 2,
+      side: c * u,
+      label: `c² = ${Math.round(c * c)}`,
+    },
+  ];
+  const outline: Vec2[] = [
+    [ox, oy],
+    [ox + a * u, oy],
+    [ox, oy + b * u],
+    [ox, oy],
+  ];
+  return { slots, outline, c };
+}
+
+/** A square counts as placed when its center lies within `tolerance` of the slot. */
+export function slotFilled(
+  propXY: Vec2,
+  slot: SlotSpec,
+  tolerance = UNIT,
+): boolean {
+  return (
+    Math.hypot(propXY[0] - slot.pos[0], propXY[1] - slot.pos[1]) <= tolerance
+  );
+}
+
+export function pythagorasKit(): LabKit {
+  const ids = { a: "square-3", b: "square-4", c: "square-5" };
+  // The triangle's legs: 4 units along +x and 3 along +y, so the squares
+  // are 4×4 below, 3×3 to the left and 5×5 on the hypotenuse.
+  const { slots, outline } = pythagorasSlots(4, 3, [0.35, -0.1], {
+    a: ids.b,
+    b: ids.a,
+    c: ids.c,
+  });
+  return {
+    id: "pythagoras",
+    subject: "Maths",
+    topic: "Pythagorean theorem",
+    props: [
+      // Each tile starts outside its own side of the triangle, so pushing it
+      // straight in never sweeps across a slot that is already filled.
+      tile(ids.a, 3, [-0.25, 0.35], "#5caca4"),
+      tile(ids.b, 4, [0.43, -0.8], "#dc8060"),
+      tile(ids.c, 5, [0.95, 0.62], "#d2b54c"),
+    ],
+    slots,
+    outline,
+  };
+}
+
+export function momentsKit(): LabKit {
+  const pivotH = 0.06;
+  return {
+    id: "moments",
+    subject: "Physics",
+    topic: "Moments and balance",
+    props: [
+      {
+        id: "pivot",
+        label: "Pivot",
+        role: "pivot",
+        shape: { type: "wedge", width: 0.08, length: 0.1, height: pivotH },
+        joint: "fixed",
+        pos: [0.5, 0, 0],
+        // Ridge must run across the plank (along the hinge axis, +x) so it can rock.
+        yaw: Math.PI / 2,
+        mass: 0,
+        color: "#718e80",
+      },
+      {
+        id: "plank",
+        label: "Plank",
+        role: "plank",
+        shape: { type: "box", size: [0.04, 0.6, 0.012] },
+        joint: "hinge",
+        axis: [1, 0, 0],
+        pos: [0.5, 0, pivotH + 0.007],
+        yaw: 0,
+        mass: 0.08,
+        color: "#f8dda9",
+      },
+      // Resting on the plank, 20 cm from the pivot.
+      {
+        ...block("weight-200", "200 g weight", [0.04, 0.04, 0.04], [0.5, 0.2], "#72aeb4", {
+          mass: 0.2,
+        }),
+        pos: [0.5, 0.2, pivotH + 0.035],
+      },
+      // On the floor, for the duck to bring over.
+      block("weight-100", "100 g weight", [0.035, 0.035, 0.035], [0.1, -0.45], "#db8769", {
+        mass: 0.1,
+      }),
+    ],
+    slots: [],
+  };
+}
+
+export function freeKit(): LabKit {
+  return {
+    id: "free",
+    subject: "Sandbox",
+    topic: "Free play",
+    props: [
+      tile("square-2", 2, [0.3, 0.3], "#5caca4"),
+      tile("square-3", 3, [0.4, -0.35], "#dc8060"),
+      block("crate", "Crate", [0.08, 0.08, 0.08], [-0.3, 0.5], "#d6b48e", { mass: 0.08 }),
+      block("block-small", "Small block", [0.05, 0.05, 0.05], [0.6, 0], "#72aeb4", {
+        mass: 0.04,
+      }),
+    ],
+    slots: [],
+  };
+}
+
+/** Fixed furniture shared by every lesson, so each kit sits in the same lab. */
+export function roomProps(): PropSpec[] {
+  return [
+    block("bench", "Lab bench", [0.9, 0.22, 0.16], [0.35, 1.3], "#e0b18b", { joint: "fixed" }),
+    block("shelf", "Shelf", [0.22, 0.7, 0.3], [-1.3, -0.75], "#819f8b", { joint: "fixed" }),
+    block("crate-stack", "Crate", [0.18, 0.18, 0.18], [-1.25, 1.2], "#d6b48e", {
+      joint: "fixed",
+      yaw: 0.3,
+    }),
+  ];
+}
+
+export const KITS = { pythagoras: pythagorasKit, moments: momentsKit, free: freeKit };
+export type KitId = keyof typeof KITS;
+
+// ── Duck tasks ─────────────────────────────────────────────────────────
+// The bounded actions a robot can be asked to do. Typed commands use this
+// schema today. A transcript or an LLM tool call must produce the same
+// shape, and the simulator validates it again against the live world.
+
+const PropRef = z.string().min(1).max(40);
+export const DuckTaskSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("move"), meters: z.number().min(-1).max(2) }).strict(),
+  z.object({ kind: z.literal("turn"), degrees: z.number().min(-360).max(360) }).strict(),
+  z.object({ kind: z.literal("go_to"), target: PropRef }).strict(),
+  z
+    .object({ kind: z.literal("push"), target: PropRef, toward: PropRef.optional(), direction: z.enum(["left", "right", "forward", "backward"]).optional(), meters: z.number().min(0.05).max(1).optional() })
+    .strict(),
+  z.object({ kind: z.literal("kick"), foot: z.enum(["left", "right"]) }).strict(),
+  z.object({ kind: z.enum(["sit", "stand", "peck", "roll", "stop"]) }).strict(),
+]);
+export type DuckTask = z.infer<typeof DuckTaskSchema>;
+
+export type ParseResult =
+  | { ok: true; task: DuckTask }
+  | { ok: false; reason: string };
+
+const WORD_NUMBERS: Record<string, number> = {
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+};
+
+/**
+ * Resolve a spoken or typed name to a prop id: "the 3 square", "square three",
+ * "five by five", "pivot", "plank".
+ */
+export function resolveProp(phrase: string, props: PropSpec[]): string | null {
+  const p = phrase.toLowerCase().replace(/\b(the|a|an)\b/g, " ").trim();
+  if (!p) return null;
+  const direct = props.find(
+    (x) => x.id === p || x.label.toLowerCase() === p || x.id.replace("-", " ") === p,
+  );
+  if (direct) return direct.id;
+  // A number names a square by its side: "the 3 square", "five by five".
+  const n = /(\d)|\b(two|three|four|five)\b/.exec(p);
+  const units = n ? Number(n[1] ?? WORD_NUMBERS[n[2]!]) : null;
+  if (units) {
+    const t = props.find((x) => x.units === units);
+    if (t) return t.id;
+  }
+  const word = props.find((x) => p.includes(x.role) || p.includes(x.label.toLowerCase()));
+  return word?.id ?? null;
+}
+
+/**
+ * Small deterministic grammar for typed commands and, later, transcripts.
+ * It covers the base Microduck skills only. Anything else is refused
+ * instead of guessed.
+ */
+export function parseDuckTask(text: string, props: PropSpec[]): ParseResult {
+  const t = text.toLowerCase().trim().replace(/[.!?]+$/, "");
+  if (!t) return { ok: false, reason: "Say what the duck should do." };
+  if (/^(stop|halt|freeze|wait)$/.test(t)) return { ok: true, task: { kind: "stop" } };
+  if (/^(sit|sit down)$/.test(t)) return { ok: true, task: { kind: "sit" } };
+  if (/^(stand|stand up|get up)$/.test(t)) return { ok: true, task: { kind: "stand" } };
+  if (/^(peck|pick|nod|bow)( the ground)?$/.test(t)) return { ok: true, task: { kind: "peck" } };
+  if (/^(roll|do a roll|tumble)$/.test(t)) return { ok: true, task: { kind: "roll" } };
+  if (/jump/.test(t))
+    return { ok: false, reason: "The base Microduck model has no jump skill yet." };
+  const kick = /^kick(?: with)?(?: (?:the|your))? ?(left|right)?(?: foot)?$/.exec(t);
+  if (kick) return { ok: true, task: { kind: "kick", foot: (kick[1] as "left" | "right") ?? "right" } };
+  const move = /^(?:walk|move|go|step)\s+(forward|ahead|back|backward|backwards)\s*(\d+(?:\.\d+)?)?\s*(cm|centimeters?|m|meters?)?$/.exec(t);
+  if (move) {
+    const dist = move[2] ? Number(move[2]) * (move[3]?.startsWith("c") || !move[3] ? 0.01 : 1) : 0.2;
+    const sign = move[1]!.startsWith("back") ? -1 : 1;
+    return { ok: true, task: { kind: "move", meters: Math.min(2, dist) * sign } };
+  }
+  const turn = /^(?:turn|rotate|spin)\s+(left|right|around)\s*(\d+)?\s*(?:degrees?|°)?$/.exec(t);
+  if (turn) {
+    const deg = turn[1] === "around" ? 180 : Number(turn[2] ?? 90);
+    return { ok: true, task: { kind: "turn", degrees: turn[1] === "right" ? -deg : deg } };
+  }
+  const push = /^(?:push|shove|nudge)\s+(.+?)(?:\s+(?:to|toward|towards|onto|into)\s+(.+))?$/.exec(t);
+  if (push) {
+    const target = resolveProp(push[1]!, props);
+    if (!target) return { ok: false, reason: `I can't find “${push[1]}” in this lab.` };
+    if (push[2]) {
+      const toward = resolveProp(push[2], props) ?? (/slot|place|triangle/.test(push[2]) ? "slot" : null);
+      if (!toward) return { ok: false, reason: `I can't find “${push[2]}” in this lab.` };
+      return { ok: true, task: { kind: "push", target, toward } };
+    }
+    return { ok: true, task: { kind: "push", target } };
+  }
+  const go = /^(?:go|walk|move|head)\s+(?:to|over to|toward|towards)\s+(.+)$/.exec(t);
+  if (go) {
+    const target = resolveProp(go[1]!, props);
+    if (!target) return { ok: false, reason: `I can't find “${go[1]}” in this lab.` };
+    return { ok: true, task: { kind: "go_to", target } };
+  }
+  return {
+    ok: false,
+    reason:
+      "I know: walk forward 20 cm, turn left, go to the 3 square, push the 5 square to its slot, kick, sit, stand, peck, roll, stop.",
+  };
+}

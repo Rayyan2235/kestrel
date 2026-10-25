@@ -101,3 +101,6 @@ export function previewExchange(botId: BotId, world: World): Message[] {
     },
   ];
 }
+
+export * from "./lab.js";
+export * from "./agent.js";
