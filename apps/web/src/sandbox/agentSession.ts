@@ -1,4 +1,4 @@
-import { AgentResponseSchema, DuckTaskSchema, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type DuckTask } from "@kestrel/contracts";
+import { AgentResponseSchema, DuckTaskSchema, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type BotId, type DuckTask } from "@kestrel/contracts";
 import type { DuckSim, SimEvent } from "../simulation/duckSim";
 
 export type AgentPhase = "Ready" | "Listening" | "Microphone permission" | "Transcribing" | "Thinking" | "Acting" | "Speaking";
@@ -45,6 +45,10 @@ export class AgentSession {
   private speechController: AbortController | null = null;
   voice = true;
   phase: AgentPhase = "Ready";
+  /** Which robot this turn speaks as (resolved by the console). */
+  private botId: BotId = "pip";
+  /** Set by the console to route a transcript (by spoken name) before it is submitted. */
+  onTranscript?: (text: string) => void | Promise<void>;
 
   constructor(private sim: DuckSim, private add: (who: "you" | "duck", text: string, ok?: boolean) => void, private change: (phase: AgentPhase) => void) {}
   private setPhase(phase: AgentPhase) { this.phase = phase; this.change(phase); }
@@ -153,9 +157,10 @@ export class AgentSession {
       if (refusal) { this.pending = null; finish({ ok: false, summary: refusal }); }
     });
   }
-  async submit(text: string) {
+  async submit(text: string, botId: BotId = "pip") {
     text = text.trim();
     if (!text) return;
+    this.botId = botId;
     this.cancel();
     this.add("you", text);
     if (/^(stop|halt|freeze|wait)[.!]?$/i.test(text)) { this.add("duck", "Stopped."); return; }
@@ -169,7 +174,7 @@ export class AgentSession {
       for (let step = 0; step <= 6; step++) {
         this.alive(signal);
         this.setPhase("Thinking");
-        const request: AgentRequest = { botId: "pip", worldVersion: version, world: this.world(), messages, final: step === 6 };
+        const request: AgentRequest = { botId: this.botId, worldVersion: version, world: this.world(), messages, final: step === 6 };
         const response = AgentResponseSchema.parse(await (await checked(await fetch("/api/agent/turn", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request), signal: AbortSignal.any([signal, AbortSignal.timeout(55000)]) }))).json());
         this.alive(signal);
         if (response.worldVersion !== this.version) throw aborted();
@@ -237,7 +242,7 @@ export class AgentSession {
       const { text } = await response.json();
       this.alive(signal);
       if (!text?.trim()) throw new Error("I didn't hear speech. Please try again.");
-      await this.submit(text);
+      await (this.onTranscript ? this.onTranscript(text) : this.submit(text));
     } catch (error) {
       if (!signal.aborted) { this.add("duck", (error as Error).message, false); this.setPhase("Ready"); }
     }
