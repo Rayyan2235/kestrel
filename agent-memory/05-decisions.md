@@ -9,10 +9,10 @@ Summaries only. For detail and rationale read the named planning note in `contex
 - 2–3 selectable bots share one world, with addressed conversations and visible object interactions.
 - The three differentiators (see `01-overview.md`).
 - 3D Kestrel look in an Open Space-inspired isometric 3D room. Move away from Blender/MCP authoring.
-- Hold-to-talk, thought bubbles and robot sounds. No natural-language TTS selected.
+- Hold-to-talk, thought bubbles and robot sounds. Current owner request: offer a short beep-bop response sound instead of narrating the full response; concise text remains visible.
 - Ordinary commands act directly; a whole-solution request gets another try and a hint first (ADR 0004).
 - Pythagoras stays in scope. Projectile Playground stays a direction.
-- Stack (October 24 recommendation, now scaffolded): pnpm, TypeScript, React 19/Vite, Three/Fiber 9, MuJoCo WASM + onnxruntime-web, CSS Modules/Radix/Motion/Lucide, Zustand, Fastify, Zod, Vitest, Playwright. OpenAI is the proposed provider; Gemini is excluded for under-18 audiences.
+- Stack (October 24 recommendation, now scaffolded): pnpm, TypeScript, React 19/Vite, Three/Fiber 9, MuJoCo WASM + onnxruntime-web, CSS Modules/Radix/Motion/Lucide, Zustand, Fastify, Zod, Vitest, Playwright. The owner-selected live agent is Claude Sonnet 4.6 on AWS Bedrock; ElevenLabs provides STT. The supplied BD-1 MP3 is the optional spoken-reply sound. Gemini remains excluded for the under-18 audience.
 
 Sources: `build-order.md` ("Settled"), `adr/README.md`, `codebase-architecture.md`.
 
@@ -44,3 +44,4 @@ Owner explicitly selected Botanical Studio: warm stone, forest green, sage, bras
 ## 2026-10-25 — playground replaces classroom
 
 Owner decisions in the Claude Code session: the console becomes a bright playground instead of a classroom; the whole floor is open to the robots (no walls or fixed furniture inside the boundary); windows and side panels float over a full-screen playground as glassmorphism following the owner's General Intelligence Company design-system artifact, with its components and buttons; the Home button is removed; trees should be realistic rather than low-poly; more clouds; a Disney-style garden fence instead of coloured soft-play blocks. Navy and brass (chosen for the classroom earlier the same morning) is superseded.
+

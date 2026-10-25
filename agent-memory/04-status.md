@@ -1,14 +1,22 @@
-# Status
+﻿# Status
 
-_Last updated: 2026-10-24 by Claude Code. The Moments sections reflect branch `moments-floor-push` (on top of `4154acf`); the rest is unchanged from earlier sessions._
+_Updated 2026-10-25 after pull from `origin/main` and implementation work._
 
-## Implemented
+## Repository baseline
 
-### Scripted preview (`/`, unchanged)
+- `HEAD` and `origin/main` are both `e4c5d875f822453c65f8ef213f584474b2782c85` (`e4c5d87`, merge PR #5, Moments floor push). The working branch is `as-kestrel`; no push was made. The separate remote tracking ref `origin/as-kestrel` is older and is not the pulled-main baseline.
+- The owner-provided root `handoff-kestrel.md` is preserved. `agent-memory/` was preserved across the refresh and updated to this handoff.
+- Application changes listed below are uncommitted local work on top of the pulled main snapshot.
 
-Isometric room, Pip and Nova placeholders, the analytic balance, the typed grammar, the two-turn scripted exchange, stop/reset. The header now links to the sandbox.
+## Implemented in the current worktree
 
-### Lab sandbox (`/sandbox.html`, new)
+- `/console` lesson conversation now uses Claude on Bedrock via `/api/agent/turn`, with ElevenLabs speech-to-text via `/api/voice/transcribe` and the existing server-only `/api/voice/speak` route.
+- Hold-to-talk button and Space capture audio; typed prompts also go through Claude when needed. The response schema supports Pip, Nova or Both and lesson-book/quiz UI actions.
+- Natural introductory lesson questions are prompted to open a short intro and lesson book. The intended sequence is book → coordinated two-bot demonstration → mixed maths/physics quiz → follow-up questions. “Quiz me” opens the active lesson quiz directly.
+- Book overlays cover Pythagoras and Moments with formulas and live placement/moment/tilt values. Quiz overlay selects three Maths and three Physics questions, grades them and explains answers.
+- Robot replies stay in chat and a speaker bubble. Routine action tool output is suppressed; demo completion yields one measured summary. Skill-only actions avoid chat narration and use the skill tray state.
+- Pip/Nova/Both recipient selection is in the console. The shared Pythagoras build assigns 5×5 to Pip and 4×4 to Nova together, then Pip moves 3×3. Moments uses the existing coordinated balance experiment.
+- The owner's MP3 is at `apps/web/public/audio/bd1-reply.mp3`; Web Audio is primed from the learner gesture to address browser autoplay blocking. In the lesson sequence it is intended to play with the first reply before the book opens and when the robots begin moving. The measured conclusion and quiz score are silent.
 
 - **Physics and policies.** Real Microduck physics: MuJoCo 3.11 WASM stepping the upstream MJCF, with 7 upstream ONNX policies at **50 Hz** (verified headless): walk, sit/stand, get-up, kick L/R, roll and peck. Fall recovery uses the get-up policy, and the duck respawns if it fails.
 - **Controls.** Keyboard: WASD or arrows, Q/E kick, R sit/stand, F peck, T roll, Esc stops the task. There are also console buttons and a reset.
@@ -16,15 +24,25 @@ Isometric room, Pip and Nova placeholders, the analytic balance, the typed gramm
 - **Typed tasks.** These go through `parseDuckTask` → `DuckTaskSchema` → `TaskRunner` and report measured results in the log.
 - **Bubble.** A reply bubble sits next to the duck, and the log keeps history.
 
-### Two-bot conversation demo (`/?demo=two-bot`, new, on `feat/two-bot-demo`)
+## Verification and limits
 
-A temporary demo of two robots talking to each other and to the learner. By default it runs on a **stub simulation** (`simulation/fake/`) and a **scripted mock provider**; nothing calls a model, uses a key, the network or MuJoCo. Fast commands are labelled `built-in`, mock replies `mock`, fixed fallbacks `scripted`. One bubble shows in the room at a time (paced by `presentation/`), with Pause/Resume and a 0.5x speed; the side rail shows everything.
+- `pnpm typecheck` passes after the Web Audio change on Node 22.23.1, with the repository's Node >=24 engine warning.
+- `git diff --check` reports no whitespace errors.
+- Dev server was restarted after the latest edits and HMR errors: `pnpm dev`, web at `http://127.0.0.1:5180`, API at `http://127.0.0.1:5181` (session 9762).
+- The prior server session logged MuJoCo binding errors after hot-reloading the simulation. The MP3 and `/console` both return HTTP 200. Actual sound output, fresh browser simulation boot, and live Bedrock/ElevenLabs voice round trip have not been verified after this feature work. Do not claim those live flows passed yet.
+- No automated tests or paid provider checks were run in this turn.
+- Background and level-design changes remain excluded.
 
-**Real sim (`/?demo=two-bot&sim=mujoco`, branch `two-bot-real-sim`, stacked on `two-duck-lab`):** the same demo drives the real MuJoCo Microducks through `simulation/real/`. Verified 2026-10-25 by `tests/two-bot-real-sim.spec.ts` (desktop, SwiftShader): "move the left weight to 10 cm" made Pip physically push the 200 g weight (paddle contact in the contact ledger, no Nova contact); the rail showed "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)." and the readout "Left 10.1 cm · Right 20 cm", equal to the sim's measured rail. Stop mid-push left Nova's weight clamped where it stood. Known limits: the 2D beam's tilt is still the analytic ideal beam from measured positions (the plank stays locked; no release step in the demo); the fast-path reply text is written before the push, so on a failed push it is followed by a correcting notice; mock replies never carry actions, so only typed commands move weights.
+## Main risks to check next
 
-**Live Claude (`&provider=live`, 2026-10-25):** `provider/live.ts` calls `POST /api/two-bot/respond` (Bedrock, server-side only) and returns the same `Respond`, labelled `live`; on any API or contract failure the mock answers, labelled `mock`. Used only when asked for and `/api/health` reports `liveAi`. Live check (`scripts/two-bot-live-check.mjs`, real sim): "Please ask Nova to move the right weight to 25 cm." → Pip (live) handed off to Nova → Nova (live) moved its weight → measured "Moved the 100 g weight from 20 cm to 24.9 cm (asked for 25 cm)." (110 paddle contact samples, peak 11.1 N) → Nova's live handback asked for a prediction. 15.7 s end to end. Nova's reply is worded as future tense though the push has already landed when it shows.
+1. Open a fresh `/console` page after server restart and verify MuJoCo initializes without browser errors.
+2. Do one live spoken introductory question end-to-end: transcription → Claude book action → intro → book → both-bot demo → quiz; then verify follow-up and the local reply sound.
+3. Test a simple targeted request such as “Nova, move the box to the right”, then “Both, move forward”, and check measured outcomes and recipient labels.
+4. The learner-facing broad-intro classification currently depends on the Bedrock system prompt/tool choice. Validate varied novice phrasings; add a local intent fallback only if real responses miss them.
 
-## Not integrated (do not claim)
+- Latest follow-up: a full simulated demo completed all three pushes but settled with only 1/3 squares in slots; later pushes displaced the first two. Added a capped spring-damper hold in pps/web/src/simulation/duckSim.ts for squares already within their slot while another square is pushed. pnpm typecheck passes. The live page on port 5180 returns HTTP 200, but the latest physical run with this fixture is still pending; do not claim the board or full voice sequence is demo-ready until it passes.
+
+- ElevenLabs 400 diagnosis (2026-10-25): the robot's enabled sound is the local MP3 and does not call ElevenLabs. The surfaced provider error therefore came from the microphone transcription request to /api/voice/transcribe; it was not a PowerShell execution failure. Updated the API wrapper to surface ElevenLabs' safe validation detail on provider errors without exposing headers or credentials. pnpm typecheck passes; retry transcription to see the precise provider reason.
 
 - **Voice:** there's no microphone capture, STT or TTS anywhere in the app. ElevenLabs has only had its key checked.
 - **Claude in the app:** the sandbox text box is the fixed `parseDuckTask` grammar. Claude Sonnet 4.6 has only run from the terminal bench, against simulated tool results.
@@ -175,3 +193,5 @@ Verified: `pnpm check` (185 tests, typecheck, builds, API smoke). Playwright: ca
 ## Crew windows — 2026-10-25
 
 Branch `crew-windows` (from `lab-workshop-camera`) merges main (#11 gamification, #12 voice addressing) into the playground console. Conflicts in `SandboxApp.tsx` and `Sandbox.module.css` resolved by keeping all of main's behaviour and moving its panels into the glass layout; the teammate's Pip/Nova rail is now a collapsible accordion in the right column. `pnpm check`: 316 tests, typecheck, builds, API smoke. Browser results in the changelog.
+
+- Retried live ElevenLabs transcription against the local API using the project MP3 fixture: API reports speech capability enabled and returned HTTP 200 with empty transcript (expected for a non-speech beep-bop file). This confirms the key and MP3 STT request path work; it does not validate actual browser microphone WebM upload or prove the earlier 400 is resolved.

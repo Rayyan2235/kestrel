@@ -40,8 +40,8 @@ test("voice: 'Hey Nova' answers as Nova; 'Hey Pip' on Nova's rail hands off and 
 
   await page.goto("/console");
   await expect(page.getByTestId("duck-mode")).toBeVisible({ timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click();
-  await expect(page.getByRole("button", { name: "Spoken replies" })).toHaveAttribute("aria-pressed", "false");
+  await page.getByRole("button", { name: "Robot reply sound" }).click();
+  await expect(page.getByRole("button", { name: "Robot reply sound" })).toHaveAttribute("aria-pressed", "false");
   step = "lesson";
   await page.getByRole("navigation", { name: "Lesson" }).getByText("Moments").click();
   await expect.poll(() => page.evaluate(() => {

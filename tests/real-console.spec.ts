@@ -28,7 +28,7 @@ test.afterEach(() => expect(live).toEqual([]));
 const open = async (page: Page) => {
   await page.goto("/console");
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click(); // voice off: no /api/voice
+  await page.getByRole("button", { name: "Robot reply sound" }).click(); // local sound off: no speech playback
 };
 const sendTo = async (page: Page, bot: "Pip" | "Nova", text: string) => {
   await page.getByRole("button", { name: `Select ${bot}` }).click();
@@ -67,7 +67,7 @@ test("(c) one bubble at a time; the landing page reaches this console", async ({
   await page.locator("a[href=\"/console\"]").first().click();
   await expect(page).toHaveURL(/console/);
   await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
-  await page.getByRole("button", { name: "Spoken replies" }).click();
+  await page.getByRole("button", { name: "Robot reply sound" }).click();
   await expect(page.getByRole("button", { name: "Select Pip" })).toBeVisible();
   await sendTo(page, "Pip", "talk to me");
   await page.getByTestId("ask-peer").click();
