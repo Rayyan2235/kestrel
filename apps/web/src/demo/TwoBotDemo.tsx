@@ -22,6 +22,7 @@ import { demoSeed } from "../progress/demoSeed.js";
 import { createLabEventLog } from "../progress/events.js";
 import { PredictionPrompt } from "../progress/PredictionPrompt.js";
 import { ProgressHud } from "../progress/ProgressHud.js";
+import { DUCKSIM_TOL_GCM } from "../progress/outcome.js";
 import { createProgressStore } from "../progress/store.js";
 import { useProgress } from "../progress/useStore.js";
 import type { HeldMove } from "../coordinator/types.js";
@@ -164,13 +165,20 @@ function DemoRoom({
     };
     return {
       sim,
-      c: createCoordinator({ sim, provider, ...(progress ? { log } : {}) }),
+      c: createCoordinator({
+        sim,
+        provider,
+        ...(progress
+          ? { log, ...(mujoco ? { tolGcm: DUCKSIM_TOL_GCM } : {}) }
+          : {}),
+      }),
       log,
       store,
     };
-  }, [lab, progress]);
+  }, [lab, progress, mujoco]);
   const held = useRef<HeldMove | null>(null);
   const [workshop, setWorkshop] = useState(false);
+  const [setup, setSetup] = useState<"idle" | "busy" | "failed">("idle");
   const view = useProgress(store);
   const challengeId = c.challengeId();
   const completed =
@@ -319,6 +327,7 @@ function DemoRoom({
 
   function stop() {
     runId.current++;
+    setSetup("idle");
     setStep(null);
     halt();
   }
@@ -330,11 +339,16 @@ function DemoRoom({
     undo.current = [];
     setStep(null);
     pres.interrupt();
-    c.startChallenge(id, challengeById(id)!.setup);
+    setSetup("busy");
+    const mine = runId.current;
+    void c.startChallenge(id, challengeById(id)!.setup).then((ok) => {
+      if (runId.current === mine) setSetup(ok ? "idle" : "failed");
+    });
   }
 
   function reset() {
     runId.current++;
+    setSetup("idle");
     setStoppedSeq(null);
     focus.current = null;
     undo.current = [];
@@ -533,6 +547,23 @@ function DemoRoom({
                   })
                 }
               />
+              {setup === "busy" && (
+                <p role="status" data-testid="setup-status">
+                  {c.pushing()
+                    ? `${BOT_NAMES[c.pushing()!]} is setting up the beam…`
+                    : "Setting up the beam…"}
+                </p>
+              )}
+              {setup === "failed" && (
+                <p role="alert" data-testid="setup-failed">
+                  Setup did not finish. Try again.
+                </p>
+              )}
+              {c.pushing() && setup !== "busy" && (
+                <p role="status" data-testid="pushing">
+                  {BOT_NAMES[c.pushing()!]} is pushing the weight…
+                </p>
+              )}
               {c.holding() && held.current && (
                 <PredictionPrompt
                   onChoose={(choice) => held.current?.commit(choice)}

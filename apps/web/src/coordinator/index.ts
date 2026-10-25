@@ -12,6 +12,7 @@ import {
   type Source,
 } from "@kestrel/contracts";
 import { challengeById } from "../progress/challenges.js";
+import { outcomeOf, STUB_TOL_GCM } from "../progress/outcome.js";
 import type { LabEventLog } from "../progress/events.js";
 import type { Provider, ProviderRequest } from "../provider/types.js";
 import type { SimAdapter } from "../simulation/types.js";
@@ -34,6 +35,8 @@ export type CoordinatorDeps = {
   config?: Partial<CoordinatorConfig>;
   /** Optional lab event log: challenge moves and predictions are appended here. */
   log?: LabEventLog;
+  /** Balance tolerance in g·cm for classifying measured outcomes (stub 0.001, DuckSim 100). */
+  tolGcm?: number;
 };
 
 export * from "./types.js";
@@ -76,6 +79,11 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
   const resolved = new Map<string, number>();
   /** Challenges already completed since they started: complete is logged once. */
   const completed = new Set<string>();
+  const tol = deps.tolGcm ?? STUB_TOL_GCM;
+  /** The robot that works each rail: left (200 g) is Pip, right (100 g) is Nova. */
+  const ownerOf = (side: "left" | "right"): BotId =>
+    side === "left" ? "pip" : "nova";
+  let pushingBot: BotId | null = null;
   const objectOf = (side: "left" | "right") =>
     side === "left" ? ("left-weight" as const) : ("right-weight" as const);
   const stamp = () => ({ epoch, worldVersion: sim.snapshot().version });
@@ -408,11 +416,15 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         cfg.actTimeoutMs,
       );
       let applied;
+      pushingBot = ownerOf(action.side);
+      emit();
       try {
         applied = await sim.apply(task, baseVersion, ctl.signal);
       } finally {
         clearTimeout(timer);
         if (inflight === ctl) inflight = null;
+        pushingBot = null;
+        emit();
       }
       if (token !== epoch) return false;
       if (!applied.ok) {
@@ -423,15 +435,15 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         type: "move_applied",
         ...context,
         ...(attempt !== undefined ? { attempt } : {}),
-        bot: recipient,
-        outcome: balance(applied.world),
+        bot: ownerOf(action.side),
+        outcome: outcomeOf(applied.world, tol),
         epoch: token,
         worldVersion: applied.world.version,
       });
       if (
         challenge === context.challengeId &&
         !completed.has(challenge) &&
-        balance(applied.world) === challengeById(challenge)?.goal
+        outcomeOf(applied.world, tol) === challengeById(challenge)?.goal
       ) {
         completed.add(challenge);
         deps.log?.append({
@@ -533,8 +545,6 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
     startChallenge: async (challengeId: string, setup: SetupMove[]) => {
       resetAll();
       const token = epoch;
-      challenge = challengeId;
-      emit();
       for (const [n, move] of setup.entries()) {
         const task = {
           id: `setup-${epoch}-${n}`,
@@ -543,7 +553,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
           cm: move.cm,
         };
         const proposed = sim.propose(task);
-        if (!proposed.ok) continue;
+        if (!proposed.ok) return false;
         const ctl = new AbortController();
         inflight = ctl;
         const timer = setTimeout(
@@ -551,28 +561,35 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
           cfg.actTimeoutMs,
         );
         let applied;
+        pushingBot = ownerOf(move.side);
+        emit();
         try {
           applied = await sim.apply(task, proposed.baseVersion, ctl.signal);
         } finally {
           clearTimeout(timer);
           if (inflight === ctl) inflight = null;
+          pushingBot = null;
+          emit();
         }
-        if (token !== epoch) return;
+        if (token !== epoch) return false;
         if (!applied.ok) {
           sim.release(task);
-          continue;
+          return false;
         }
         deps.log?.append({
           type: "move_applied",
           challengeId,
-          bot: "pip",
-          outcome: balance(applied.world),
+          bot: ownerOf(move.side),
+          outcome: outcomeOf(applied.world, tol),
           setup: true,
           epoch: token,
           worldVersion: applied.world.version,
         });
       }
+      if (token !== epoch) return false;
+      challenge = challengeId;
       emit();
+      return true;
     },
     endChallenge: () => {
       voidHeld?.("left the challenge");
@@ -580,6 +597,7 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
       emit();
     },
     challengeId: () => challenge,
+    pushing: () => pushingBot,
     holding: () => voidHeld !== null,
     epoch: () => epoch,
     stop: () => {

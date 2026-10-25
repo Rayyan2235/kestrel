@@ -86,7 +86,10 @@ export interface Coordinator {
     context: HeldMoveContext,
   ): HeldMove;
   /** Resets (clears epoch, chat ledger and held move), then applies each setup move tagged `setup`. */
-  startChallenge(challengeId: string, setup: SetupMove[]): Promise<void>;
+  /** Resolves true when every setup push finished and the challenge started; false if it failed or was superseded. */
+  startChallenge(challengeId: string, setup: SetupMove[]): Promise<boolean>;
+  /** The bot whose weight is being pushed right now, or null. */
+  pushing(): BotId | null;
   /** Leaves the active challenge: cancels any held move; later asks and moves are free play. */
   endChallenge(): void;
   /** Current epoch, for stamping lab events made outside the coordinator. */
