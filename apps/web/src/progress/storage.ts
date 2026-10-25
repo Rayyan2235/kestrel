@@ -19,32 +19,43 @@ export const migrate = (old: unknown, fromSchema: number): unknown => {
   return value;
 };
 
-/** Never throws. Corrupt data gives a fresh profile. */
-export const loadProgress = (
+/**
+ * Never throws. Corrupt data gives a fresh profile. `ok` is false only when
+ * the storage itself could not be read (blocked), so the UI can say so.
+ */
+export const loadProgressChecked = (
   storage: Pick<Storage, "getItem"> | null,
-): Progress => {
+): { progress: Progress; ok: boolean } => {
   try {
     const raw = storage?.getItem(STORAGE_KEY);
-    if (!raw) return freshProgress();
+    if (!raw) return { progress: freshProgress(), ok: true };
     const data: unknown = JSON.parse(raw);
     const from =
       typeof data === "object" && data !== null && "schema" in data
         ? Number((data as { schema: unknown }).schema)
         : NaN;
-    if (!Number.isInteger(from) || from < 1) return freshProgress();
-    return parseProgress(migrate(data, from));
-  } catch {
-    return freshProgress();
+    if (!Number.isInteger(from) || from < 1)
+      return { progress: freshProgress(), ok: true };
+    return { progress: parseProgress(migrate(data, from)), ok: true };
+  } catch (e) {
+    // A thrown getItem is blocked storage; a thrown JSON.parse is just corrupt data.
+    return { progress: freshProgress(), ok: e instanceof SyntaxError };
   }
 };
+
+export const loadProgress = (
+  storage: Pick<Storage, "getItem"> | null,
+): Progress => loadProgressChecked(storage).progress;
 
 export const saveProgress = (
   storage: Pick<Storage, "setItem"> | null,
   progress: Progress,
-): void => {
+): boolean => {
   try {
     storage?.setItem(STORAGE_KEY, JSON.stringify(progress));
+    return true;
   } catch {
     // Storage blocked or full: the in-memory profile keeps working.
+    return false;
   }
 };

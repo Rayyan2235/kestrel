@@ -13,7 +13,7 @@ import type { LabEventLog } from "./events.js";
 import { leveledUp, levelOf, need } from "./levels.js";
 import { tokens, unlocked } from "./picks.js";
 import { award, totalXp } from "./rules.js";
-import { loadProgress, saveProgress } from "./storage.js";
+import { loadProgressChecked, saveProgress } from "./storage.js";
 
 export type ProgressView = {
   awards: readonly Award[];
@@ -29,6 +29,8 @@ export type ProgressView = {
   /** Level-ups and rejection reasons waiting for the HUD. */
   levelUps: { from: number; to: number }[];
   rejections: string[];
+  /** True when saving or loading failed: progress works but is not kept on this device. */
+  unsaved: boolean;
 };
 export interface ProgressStore {
   get(): ProgressView;
@@ -53,7 +55,9 @@ const otherBot = (bot: BotId): BotId => (bot === "pip" ? "nova" : "pip");
 
 export const createProgressStore = (opts: StoreOptions): ProgressStore => {
   const persist = !opts.seed;
-  let progress: Progress = opts.seed ?? loadProgress(opts.storage);
+  const loaded = opts.seed ? null : loadProgressChecked(opts.storage);
+  let progress: Progress = opts.seed ?? loaded!.progress;
+  let unsaved = loaded ? !loaded.ok : false;
   let levelUps: { from: number; to: number }[] = [];
   let rejections: string[] = [];
   let seenEvents: LabEvent[] = [];
@@ -63,7 +67,7 @@ export const createProgressStore = (opts: StoreOptions): ProgressStore => {
 
   const changed = () => {
     view = null;
-    if (persist) saveProgress(opts.storage, progress);
+    if (persist) unsaved = !saveProgress(opts.storage, progress);
     listeners.forEach((fn) => fn());
   };
 
@@ -83,6 +87,7 @@ export const createProgressStore = (opts: StoreOptions): ProgressStore => {
       unlocked: unlocked(FREE_IDS, progress.picks),
       levelUps,
       rejections,
+      unsaved: persist && unsaved,
     };
   };
 

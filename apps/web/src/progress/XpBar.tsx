@@ -43,6 +43,11 @@ export function XpBar({ view }: { view: ProgressView }) {
       <span>
         {view.into} / {view.needed} XP
       </span>
+      {view.unsaved && (
+        <span className={styles.unsaved} data-testid="unsaved-note">
+          Progress isn&apos;t being saved on this device
+        </span>
+      )}
     </div>
   );
 }
