@@ -9,6 +9,7 @@
     "start": "node dist/apps/api/src/index.js"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "1.1.0",
     "@kestrel/contracts": "workspace:*",
     "fastify": "5.12.7",
     "openai": "7.43.0",

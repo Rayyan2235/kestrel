@@ -66,6 +66,9 @@ export function App() {
         </a>
         <span className={styles.tagline}>A little world of why.</span>
         <div className={styles.headerActions}>
+          <a className={styles.preview} href="/sandbox.html">
+            Open voice lab →
+          </a>
           <span className={styles.preview}>
             Scaffold preview · scripted bots
           </span>
@@ -93,8 +96,8 @@ export function App() {
                   time.
                 </p>
                 <p>
-                  Live AI, voice, trained walking and physical tool interactions
-                  are the next integration milestones. The beam uses an ideal
+                  Open the voice lab for Claude, speech and the physical duck.
+                  This preview's beam uses an ideal
                   massless model; its tilt is illustrative.
                 </p>
                 <Dialog.Close asChild>

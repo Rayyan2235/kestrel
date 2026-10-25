@@ -1,11 +1,13 @@
 import Fastify from "fastify";
 import { CommandSchema } from "../../../packages/contracts/src/index.js";
-export function buildApp() {
+import { registerLive, liveProviders } from "./live.js";
+export function buildApp(providers = liveProviders) {
   const app = Fastify({ bodyLimit: 16_384, logger: false });
+  registerLive(app, providers);
   app.get("/api/health", async () => ({
     name: "Kestrel",
-    mode: "scaffold",
-    capabilities: { liveAi: false, speech: false, mujoco: false },
+    mode: "sandbox",
+    capabilities: { liveAi: Boolean(process.env.AWS_ACCESS_KEY_ID || process.env.AWS_PROFILE), speech: Boolean(process.env.ELEVENLABS_API_KEY), mujoco: false },
   }));
   app.post("/api/commands", async (request, reply) => {
     if (!CommandSchema.safeParse(request.body).success)

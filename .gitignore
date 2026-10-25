@@ -12,3 +12,11 @@ test-results/
 
 # Machine-specific private vault pointer
 CLAUDE.local.md
+
+# Local copy of private Obsidian planning (never commit)
+context/
+
+# Chromium crash log written by headless test runs
+debug.log
+# Scratch probes from agent sessions
+tests/.probe-*
