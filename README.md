@@ -13,7 +13,7 @@ Built for HackPSU 2026.
 Steps 1–4 need no API keys.
 
 1. Start the app ([Run it locally](#run-it-locally)) and open http://127.0.0.1:5180/console.
-2. **Objectives → Balance the beam.** The beam tips left: 200 g and 100 g, both 20 cm from the pivot. In the experiment panel, set the 200 g weight to 10 cm, pick a prediction and press **Run it with both robots**. Each robot walks to its own weight if it needs moving, pushes it along its rail to your mark and steps clear. Then the plank is released. Open the **Pip and Nova** window to see Pip hand Nova its part and each robot's measured result. When the simulator reads the plank level for a full second, the XP bar fills.
+2. **Objectives → Balance the beam.** The beam tips left: 200 g and 100 g, both 20 cm from the pivot. In the experiment panel, set the 200 g weight to 10 cm, pick a prediction and press **Run it with both robots**. Each robot walks to its own weight if it needs moving, pushes it along its rail to your mark and steps clear. Then the plank is released. Open the **Pip and Nova** window to see Pip hand Nova its part and each robot's measured result. When the simulator reads the plank within 1.5° of level for a full second, the XP bar fills. If it's close but not there, a hint says which weight to move and by how much.
 3. **Robot rescue.** Read the distances on the one-way map, then type a route such as `B E H` (or say it). Pip walks it. Choose a longer path and Pip's battery runs out on the way.
 4. **Free play → Pip vs Nova: fight!** The two robots face off, charge and crash into each other. Each clash sets off a cartoon explosion and knocks one of them over, and it gets back up on its own.
 5. **With Claude configured:** open Pythagoras and ask "What is the Pythagorean theorem?" Pip answers in one-sentence think bubbles and pushes the 5×5, 4×4 and 3×3 squares onto the triangle, reporting each measured result. **Build it together** does the same build with both robots and no AI.
@@ -44,7 +44,7 @@ To rerun one, start `pnpm dev`, then run `CI=1 node scripts/bench/coop-bench.mjs
 | Moments      | Sets where each weight goes, predicts which way the plank tips, runs it                                             | Each robot pushes its own weight (Pip 200 g, Nova 100 g) and steps clear. The measured tilt is compared with the moments               |
 | Free play    | Drives Pip with the keyboard (WASD or arrows, Q/E kick, R sit/stand, F peck, T roll), or starts a Pip vs Nova fight | Walk, turn, kick and push blocks. In a fight: face off, charge, back off, repeat                                                       |
 
-The **Objectives** board has three goals: Balance the beam, Build the right triangle and Rescue Pip, each worth 100 XP. A bar fills only when the simulator measures the goal met, and confetti fires (not under reduced motion). Won objectives survive a reload. The browser keeps an anonymous learner ID (no name, no account) and stores wins locally. With `TIGER_DATABASE_URL` set, the API also records each win in a Tiger Data (TimescaleDB) hypertable, with the measured beam tilt and weight positions, and restores the board from it. Only wins are logged so far.
+The **Objectives** board has three goals: Balance the beam, Build the right triangle and Rescue Pip, each worth 100 XP. Earned XP adds up to levels (Level 2 at 100 XP, Level 3 at 250), shown on the Objectives card with a bar to the next level. A bar fills only when the simulator measures the goal met, and confetti fires (not under reduced motion). Won objectives survive a reload. The browser keeps an anonymous learner ID (no name, no account) and stores wins locally. With `TIGER_DATABASE_URL` set, the API also records each win in a Tiger Data (TimescaleDB) hypertable, with the measured beam tilt and weight positions, and restores the board from it. Only wins are logged so far.
 
 ## Pip vs Nova, just for fun
 
@@ -125,6 +125,7 @@ Named so you can judge the science:
 - The predicted tilt is linear: net moment ÷ the balance's stiffness, as measured in MuJoCo. It matches within about 0.1° near balance and under-predicts by up to about 1° past 4°.
 - The battery is a game rule, not a battery model: 420 cm of measured travel per charge.
 - A square counts as placed within 4 cm of its slot. Nothing snaps into place.
+- Balance the beam counts within 1.5° of level. The beam is stiff: with the 100 g at 20 cm, a 200 g weight 1 mm off its mark already tilts it about 0.5°, so the tolerance lets a push that lands 1–2 mm off still win.
 - In the fight, the loser is chosen at random and knocked over by a scripted shove, not by the collision.
 
 Not built:

@@ -411,3 +411,8 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - Measured on this branch (headless SwiftShader, fast-stepped, web dev server on port 5230): `coop-bench.mjs` 5/5 balance runs, 0 falls, weights within 0.2 cm, predicted side = measured side every time, 10.6–12.3 s; `speed-bench.mjs` faster preset 6/6, mean 4.2 s, 2.4 cm mean error, 0 falls.
 - Checks: `pnpm exec prettier --check README.md` pass; every relative link and backticked path resolves; README commands match `package.json`; `pnpm test` 209/209. No paid calls. Committed locally only; not pushed.
 - Stale docs reported to the owner, not edited: `PRODUCT.md` scaffold scope, `docs/ARCHITECTURE.md` provider, `THIRD_PARTY.md` (Microduck assets, fonts).
+
+## 2026-10-25 · Claude Code · PR #26 merged with main; README beam line
+
+- Merged `main` `0c84d01` into `feat/beam-xp-levels`. The only conflict was this changelog (the README entry and the beam-XP entry both appended); both entries are kept.
+- README: the beam objective counts within 1.5° of level for 1 s, the fix-it hint, levels (Level 2 at 100 XP, Level 3 at 250), and the 1.5° tolerance named as an idealisation.
