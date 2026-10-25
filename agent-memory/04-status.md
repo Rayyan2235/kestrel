@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-10-24 by Claude Code, on top of commit `73a294c` (uncommitted work)._
+_Last updated: 2026-10-24 by Claude Code. The Moments sections reflect branch `moments-floor-push` (on top of `4154acf`); the rest is unchanged from earlier sessions._
 
 ## Implemented
 
@@ -12,7 +12,7 @@ Isometric room, Pip and Nova placeholders, the analytic balance, the typed gramm
 
 - **Physics and policies.** Real Microduck physics: MuJoCo 3.11 WASM stepping the upstream MJCF, with 7 upstream ONNX policies at **50 Hz** (verified headless): walk, sit/stand, get-up, kick L/R, roll and peck. Fall recovery uses the get-up policy, and the duck respawns if it fails.
 - **Controls.** Keyboard: WASD or arrows, Q/E kick, R sit/stand, F peck, T roll, Esc stops the task. There are also console buttons and a reset.
-- **Lessons.** Maths · Pythagorean theorem (3×3, 4×4 and 5×5 grid tiles, a floor triangle and slots that light up), Physics · Moments (a hinged plank on a pivot plus weights), and Free play. Shared room furniture (bench, shelf, crate) is part of the physics in every lesson.
+- **Lessons.** Maths · Pythagorean theorem (3×3, 4×4 and 5×5 grid tiles, a floor triangle and slots that light up), Physics · Moments (a beam balance: a locked plank on a pivot, with a 200 g and a 100 g weight on rails that the duck pushes; see below), and Free play. Shared room furniture (bench, shelf, crate) is part of the physics in every lesson.
 - **Typed tasks.** These go through `parseDuckTask` → `DuckTaskSchema` → `TaskRunner` and report measured results in the log.
 - **Bubble.** A reply bubble sits next to the duck, and the log keeps history.
 
@@ -32,7 +32,12 @@ A temporary demo of two robots talking to each other and to the learner. It runs
 - **No understanding.** Natural requests ("what is the pythagorean theorem", "show me why 9 plus 16 equals 25") returned the parser fallback. There is no speaking, no understanding and no meaningful action from natural language.
 - **Root cause.** The session prioritised the environment (physics, sandbox, puzzle artifact, model benchmark) over the voice → understand → act loop, which was the teammate's main goal. That loop is now the top priority in `06-handoff.md`.
 
-## Last verification (2026-10-24, Windows, Node 22.23.1)
+## Last verification for `moments-floor-push` (2026-10-24, macOS, Node 24.16)
+
+- `pnpm check`: pass (19 test files, **154 tests**, both page builds, API smoke).
+- `pnpm test:e2e` (run against a local dev server): **120/120** on desktop and mobile, including the new mocked-Claude Moments spec (a real push to 10 cm, then a measured level release).
+
+## Earlier verification (2026-10-24, Windows, Node 22.23.1)
 
 - `pnpm typecheck`: pass.
 - `pnpm test`: **18/18** (9 original, plus 5 lab-contract tests and 4 task-runner tests).
@@ -54,7 +59,15 @@ A temporary demo of two robots talking to each other and to the learner. It runs
 7. **`pnpm format:check` flags 42 files** on Windows (likely CRLF). New files are not Prettier-formatted yet either.
 8. **Asset licences.** The Microduck mesh and policy licences aren't stated upstream beyond Apache-2.0 for the app and code. See `apps/web/public/microduck/PROVENANCE.md`.
 
-## Moments lesson (2026-10-24)
+## Moments lesson (2026-10-24, branch `moments-floor-push`)
 
-- Physics fixed: the plank now tips realistically under the 200 g weight (−11.8°, end on the floor).
-- Not usable as an experiment yet: the duck can't place weights on the plank. Options are an authored "place weight at N cm" station action, or a ramp. The lesson isn't tested with Claude or voice, and the prompt only covers Pythagoras.
+- **Apparatus.** The plank is a beam balance, held level by a lock pin until released. Each weight rides a slide joint on its own side of the pivot (200 g left, 100 g right, both starting at 20 cm; rails run 5–30 cm). A paddle hangs off each weight into a walking lane beside the plank.
+- **The duck really pushes the weights.** `place_weight {target, cm}` walks Pip to the lane, frees that weight's brake, pushes the paddle with its body to the mark, brakes it and steps back clear. No authored placement or teleport. It locks a released plank first, and refuses a push that would leave no room to stand between the weights ("Try N cm or more").
+- **Release and lock.** `release_plank` reports the measured tilt once the plank settles; `lock_plank` levels and locks it. The learner has a Release/Lock button and chips with each weight's measured cm.
+- **Tilt.** The hinge sits ~2 cm above the loaded centre of mass, so equal moments rest level and any imbalance tips to the ±0.1 rad stop (about 5.8°). This is smaller than the earlier −11.8° because the paddles hang low and must clear the floor.
+- **Claude.** The tool schema has the three new kinds and a `cm` field; the system prompt has Moments guidance; the world snapshot carries the measured balance (lock state, low side, tilt, each weight's side and cm). **Not yet verified with live Claude or voice.**
+- **Measured (fast-stepped physics harness, not committed):**
+  - 24 random placements: 22 exact landings in 11–18 s, 1 correct refusal, 1 already there, **0 falls**.
+  - Release: left side down 5.8° at the start; level at 200 g × 10 cm = 100 g × 20 cm; right side down at 100 g × 30 cm vs 200 g × 10 cm; level again at 200 g × 15 cm = 100 g × 30 cm.
+  - Live in the app (real time): 20 → 10 cm push, then Release reads "It stayed level (0.0°)".
+- **Limits.** The duck can only push from the paddle side of the plank; from the far side it refuses. A single duck only.

@@ -27,7 +27,8 @@ pnpm dev
 **Lab sandbox:** http://127.0.0.1:5180/sandbox.html. The first load fetches the MuJoCo WASM, ~5.5 MB of ONNX policies and the robot assets, then shows "walk" in the console header when ready.
 
 - Keyboard: W/S or ↑/↓ to walk, A/D or ←/→ to turn, Q/E to kick, R to sit/stand, F to peck, T to roll, Esc to stop the task. Click the canvas area first if keys don't respond (focus must not be in the text box).
-- Typed tasks: `push the 3 square to its slot`, `go to the 5 square`, `turn left 90`, `walk forward 30 cm`, `kick left`, `sit`, `stand`.
+- Typed tasks: `push the 3 square to its slot`, `go to the 5 square`, `turn left 90`, `walk forward 30 cm`, `kick left`, `sit`, `stand`. Moments: `move the 200 g weight to 10 cm`, `release the plank`, `lock the plank` (the text box sends everything to Claude; these phrases also parse with `parseDuckTask`).
+- Moments without Claude: press **Release plank** / **Lock plank** in the lesson card, or run `kestrelSim.runTask({kind: "place_weight", target: "weight-200", cm: 10})` in the dev console.
 - Dev-only console handle: `window.kestrelSim`. For example, `kestrelSim.manual = {vx: 0.2, wz: 0}`, `kestrelSim.status()`, `kestrelSim.propPositions()`.
 - Headless probing works with SwiftShader: `chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] })`.
 

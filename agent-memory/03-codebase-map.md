@@ -34,17 +34,19 @@ Tests: `src/state/lab.test.ts`.
 - `src/sandbox/SandboxApp.tsx` holds the lesson picker, lesson card and slot chips, the duck console (telemetry, log, task input, skill buttons), keyboard control and the bubble state. In dev only it exposes `window.kestrelSim`.
 - `src/sandbox/SandboxScene.tsx` is the R3F scene: room and chalkboard, `PropMesh` (one per `PropSpec`, posed from MuJoCo each frame), slots and the triangle outline, the duck rig, the isometric follow camera, and the DOM bubble projected above the duck.
 - `src/simulation/constants.ts` holds the upstream policy interface (61-D observation, 14 actions, 50 Hz), policy paths, velocity limits and room size. **Do not change the interface constants.**
-- `src/simulation/mjcf.ts`: `buildSceneXml(robotXml, props)` strips visual geoms, then adds the floor, walls and props (box or inline convex mesh; free, hinge or fixed joints) and the STAND keyframe. The robot qpos comes first, then the dynamic props in order.
-- `src/simulation/duckSim.ts`: `DuckSim` loads the runtimes and policies, compiles kits, and runs a real-time 50 Hz loop on its own timer (`start/stop`). It also handles modes, fall recovery, `trigger(skill)`, `runTask(task)`, the `manual` twist, and reads for rendering (`readTrunk/readJoints/readProp`) and `status()`.
-- `src/simulation/tasks.ts`: `TaskRunner` is a pure controller from a `DuckTask` to `{vx, wz, trigger, done}` per step, with time budgets, push planning, and turn-creep and kick-start workarounds. Tested in `tasks.test.ts`.
+- `src/simulation/mjcf.ts`: `buildSceneXml(robotXml, props)` strips visual geoms, then adds the floor, walls and props (box or inline convex mesh; free, hinge, slide or fixed joints) and the STAND keyframe. A prop with `parent` becomes a nested body that moves with its parent, and never collides with anything further up its mount chain. The robot qpos comes first, then the dynamic props in MuJoCo's depth-first body order; a slide starts at its `rest` value.
+- `src/simulation/duckSim.ts`: `DuckSim` loads the runtimes and policies, compiles kits, and runs a real-time 50 Hz loop on its own timer (`start/stop`). It also handles modes, fall recovery, `trigger(skill)`, `runTask(task)`, the `manual` twist, and reads for rendering (`readTrunk/readJoints/readProp`) and `status()`. For a kit with a hinged `plank` it holds a lock pin (locked, levelling or free) and a brake on every slide joint, applied before each physics substep. **Invariant:** a brake is off only while a `place_weight` task is pushing that weight; anything else re-brakes it where it stands.
+- `src/simulation/tasks.ts`: `TaskRunner` is a pure controller from a `DuckTask` to `{vx, wz, trigger, brake, pin, done}` per step, with time budgets, push planning, and turn-creep and kick-start workarounds. `WorldView.balance` carries the measured pin state, plank angle and rail positions. It also runs `release_plank` (reports the settled tilt) and `lock_plank`. Tested in `tasks.test.ts`.
+- `src/simulation/moments.ts`: `Driver` (turn on the spot, then walk; kick-starts a stopped gait; a goal just passed counts as reached, so it never orbits) and `PlaceWeight` (route to the lane behind a paddle, push to the mark, brake, step clear; refusals for no room or the wrong side). Its `DRIVE` numbers were measured against the walking policy.
 - `src/simulation/rig.ts` builds the three.js rig from `kinematics.json` + `microduck.glb`, with a per-bot shell tint.
 - `public/microduck/` holds the vendored upstream assets: MJCF, kinematics, GLB, 9 collision STLs, 7 ONNX policies, `PROVENANCE.md` and `SHA256SUMS`.
 
 ### packages/contracts additions (`src/lab.ts`, re-exported from index)
 
-- `PropSpec` and `LabKit`, with builders `tile()` and `block()`, and kits `pythagorasKit()`, `momentsKit()`, `freeKit()` and `roomProps()`. Kits are listed in `KITS`.
+- `PropSpec` and `LabKit`, with builders `tile()` and `block()`, and kits `pythagorasKit()`, `momentsKit()`, `freeKit()` and `roomProps()`. Kits are listed in `KITS`. `PropSpec` also has `parent`, `anchor`, `range`, `damping` and `rest`, for props mounted on other props.
+- `MOMENTS` holds the balance geometry (pivot, plank, paddles, the duck's lane and walkway, rail range, minimum gap, the two weights) and `railAt(side, cm)`. `momentsKit()` is built from it, and the push planner reads it. A weight's block plus paddle mass equals its labelled grams.
 - `pythagorasSlots(a, b, origin)` and `slotFilled()`.
-- `DuckTaskSchema` (Zod) is the tool contract for the future LLM.
+- `DuckTaskSchema` (Zod) is the tool contract for Claude. It includes `place_weight {target, cm 5–30}`, `release_plank` and `lock_plank`.
 - `parseDuckTask(text, props)` is the deterministic grammar for typed commands and transcripts. `resolveProp()` maps phrases like "the 3 square" or "five by five" to ids.
 
 ## apps/api (`@kestrel/api`)

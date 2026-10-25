@@ -1,6 +1,10 @@
 # Handoff
 
-_Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, after resuming from Codex and pushing `as-kestrel`)._
+_Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, Moments balance on `moments-floor-push`)._
+
+## Moments balance branch (added 2026-10-24, Claude Code for the owner)
+
+Branch `moments-floor-push`, one commit on top of `main` (`4154acf`), with an open PR into `main`. It turns the Moments lesson into a working experiment in the sandbox: weights on rails that Pip pushes physically, a locked plank the learner or Claude releases, measured tilt results, and Claude tools plus prompt guidance. Details are in `04-status.md`. **Next for this slice:** verify by voice with live Claude ("balance the plank", "what are moments?"); this costs a few cents per run and needs the `.env` keys. Pythagoras behaviour is unchanged.
 
 ## Two-bot demo branch (added 2026-10-24, implementer session)
 
@@ -31,10 +35,7 @@ The learner speaks to the duck; Claude decides whether to answer, act, or both; 
 
 1. **Three-square demo.** Individual pushes reach 3–4 cm, but across a full demo the duck sometimes falls afterwards, or pushing the 5×5 stalls and disturbs placed tiles.
    - A proposed fix is **not applied**: prompt order largest-first (5 → 4 → 3) in `apps/api/src/agent.ts`, and push budget 120 → 150 s in `tasks.ts`, with the test loop updated to match.
-2. **Moments isn't an experiment yet.**
-   - The duck can't put a weight on the plank (the plank top is about 7 cm up; push only works along the floor).
-   - Claude's system prompt has only Pythagoras guidance.
-   - Moments is untested with Claude and voice.
+2. **Moments is untested with live Claude and voice.** The experiment itself works on `moments-floor-push`: the duck pushes each weight along a rail by a paddle at floor level, the plank stays locked until released, and Claude has tools and guidance for it.
 3. **First live voice run timed out once** (no "Moved" within 90 s). It was flaky and not reproduced.
 4. **Disk** is about 0.15 GB free on C:. Headless Chromium crashed once mid-demo, probably because of it. Check free space before installs or long runs.
 
@@ -42,10 +43,7 @@ The learner speaks to the duck; Claude decides whether to answer, act, or both; 
 
 This is the short list; the full backlog with acceptance checks is in `11-remaining-steps.md`.
 
-1. **Moments as a real lesson:**
-   - Add a bounded `place_weight` task: `{ weight, side: left|right, cm: 5–30 }`. It sets the weight onto the plank at that distance (an authored station action, honestly labelled; not a physical lift), and its result reports the measured tilt.
-   - Add Moments guidance to the agent prompt: explain moment = mass × distance, predict, place, observe the tilt, balance (200 g × 20 cm = 100 g × 40 cm).
-   - Verify by voice: "balance the plank".
+1. **Moments by voice.** `place_weight {target, cm}`, `release_plank`, `lock_plank` and the prompt guidance are on `moments-floor-push` (a physical push, not an authored placement; rails run 5–30 cm, so the balance is 200 g × 10 cm = 100 g × 20 cm). Still to do: verify by voice with live Claude ("balance the plank").
 2. Apply the largest-first demo fix and re-run `tests/.probe-demo.mjs` (paid, about $0.10 per run) until the 3-square demo succeeds repeatably. Then investigate the post-push fall.
 3. Turn the useful probes (`tests/.probe-demo.mjs`, `.probe-right.mjs`, `.probe-moments.mjs`; gitignored) into Playwright specs with mocked Claude. Keep `scripts/live-voice-check.mjs` as the paid end-to-end check.
 4. Compare with and reconcile against the owner's `microduck-lab-windows` before opening a PR.

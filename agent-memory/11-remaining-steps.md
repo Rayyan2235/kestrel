@@ -6,12 +6,12 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 ## A. Finish the slice (voice + lessons)
 
-1. **[next] Moments: let the duck load the plank.**
+1. **[done on `moments-floor-push`, voice check pending] Moments: let the duck load the plank.** Built as a *physical* push instead of an authored placement: each weight rides a rail with a paddle in the duck's lane, so the schema is `place_weight {target, cm}` (the side is the weight's rail). Rails run 5–30 cm, so the balance is 200 g × 10 cm = 100 g × 20 cm. Measured results and the remaining voice check are in `04-status.md`. The original plan, for reference:
    - Add a bounded task `place_weight { weight: "weight-100" | "weight-200", side: "left" | "right", cm: 5–30 }` to `DuckTaskSchema`, the runner and the agent tool schema.
    - Implement it as an *authored station action*: the duck walks to the plank, then the weight is set onto the plank at that distance. Label it honestly in the UI and docs; it is not a physical lift.
    - The result must report the measured plank tilt, e.g. "placed 100 g at 40 cm right; plank now level (±1°)".
    - Acceptance: say "balance the plank" and the duck places 100 g at 40 cm opposite 200 g at 20 cm; the plank ends within ±2° of level, measured.
-2. **[next] Moments guidance for Claude.** Add a Moments section to the system prompt in `apps/api/src/agent.ts`: moment = mass × distance, ask for a prediction first, place, observe the tilt, explain (200 g × 20 cm = 100 g × 40 cm). It should also offer "what happens if…" variations.
+2. **[done on `moments-floor-push`, voice check pending] Moments guidance for Claude.** Add a Moments section to the system prompt in `apps/api/src/agent.ts`: moment = mass × distance, ask for a prediction first, place, observe the tilt, explain (200 g × 20 cm = 100 g × 40 cm). It should also offer "what happens if…" variations.
    - Acceptance: "What are moments?" gives a 1–3 sentence spoken explanation plus a placement demo in the same turn.
 3. **[next] Make the 3-square Pythagoras demo reliable.**
    - Apply the largest-first order (5 → 4 → 3) in the prompt, and raise the push budget from 120 to 150 s (update `tasks.test.ts` to match).
