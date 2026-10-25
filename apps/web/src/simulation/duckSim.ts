@@ -1,57 +1,52 @@
-import { roomProps, type DuckTask, type LabKit, type Vec2 } from "@kestrel/contracts";
+import { MOMENTS, roomProps, slotFilled, type BotId, type DuckTask, type LabKit, type Vec2 } from "@kestrel/contracts";
 import mujocoWasmUrl from "@mujoco/mujoco/mujoco.wasm?url";
 import ortWasmUrl from "onnxruntime-web/ort-wasm-simd-threaded.wasm?url";
-import {
-  CMD_SIZE,
-  CTRL_DT,
-  DECIMATION,
-  DEFAULT_POSE,
-  FALL_DEBOUNCE_STEPS,
-  FALL_SETTLE_STEPS,
-  JOINT_NAMES,
-  KICK_STEPS,
-  NUM_JOINTS,
-  OBS_SIZE,
-  PECK_END_PHASE,
-  PECK_PERIOD_S,
-  POLICIES,
-  POST_KICK_LOCK_STEPS,
-  RECOVER_GIVEUP_STEPS,
-  RECOVER_UPRIGHT_STEPS,
-  ROBOT_DIR,
-  ROLL_MAX_STEPS,
-  type PolicyId,
-} from "./constants";
-import { buildSceneXml } from "./mjcf";
+import { CTRL_DT, DECIMATION, NUM_JOINTS, OBS_SIZE, POLICIES, ROBOT_DIR, type PolicyId } from "./constants";
+import { buildSceneXml, type DuckSpawn } from "./mjcf";
+import { BalanceExperiment, CrewPlan, type BalanceResult, type ExperimentPorts } from "./moments";
+import { Robot, type DuckMode, type RobotEvent } from "./robot";
 import { TaskRunner, type BalanceView, type Skill, type TaskStep, type WorldView } from "./tasks";
 
 // Browser-side Microduck runtime: MuJoCo WASM physics stepping the MJCF the
-// policies were trained on, ONNX policies at 50 Hz. It runs outside React
-// renders and never waits on network or model calls. Ported and trimmed
-// from pollen-robotics/microduck-simulator (Apache-2.0, rev ad9d41a).
+// policies were trained on, ONNX policies at 50 Hz, for every robot in ONE
+// shared MjModel/MjData (robots namespaced like ROSClaw Duckverse's world
+// composer). It runs outside React renders and never waits on network or
+// model calls. Ported and trimmed from pollen-robotics/microduck-simulator
+// (Apache-2.0, rev ad9d41a).
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Mujoco = any;
 type Ort = typeof import("onnxruntime-web");
 type Session = import("onnxruntime-web").InferenceSession;
 
-export type DuckMode = "walk" | "sitstand" | "kickL" | "kickR" | "roll" | "peck";
+export type { DuckMode } from "./robot";
+export const BOTS: BotId[] = ["pip", "nova"];
 export type SimEvent =
-  | { type: "task-done"; task: DuckTask; ok: boolean; summary: string }
+  | { type: "task-done"; duck: BotId | "lab"; task: DuckTask; ok: boolean; summary: string }
   | { type: "reset"; reason: string }
-  | { type: "fell" }
-  | { type: "recovered" };
+  | { type: "fell"; duck: BotId }
+  | { type: "recovered"; duck: BotId }
+  | { type: "experiment"; result: BalanceResult };
 
 export type SimStatus = {
   mode: DuckMode | "recovering" | "fallen";
   sitting: boolean;
   task: DuckTask | null;
+  /** The running task's state-machine phase, if it reports one. */
+  phase: string | null;
   pose: { x: number; y: number; yawDeg: number };
   hz: number;
   balance: BalanceView | null;
+  experiment: { phase: string; result: BalanceResult | null } | null;
 };
 
+/** One contact-ledger row: a robot (or both robots) against a prop, after Duckverse's audit. */
+export type ContactRecord = { first: number; last: number; samples: number; impulseNs: number; peakN: number; maxPenetrationM: number };
+
+export type SimPerf = { stepMs: number; inferMs: number; physicsMs: number; auditMs: number; steps: number };
+
 type Pose7 = { pos: [number, number, number]; quat: [number, number, number, number] };
+type Instruction = TaskStep | { pin?: "release" | "lock" } | null;
 
 export async function loadRuntimes(onLine: (label: string) => void) {
   onLine("Loading physics and policy runtimes");
@@ -68,46 +63,49 @@ export async function loadRuntimes(onLine: (label: string) => void) {
   return { mujoco, ort };
 }
 
+/** Apparatus props a robot must be clear of before the plank is measured. */
+const APPARATUS = new Set(["plank", "pivot", ...MOMENTS.weights.flatMap((w) => [w.id, `${w.id}-paddle`])]);
+
 export class DuckSim {
   private model: any = null;
   private data: any = null;
   private vfs: any;
-  private qposAdr: number[] = [];
-  private dofAdr: number[] = [];
-  private gyroAdr = 0;
-  private trunkId = 0;
   private standKey = 0;
   private propBodies = new Map<string, number>();
+  private propOfBody = new Map<number, string>();
+  private geomBody: ArrayLike<number> = [];
+  private robots: Robot[] = [];
+  private byId = new Map<BotId, Robot>();
+  private duckOfBody = new Map<number, BotId>();
+
   // Kinematic holds for the Moments balance, applied before every physics
-  // substep: a lock pin on the plank's hinge and a brake on each weight's
-  // rail. A brake is only off while the duck is pushing that weight.
+  // substep: a lock pin on the plank's hinge and a clamp on each weight's
+  // rail. A clamp holds a carriage wherever it is and is only off while a
+  // robot is pushing that weight. Both are idealised mechanisms.
   private pin: { q: number; v: number; state: BalanceView["pin"] } | null = null;
   private rails = new Map<string, { q: number; v: number; brake: number | null }>();
 
-  private readonly obs = new Float32Array(OBS_SIZE);
-  private readonly cmd = new Float32Array(CMD_SIZE);
-  private readonly lastAction = new Float32Array(NUM_JOINTS);
-  private currentTwist: [number, number] = [0, 0];
+  // Contact ledger, sampled every physics substep (Duckverse parkour/audit.py).
+  private ledger = new Map<string, ContactRecord>();
+  private touching = new Map<BotId, Map<string, number>>();
+  private lastApparatusContact = -Infinity;
+  /** mj_contactForce's out-parameter must live in WASM memory (a JS array is copied in, never back). */
+  private force: any = null;
 
-  private mode: DuckMode = "walk";
-  private sitFlag = 0;
-  private modeSteps = 0;
-  private pendingStand = -1; // steps until sitstand hands back to walk
-  private pendingSit = -1; // steps until the sit flag is raised
-  private postKickLock = 0;
-  private rollTipped = false;
-  private recovery: null | { state: "fallen" | "recovering"; steps: number; upright: number } = null;
-  private fallDebounce = 0;
-  private fallenSteps = 0;
+  /** Plank lock/release tasks belong to the apparatus, not to a robot. */
+  private readonly apparatus = new TaskRunner();
+  private experiment: BalanceExperiment | null = null;
+  private crew: CrewPlan | null = null;
+  private experimentPhase = "";
+  private lastExperiment: BalanceResult | null = null;
+  private results = new Map<BotId, { ok: boolean; summary: string }>();
+  private pendingReset: string | null = null;
 
   private acc = 0;
   private pendingKit: LabKit | null = null;
   private stepCount = 0;
   private hzWindow = { t: performance.now(), steps: 0, hz: 0 };
-
-  readonly tasks = new TaskRunner();
-  /** Keyboard/manual twist. Any nonzero input cancels a running task. */
-  manual = { vx: 0, wz: 0 };
+  readonly perf: SimPerf = { stepMs: 0, inferMs: 0, physicsMs: 0, auditMs: 0, steps: 0 };
   kit: LabKit;
 
   private constructor(
@@ -150,7 +148,11 @@ export class DuckSim {
   private async compile(lesson: LabKit): Promise<void> {
     // Room furniture is part of every kit, so tasks can target it too.
     const kit = { ...lesson, props: [...roomProps(), ...lesson.props] };
-    const scene = buildSceneXml(this.robotXml, kit.props);
+    const spawns: DuckSpawn[] = BOTS.map((id) => {
+      const s = lesson.spawns[id];
+      return { id, pos: [s[0], s[1]], yaw: s[2] };
+    });
+    const scene = buildSceneXml(this.robotXml, kit.props, spawns);
     await Promise.all(
       scene.meshFiles.map(async (f) => {
         const r = await fetch(`${ROBOT_DIR}/meshes/${f}`);
@@ -165,15 +167,20 @@ export class DuckSim {
     const m = this.mujoco;
     this.data?.delete();
     this.model?.delete();
+    this.force ??= new m.DoubleBuffer(6);
     this.model = m.MjModel.from_xml_string(scene.xml, this.vfs);
     this.data = new m.MjData(this.model);
     const BODY = m.mjtObj.mjOBJ_BODY.value;
-    this.qposAdr = JOINT_NAMES.map((n) => this.model.jnt(n).qposadr);
-    this.dofAdr = JOINT_NAMES.map((n) => this.model.jnt(n).dofadr);
-    this.gyroAdr = this.model.sensor("imu_ang_vel").adr;
-    this.trunkId = m.mj_name2id(this.model, BODY, "trunk_base");
     this.standKey = m.mj_name2id(this.model, m.mjtObj.mjOBJ_KEY.value, "STAND");
+    this.robots = BOTS.map((id) => new Robot(id, m, this.model, this.data, (e) => this.onRobot(id, e)));
+    this.byId = new Map(this.robots.map((r) => [r.id, r]));
+    assertNoCrossTalk(this.robots);
+    this.duckOfBody = new Map(this.robots.flatMap((r) => [...r.bodies].map((b) => [b, r.id] as const)));
     this.propBodies = new Map(kit.props.map((p) => [p.id, m.mj_name2id(this.model, BODY, p.id)]));
+    this.propOfBody = new Map([...this.propBodies].map(([id, b]) => [b, id]));
+    // Copy, don't keep the view: typed arrays over WASM memory go stale
+    // (detached, every read undefined) whenever the WASM heap grows.
+    this.geomBody = Int32Array.from(this.model.geom_bodyid as ArrayLike<number>);
     const plank = kit.props.find((p) => p.role === "plank" && p.joint === "hinge");
     const joint = (name: string) => this.model.jnt(name);
     this.pin = plank
@@ -188,72 +195,134 @@ export class DuckSim {
     this.reset("Lab loaded");
   }
 
+  private onRobot(id: BotId, e: RobotEvent) {
+    if (e.type === "task-done") {
+      this.results.set(id, { ok: e.ok, summary: e.summary });
+      this.listener({ type: "task-done", duck: id, task: e.task, ok: e.ok, summary: e.summary });
+    } else if (e.type === "fell" || e.type === "recovered") this.listener({ type: e.type, duck: id });
+    else if (e.type === "respawn") this.pendingReset = e.reason;
+  }
+
   /** Swap the subject kit. Applied between control steps. */
   setKit(kit: LabKit) {
     this.pendingKit = kit;
   }
 
   reset(reason = "Reset") {
-    this.tasks.cancel();
-    this.mode = "walk";
-    this.sitFlag = 0;
-    this.pendingSit = this.pendingStand = -1;
-    this.postKickLock = 0;
-    this.recovery = null;
-    this.fallDebounce = this.fallenSteps = 0;
-    this.lastAction.fill(0);
+    for (const r of this.robots) r.reset();
+    this.apparatus.cancel();
+    this.experiment = null;
+    this.crew = null;
+    this.experimentPhase = "";
+    this.lastExperiment = null;
+    this.results.clear();
     this.mujoco.mj_resetDataKeyframe(this.model, this.data, this.standKey);
     this.mujoco.mj_forward(this.model, this.data);
     if (this.pin) this.pin.state = "locked";
     for (const r of this.rails.values()) r.brake = this.data.qpos[r.q];
+    this.ledger.clear();
+    this.touching = new Map(BOTS.map((id) => [id, new Map()]));
+    this.lastApparatusContact = -Infinity;
     this.listener({ type: "reset", reason });
   }
 
-  // ── Skills ────────────────────────────────────────────────────────────
-  private get idle() {
-    return this.mode === "walk" && !this.recovery && this.pendingStand < 0;
+  // ── Robots ────────────────────────────────────────────────────────────
+  robot(id: BotId = "pip"): Robot {
+    return this.byId.get(id)!;
+  }
+  /** Pip's task runner (the duck Claude speaks for). */
+  get tasks(): TaskRunner {
+    return this.robot("pip").tasks;
+  }
+  get manual() {
+    return this.robot("pip").manual;
+  }
+  set manual(v: { vx: number; wz: number }) {
+    this.robot("pip").manual = v;
   }
 
   /** Start a one-shot or posture skill. Returns a refusal reason, or null. */
-  trigger(skill: Skill): string | null {
-    if (this.recovery) return "The duck is getting back on its feet.";
-    if (skill === "stand") {
-      if (this.mode !== "sitstand") return null;
-      this.sitFlag = 0;
-      this.pendingSit = -1;
-      this.pendingStand = 100; // 2 s for the sitstand policy to stand up
-      return null;
-    }
-    if (skill === "sit") {
-      if (this.mode === "sitstand") return null;
-      if (!this.idle) return "Finish the current move first.";
-      this.setMode("sitstand");
-      this.sitFlag = 0;
-      this.pendingSit = 40; // hold the stand briefly before sitting
-      return null;
-    }
-    if (!this.idle) return this.mode === "sitstand" ? "Stand up first." : "Finish the current move first.";
-    this.setMode(skill === "kickL" ? "kickL" : skill === "kickR" ? "kickR" : skill);
-    this.rollTipped = false;
-    return null;
+  trigger(skill: Skill, id: BotId = "pip"): string | null {
+    return this.robot(id).trigger(skill);
   }
 
-  private setMode(mode: DuckMode) {
-    this.mode = mode;
-    this.modeSteps = 0;
-    // The upstream runtime keeps action history across one-shots; it only
-    // clears it on posture changes.
-    if (mode === "walk" || mode === "sitstand") this.lastAction.fill(0);
+  /**
+   * Start a bounded task. Returns a refusal reason, or null. A weight is
+   * always moved by the robot that owns it; plank tasks belong to the lab.
+   */
+  runTask(task: DuckTask, id: BotId = "pip"): string | null {
+    if (task.kind === "release_plank" || task.kind === "lock_plank") {
+      if (this.experiment) return "The experiment is running. Stop it first.";
+      if (task.kind === "release_plank" && [...this.rails.values()].some((r) => r.brake === null))
+        return "Wait until the robots have finished moving the weights.";
+      return this.apparatus.start(task, this.world("pip"));
+    }
+    if (task.kind === "set_balance") {
+      if (this.experiment) return "The experiment is already running.";
+      const exp = new BalanceExperiment(task);
+      const refusal = exp.plan(this.ports());
+      if (refusal) return refusal;
+      for (const r of this.robots) r.tasks.cancel();
+      this.results.clear();
+      this.experiment = exp;
+      this.experimentPhase = exp.phase;
+      return null;
+    }
+    if (task.kind === "build_squares") {
+      if (this.crew || this.experiment) return "The robots are already busy with a plan.";
+      if (this.kit.id !== "pythagoras") return "Open the Pythagoras lesson first.";
+      for (const r of this.robots) r.tasks.cancel();
+      this.results.clear();
+      // Largest first, each from its own open side. Pip takes the 5×5 while
+      // Nova takes the 4×4 at the opposite corner; then Pip brings the 3×3.
+      const push = (target: string): DuckTask => ({ kind: "push", target, toward: "slot" });
+      this.crew = new CrewPlan(task, [[{ id: "pip", task: push("square-5") }, { id: "nova", task: push("square-4") }], [{ id: "pip", task: push("square-3") }]], () => {
+        const props = this.propPositions();
+        const filled = this.kit.slots.filter((s) => slotFilled(props.get(s.forProp) ?? [99, 99], s));
+        const all = filled.length === this.kit.slots.length;
+        return { ok: all, summary: all ? "All three squares are on the triangle: 9 + 16 = 25." : `${filled.length} of ${this.kit.slots.length} squares are on their sides.` };
+      });
+      return null;
+    }
+    const owner = task.kind === "place_weight" ? MOMENTS.weights.find((w) => w.id === task.target)?.owner ?? id : id;
+    return this.startOn(owner, task);
   }
 
-  /** Start a bounded task. Returns a refusal reason, or null. */
-  runTask(task: DuckTask): string | null {
-    // The plank is apparatus, not the duck: the learner can release it any time.
-    if (task.kind === "release_plank" || task.kind === "lock_plank") return this.tasks.start(task, this.world());
+  private startOn(id: BotId, task: DuckTask): string | null {
+    const robot = this.robot(id);
     const moves = ["move", "turn", "go_to", "push", "place_weight", "kick", "peck", "roll"].includes(task.kind);
-    if (moves && this.mode === "sitstand") return "The duck is sitting. Ask it to stand up first.";
-    if (this.recovery) return "The duck is getting back on its feet.";
-    return this.tasks.start(task, this.world());
+    if (moves && robot.mode === "sitstand") return "The duck is sitting. Ask it to stand up first.";
+    if (robot.recovery) return "The duck is getting back on its feet.";
+    if (robot.tasks.active && robot.tasks.active !== task) {
+      const old = robot.tasks.active;
+      robot.tasks.cancel();
+      this.listener({ type: "task-done", duck: id, task: old, ok: false, summary: "Replaced by a new task." });
+    }
+    return robot.tasks.start(task, this.world(id));
+  }
+
+  /** Cancel every robot's task and the experiment (Stop). */
+  stopAll() {
+    for (const r of this.robots) {
+      r.tasks.cancel();
+      r.manual = { vx: 0, wz: 0 };
+    }
+    this.apparatus.cancel();
+    const plan = this.experiment ?? this.crew;
+    if (plan) {
+      this.experiment = null;
+      this.crew = null;
+      this.listener({ type: "task-done", duck: "lab", task: plan.task, ok: false, summary: "Stopped." });
+    }
+  }
+
+  private ports(): ExperimentPorts {
+    return {
+      world: (id) => this.world(id),
+      start: (id, task) => this.startOn(id, task),
+      busy: (id) => this.robot(id).tasks.active !== null,
+      clearFor: () => this.data.time - this.lastApparatusContact,
+    };
   }
 
   // ── Loop ──────────────────────────────────────────────────────────────
@@ -296,13 +365,22 @@ export class DuckSim {
     this.running = false;
   }
 
-  private world(): WorldView {
-    const q = this.data.qpos;
+  world(id: BotId = "pip"): WorldView {
+    const robot = this.robot(id);
     const props = new Map<string, Vec2>();
     const xpos = this.data.xpos;
-    for (const [id, b] of this.propBodies) props.set(id, [xpos[b * 3], xpos[b * 3 + 1]]);
+    for (const [pid, b] of this.propBodies) props.set(pid, [xpos[b * 3], xpos[b * 3 + 1]]);
     const balance = this.balanceView();
-    return { duck: { x: q[0], y: q[1], yaw: yawOf(q[3], q[4], q[5], q[6]) }, props, kit: this.kit, ...(balance ? { balance } : {}) };
+    return {
+      id,
+      duck: robot.pose(),
+      speed: robot.speed(),
+      others: this.robots.filter((r) => r.id !== id).map((r) => ({ id: r.id, pose: r.pose() })),
+      props,
+      kit: this.kit,
+      touching: this.touching.get(id) ?? new Map(),
+      ...(balance ? { balance } : {}),
+    };
   }
 
   private balanceView(): BalanceView | null {
@@ -315,18 +393,27 @@ export class DuckSim {
     };
   }
 
-  /** Apply a task's balance instructions, and brake any weight nobody is pushing. */
-  private holdBalance(step: TaskStep | null) {
+  /** Apply the tasks' balance instructions, and clamp any weight nobody is pushing. */
+  private holdBalance(steps: Instruction[]) {
     const q = this.data.qpos;
-    if (step?.brake) {
-      const r = this.rails.get(step.brake.id);
-      if (r) r.brake = step.brake.at;
+    for (const step of steps) {
+      if (step && "brake" in step && step.brake) {
+        const r = this.rails.get(step.brake.id);
+        if (r) r.brake = step.brake.at;
+      }
     }
-    const task = this.tasks.active;
-    const pushing = task?.kind === "place_weight" ? task.target : null;
-    for (const [id, r] of this.rails) if (r.brake === null && id !== pushing) r.brake = q[r.q];
-    if (this.pin && step?.pin === "release") this.pin.state = "free";
-    if (this.pin && step?.pin === "lock" && this.pin.state === "free") this.pin.state = "levelling";
+    const pushing = new Set(
+      this.robots.map((r) => r.tasks.active).flatMap((t) => (t?.kind === "place_weight" ? [t.target] : [])),
+    );
+    for (const [id, r] of this.rails) if (r.brake === null && !pushing.has(id)) r.brake = q[r.q];
+    for (const step of steps) {
+      if (this.pin && step?.pin === "release") {
+        // The weights are clamped where they stand before the plank is let go.
+        for (const r of this.rails.values()) r.brake = q[r.q];
+        this.pin.state = "free";
+      }
+      if (this.pin && step?.pin === "lock" && this.pin.state === "free") this.pin.state = "levelling";
+    }
   }
 
   private hold() {
@@ -335,192 +422,147 @@ export class DuckSim {
     if (pin && pin.state !== "free") {
       const a = qpos[pin.q];
       if (pin.state === "levelling") {
-        // The pin drives the plank back to level at a steady rate (gravity
-        // pulls it back between substeps), then locks it.
+        // The pin drives the plank back to level at a steady rate, then locks it.
         qpos[pin.q] = Math.abs(a) < 0.006 ? 0 : a - Math.sign(a) * 0.0008;
         if (qpos[pin.q] === 0) pin.state = "locked";
       } else qpos[pin.q] = 0;
       qvel[pin.v] = 0;
     }
+    // A clamp holds its carriage exactly where it is; it never moves one.
     for (const r of this.rails.values()) {
       if (r.brake === null) continue;
-      const x = qpos[r.q];
-      // Ease a weight onto its mark rather than teleporting it.
-      qpos[r.q] = Math.abs(x - r.brake) < 0.0005 ? r.brake : x + (r.brake - x) * 0.25;
+      qpos[r.q] = r.brake;
       qvel[r.v] = 0;
     }
   }
 
-  private gravityZ(): number {
-    const xq = this.data.xquat;
-    const i = this.trunkId * 4;
-    return projectedGravity(xq[i], xq[i + 1], xq[i + 2], xq[i + 3])[2];
-  }
-
-  /** Advance manual input or the running task; gate motion by mode. */
-  private twist(): [number, number] {
-    const manual = this.manual.vx !== 0 || this.manual.wz !== 0;
-    let out: [number, number] = [0, 0];
-    let held: TaskStep | null = null;
-    if (manual) {
-      const task = this.tasks.active;
-      if (task) {
-        this.tasks.cancel();
-        this.listener({ type: "task-done", task, ok: false, summary: "Interrupted by manual control." });
-      }
-      out = [this.manual.vx, this.manual.wz];
-    } else {
-      const task = this.tasks.active;
-      const step = task ? this.tasks.step(this.world(), CTRL_DT) : null;
-      if (task && step) {
-        out = [step.vx, step.wz];
-        held = step;
-        if (step.done) {
-          const refusal = step.trigger ? this.trigger(step.trigger) : null;
-          this.listener({
-            type: "task-done",
-            task,
-            ok: !refusal && step.done.ok,
-            summary: refusal ?? step.done.summary,
-          });
-        }
-      }
+  /** Every-substep contact ledger: robot ↔ prop and robot ↔ robot, with force and penetration. */
+  private audit() {
+    const { mujoco, model, data } = this;
+    const n = data.ncon;
+    if (!n) return;
+    const contacts = data.contact;
+    const now = data.time;
+    const dt = model.opt.timestep;
+    for (let i = 0; i < n; i++) {
+      const c = contacts.get(i);
+      const b1 = this.geomBody[c.geom1]!;
+      const b2 = this.geomBody[c.geom2]!;
+      const dist = c.dist as number;
+      c.delete?.();
+      const d1 = this.duckOfBody.get(b1);
+      const d2 = this.duckOfBody.get(b2);
+      if (!d1 && !d2) continue;
+      if (d1 && d2 && d1 === d2) continue; // a robot's own linkage
+      const duck = (d1 ?? d2)!;
+      const other = d1 && d2 ? (d1 === duck ? d2 : d1) : this.propOfBody.get(d1 ? b2 : b1);
+      if (!other) continue; // the floor and walls
+      mujoco.mj_contactForce(model, data, i, this.force);
+      const f = (this.force.GetView() as Float64Array)[0]!;
+      if (f <= 1e-7) continue;
+      const key = d1 && d2 ? "pip↔nova" : `${duck}↔${other}`;
+      const rec = this.ledger.get(key) ?? { first: now, last: now, samples: 0, impulseNs: 0, peakN: 0, maxPenetrationM: 0 };
+      rec.last = now;
+      rec.samples++;
+      rec.impulseNs += f * dt;
+      rec.peakN = Math.max(rec.peakN, f);
+      rec.maxPenetrationM = Math.max(rec.maxPenetrationM, Math.max(0, -dist));
+      this.ledger.set(key, rec);
+      const t = this.touching.get(duck)!;
+      t.set(other, Math.max(t.get(other) ?? 0, f));
+      if (d1 && d2) this.touching.get(other as BotId)!.set(duck, f);
+      if (APPARATUS.has(other)) this.lastApparatusContact = now;
     }
-    this.holdBalance(held);
-    const gated =
-      this.recovery || this.mode !== "walk" || this.postKickLock > 0 || this.pendingStand >= 0;
-    return gated ? [0, 0] : out;
-  }
-
-  private buildObs(): Float32Array {
-    const { data, obs, cmd } = this;
-    const qpos = data.qpos;
-    const qvel = data.qvel;
-    const sens = data.sensordata;
-    let i = 0;
-    for (let a = 0; a < 3; a++) obs[i++] = sens[this.gyroAdr + a];
-    const xq = data.xquat;
-    const t = this.trunkId * 4;
-    const g = projectedGravity(xq[t], xq[t + 1], xq[t + 2], xq[t + 3]);
-    obs[i++] = g[0];
-    obs[i++] = g[1];
-    obs[i++] = g[2];
-    for (let j = 0; j < NUM_JOINTS; j++) obs[i++] = qpos[this.qposAdr[j]!] - DEFAULT_POSE[j]!;
-    for (let j = 0; j < NUM_JOINTS; j++) obs[i++] = qvel[this.dofAdr[j]!];
-    for (let j = 0; j < NUM_JOINTS; j++) obs[i++] = this.lastAction[j]!;
-    cmd.fill(0);
-    if (this.recovery) {
-      // The get-up policy runs with an all-zero command.
-    } else if (this.mode === "sitstand") cmd[0] = this.sitFlag;
-    else if (this.mode === "peck") {
-      const a = 2 * Math.PI * ((this.modeSteps * CTRL_DT) / PECK_PERIOD_S);
-      cmd[0] = Math.cos(a);
-      cmd[1] = Math.sin(a);
-    } else if (this.mode === "walk") {
-      cmd[0] = this.currentTwist[0];
-      cmd[2] = this.currentTwist[1];
-    }
-    for (let c = 0; c < CMD_SIZE; c++) obs[i++] = cmd[c]!;
-    return obs;
-  }
-
-  private session(): Session {
-    if (this.recovery?.state === "recovering") return this.sessions.stand;
-    return this.sessions[this.mode];
   }
 
   private async controlStep() {
+    const t0 = performance.now();
     const { mujoco, model, data } = this;
-    this.currentTwist = this.twist();
-    if (this.recovery?.state !== "fallen") {
-      const session = this.session();
-      const input = new this.ort.Tensor("float32", this.buildObs(), [1, OBS_SIZE]);
-      const out = await session.run({ [session.inputNames[0]!]: input });
-      const act = out[session.outputNames[0]!]!.data as Float32Array;
-      if (act.every((v) => Number.isFinite(v))) {
-        this.lastAction.set(act);
-        const ctrl = data.ctrl;
-        for (let j = 0; j < NUM_JOINTS; j++) ctrl[j] = DEFAULT_POSE[j]! + act[j]!;
+    // 1. Tasks and manual input → each robot's twist; collect apparatus instructions.
+    const steps: Instruction[] = [];
+    for (const r of this.robots) steps.push(r.advance(() => r.tasks.step(this.world(r.id), CTRL_DT)));
+    const plankTask = this.apparatus.active;
+    const plank = plankTask ? this.apparatus.step(this.world("pip"), CTRL_DT) : null;
+    if (plankTask && plank) {
+      steps.push(plank);
+      if (plank.done) this.listener({ type: "task-done", duck: "lab", task: plankTask, ok: plank.done.ok, summary: plank.done.summary });
+    }
+    if (this.experiment) {
+      const exp = this.experiment;
+      const s = exp.step(this.ports(), CTRL_DT, this.results);
+      this.experimentPhase = s.phase;
+      steps.push(s);
+      if (s.done) {
+        this.experiment = null;
+        this.lastExperiment = s.done;
+        this.listener({ type: "experiment", result: s.done });
+        this.listener({ type: "task-done", duck: "lab", task: exp.task, ok: s.done.ok, summary: s.done.summary });
       }
     }
+    if (this.crew) {
+      const plan = this.crew;
+      const s = plan.step(this.ports(), this.results);
+      this.experimentPhase = s.phase;
+      if (s.done) {
+        this.crew = null;
+        this.listener({ type: "task-done", duck: "lab", task: plan.task, ok: s.done.ok, summary: s.done.summary });
+      }
+    }
+    this.holdBalance(steps);
+
+    // 2. Policies: one inference per robot, each from its own observation buffer.
+    const t1 = performance.now();
+    for (const r of this.robots) {
+      const policy = r.policy();
+      if (!policy) continue;
+      const session = this.sessions[policy];
+      const input = new this.ort.Tensor("float32", r.buildObs(), [1, OBS_SIZE]);
+      const out = await session.run({ [session.inputNames[0]!]: input });
+      r.act(out[session.outputNames[0]!]!.data as Float32Array);
+    }
+    const t2 = performance.now();
+
+    // 3. Physics: 4 × 5 ms substeps, holds before each, contacts audited after each.
+    for (const t of this.touching.values()) t.clear();
+    let auditMs = 0;
     for (let s = 0; s < DECIMATION; s++) {
       this.hold();
       mujoco.mj_step(model, data);
+      const a = performance.now();
+      this.audit();
+      auditMs += performance.now() - a;
     }
-    this.modeSteps++;
+    const t3 = performance.now();
     this.stepCount++;
-    this.afterStep();
-  }
-
-  private afterStep() {
-    const z = this.data.qpos[2];
-    const gz = this.gravityZ();
-    if (!Number.isFinite(z) || !Number.isFinite(gz)) return this.reset("Physics reset");
-    const fallen = gz > -0.5 || z < 0.02;
-
-    if (this.pendingSit >= 0 && --this.pendingSit < 0 && this.mode === "sitstand") this.sitFlag = 1;
-    if (this.pendingStand >= 0 && --this.pendingStand < 0) this.setMode("walk");
-    if (this.postKickLock > 0 && this.mode === "walk") this.postKickLock--;
-
-    if (this.recovery) {
-      const r = this.recovery;
-      r.steps++;
-      if (r.state === "fallen" && r.steps >= FALL_SETTLE_STEPS) {
-        this.recovery = { state: "recovering", steps: 0, upright: 0 };
-        this.lastAction.fill(0);
-      } else if (r.state === "recovering") {
-        r.upright = gz < -0.85 ? r.upright + 1 : 0;
-        if (r.upright >= RECOVER_UPRIGHT_STEPS) {
-          this.recovery = null;
-          this.setMode("walk");
-          this.listener({ type: "recovered" });
-        } else if (r.steps >= RECOVER_GIVEUP_STEPS) this.reset("Could not get up, so the duck respawned");
-      }
-    } else if (fallen && this.mode === "walk" && this.postKickLock === 0) {
-      if (++this.fallDebounce >= FALL_DEBOUNCE_STEPS) {
-        this.fallDebounce = 0;
-        if (this.tasks.active) {
-          const task = this.tasks.active;
-          this.tasks.cancel();
-          this.listener({ type: "task-done", task, ok: false, summary: "The duck fell over." });
-        }
-        this.recovery = { state: "fallen", steps: 0, upright: 0 };
-        this.listener({ type: "fell" });
-      }
-    } else if (fallen && this.mode !== "roll") {
-      if (++this.fallenSteps > 50) this.reset("The duck tipped over, so it respawned");
-    } else {
-      this.fallDebounce = 0;
-      this.fallenSteps = 0;
+    for (const r of this.robots) if (!r.afterStep()) return this.reset("Physics reset");
+    if (this.pendingReset) {
+      const reason = this.pendingReset;
+      this.pendingReset = null;
+      this.reset(reason);
     }
-
-    if ((this.mode === "kickL" || this.mode === "kickR") && this.modeSteps >= KICK_STEPS) {
-      this.mode = "walk";
-      this.postKickLock = POST_KICK_LOCK_STEPS;
-    }
-    if (this.mode === "peck" && (this.modeSteps * CTRL_DT) / PECK_PERIOD_S >= PECK_END_PHASE)
-      this.setMode("walk");
-    if (this.mode === "roll") {
-      if (gz > -0.3) this.rollTipped = true;
-      const upright = gz < -0.85;
-      if ((this.rollTipped && upright && this.modeSteps >= 40) || this.modeSteps >= ROLL_MAX_STEPS) {
-        this.setMode("walk");
-        if (!upright) this.reset("The roll didn't land, so the duck respawned");
-      }
-    }
+    // Exponential averages for the profiler readout.
+    const k = 0.05;
+    const p = this.perf;
+    p.stepMs += k * (performance.now() - t0 - p.stepMs);
+    p.inferMs += k * (t2 - t1 - p.inferMs);
+    p.physicsMs += k * (t3 - t2 - auditMs - p.physicsMs);
+    p.auditMs += k * (auditMs - p.auditMs);
+    p.steps++;
   }
 
   // ── Reads for rendering and UI ────────────────────────────────────────
-  readJoints(out: Float32Array): Float32Array {
+  readJoints(out: Float32Array, id: BotId = "pip"): Float32Array {
     const q = this.data.qpos;
-    for (let j = 0; j < NUM_JOINTS; j++) out[j] = q[this.qposAdr[j]!];
+    const r = this.robot(id);
+    for (let j = 0; j < NUM_JOINTS; j++) out[j] = q[r.qposAdr[j]!];
     return out;
   }
 
-  readTrunk(out: Pose7): Pose7 {
+  readTrunk(out: Pose7, id: BotId = "pip"): Pose7 {
     const q = this.data.qpos;
-    out.pos[0] = q[0]; out.pos[1] = q[1]; out.pos[2] = q[2];
-    out.quat[0] = q[3]; out.quat[1] = q[4]; out.quat[2] = q[5]; out.quat[3] = q[6];
+    const f = this.robot(id).freeQ;
+    out.pos[0] = q[f]; out.pos[1] = q[f + 1]; out.pos[2] = q[f + 2];
+    out.quat[0] = q[f + 3]; out.quat[1] = q[f + 4]; out.quat[2] = q[f + 5]; out.quat[3] = q[f + 6];
     return out;
   }
 
@@ -539,7 +581,29 @@ export class DuckSim {
     return this.world().props;
   }
 
-  status(): SimStatus {
+  /** Largest robot contact force on a prop in the last control step (N); 0 when untouched. */
+  touchForce(propId: string): number {
+    let f = 0;
+    for (const t of this.touching.values()) f = Math.max(f, t.get(propId) ?? 0);
+    return f;
+  }
+
+  /** The plank's lock state, for drawing the pin. */
+  pinState(): BalanceView["pin"] | null {
+    return this.pin?.state ?? null;
+  }
+
+  /** The contact ledger since the last reset. */
+  contacts(): Record<string, ContactRecord> {
+    return Object.fromEntries(this.ledger);
+  }
+
+  /** Seconds of physics time since a robot last touched the apparatus. */
+  apparatusClearFor(): number {
+    return this.data.time - this.lastApparatusContact;
+  }
+
+  status(id: BotId = "pip"): SimStatus {
     const now = performance.now();
     const w = this.hzWindow;
     if (now - w.t > 1000) {
@@ -547,36 +611,41 @@ export class DuckSim {
       w.t = now;
       w.steps = this.stepCount;
     }
-    const { duck } = this.world();
+    const r = this.robot(id);
+    const { duck } = this.world(id);
     return {
-      mode: this.recovery ? (this.recovery.state === "fallen" ? "fallen" : "recovering") : this.mode,
-      sitting: this.mode === "sitstand" && this.sitFlag === 1,
-      task: this.tasks.active,
+      mode: r.recovery ? (r.recovery.state === "fallen" ? "fallen" : "recovering") : r.mode,
+      sitting: r.mode === "sitstand" && r.sitFlag === 1,
+      task: r.tasks.active ?? this.apparatus.active ?? this.experiment?.task ?? this.crew?.task ?? null,
+      phase: r.tasks.phase,
       pose: { x: duck.x, y: duck.y, yawDeg: Math.round((duck.yaw * 180) / Math.PI) },
       hz: w.hz,
       balance: this.balanceView(),
+      experiment:
+        this.experiment || this.crew || this.lastExperiment
+          ? { phase: this.experiment || this.crew ? this.experimentPhase : "DONE", result: this.experiment ? null : this.lastExperiment }
+          : null,
     };
   }
 }
 
-/** Heading about +z from a MuJoCo [w, x, y, z] quaternion. */
-export function yawOf(w: number, x: number, y: number, z: number): number {
-  return Math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z));
-}
-
-/** World −z expressed in the body frame of quaternion [w, x, y, z]. */
-export function projectedGravity(w: number, x: number, y: number, z: number): [number, number, number] {
-  // Rotate v = (0, 0, −1) by the conjugate quaternion.
-  const v: [number, number, number] = [0, 0, -1];
-  const qx = -x;
-  const qy = -y;
-  const qz = -z;
-  const tx = 2 * (qy * v[2] - qz * v[1]);
-  const ty = 2 * (qz * v[0] - qx * v[2]);
-  const tz = 2 * (qx * v[1] - qy * v[0]);
-  return [
-    v[0] + w * tx + (qy * tz - qz * ty),
-    v[1] + w * ty + (qz * tx - qx * tz),
-    v[2] + w * tz + (qx * ty - qy * tx),
-  ];
+/** Fail loudly if two robots would read or write the same joint, actuator or sensor. */
+export function assertNoCrossTalk(
+  robots: { id: string; qposAdr: number[]; dofAdr: number[]; ctrlAdr: number[]; gyroAdr: number; freeQ: number }[],
+) {
+  const seen = new Map<string, string>();
+  for (const r of robots) {
+    const own = [
+      ...r.qposAdr.map((a) => `qpos ${a}`),
+      ...r.dofAdr.map((a) => `qvel ${a}`),
+      ...r.ctrlAdr.map((a) => `ctrl ${a}`),
+      ...[0, 1, 2].map((k) => `sensor ${r.gyroAdr + k}`),
+      ...[0, 1, 2, 3, 4, 5, 6].map((k) => `qpos ${r.freeQ + k}`),
+    ];
+    for (const key of own) {
+      const prev = seen.get(key);
+      if (prev && prev !== r.id) throw new Error(`Robots ${prev} and ${r.id} share ${key}.`);
+      seen.set(key, r.id);
+    }
+  }
 }

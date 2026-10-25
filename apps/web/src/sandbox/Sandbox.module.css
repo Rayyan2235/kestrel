@@ -122,6 +122,8 @@
   top: 18px;
   left: 18px;
   max-width: 330px;
+  max-height: calc(100% - 96px);
+  overflow-y: auto;
   background: rgba(251, 252, 247, 0.96);
   border-radius: 16px;
   box-shadow: var(--shadow);
@@ -436,4 +438,139 @@
   from {
     opacity: 0;
   }
+}
+
+/* Two-robot experiment controls (minimal; the owner restyles later). */
+.experiment {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+.targets {
+  display: flex;
+  gap: 10px;
+}
+.target {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--muted);
+}
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #c3cfbc;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.stepper button {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  width: 26px;
+  height: 24px;
+  cursor: pointer;
+}
+.stepper output {
+  min-width: 46px;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dock);
+}
+.predict {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.predict button {
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  border-radius: 999px;
+  border: 1px solid #c3cfbc;
+  background: transparent;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.predictOn {
+  background: #7e49b3 !important;
+  border-color: #7e49b3 !important;
+  color: #fff;
+}
+.runButton {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border: 0;
+  border-radius: 10px;
+  padding: 7px 12px;
+  background: var(--dock);
+  color: var(--on-dark);
+  cursor: pointer;
+  justify-self: start;
+}
+.runButton:disabled {
+  opacity: 0.75;
+  cursor: progress;
+}
+.stepper button:focus-visible,
+.predict button:focus-visible,
+.runButton:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.result {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+.result p,
+.hint,
+.refusal {
+  margin: 0;
+  font-size: 12px;
+}
+.right {
+  color: #345d47;
+  font-weight: 700;
+}
+.wrong {
+  color: #8a4b2a;
+  font-weight: 700;
+}
+.refusal {
+  color: #8a4b2a;
+}
+.hint {
+  color: var(--muted);
+}
+.crew {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--on-dark);
+  opacity: 0.85;
+}
+.crew span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.pipDot,
+.novaDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.pipDot {
+  background: #cfcfcf;
+  box-shadow: inset 0 0 0 2px #3a3a3e;
+}
+.novaDot {
+  background: #7e49b3;
 }

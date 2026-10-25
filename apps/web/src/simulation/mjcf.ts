@@ -1,13 +1,8 @@
-import type { PropSpec } from "@kestrel/contracts";
-import {
-  DEFAULT_POSE,
-  JOINT_NAMES,
-  ROOM_HALF,
-  SPAWN,
-  TIMESTEP,
-  WALL_H,
-  WALL_T,
-} from "./constants";
+import type { PropSpec, Vec2 } from "@kestrel/contracts";
+import { DEFAULT_POSE, JOINT_NAMES, ROOM_HALF, TIMESTEP, WALL_H, WALL_T } from "./constants";
+
+/** One robot in the shared world. Its MuJoCo names all start with `${id}/`. */
+export type DuckSpawn = { id: string; pos: Vec2; yaw: number };
 
 export type SceneXml = {
   xml: string;
@@ -38,10 +33,16 @@ function meshVertices(p: PropSpec): number[] | null {
 
 /**
  * Merge the robot MJCF with a room and a prop kit into one model.
- * Robot qpos stays first (freejoint + 14 hinges), then every non-fixed prop
- * in body-tree order, so the STAND keyframe can be written deterministically.
+ *
+ * Every duck is its own copy of the robot tree, actuators and sensors, with
+ * every name prefixed by `${id}/` (the namespacing of ROSClaw Duckverse's
+ * world composer, which uses MjSpec.attach). All ducks and props share one
+ * MjModel/MjData, so the ducks can bump into each other and push the same
+ * apparatus. Robot qpos stays first (each duck: freejoint + its hinges), then
+ * every non-fixed prop in body-tree order, so the STAND keyframe can be
+ * written deterministically.
  */
-export function buildSceneXml(robotXml: string, props: PropSpec[]): SceneXml {
+export function buildSceneXml(robotXml: string, props: PropSpec[], ducks: DuckSpawn[]): SceneXml {
   const doc = new DOMParser().parseFromString(robotXml, "text/xml");
   const root = doc.documentElement;
   const worldbody = doc.querySelector("worldbody")!;
@@ -69,6 +70,30 @@ export function buildSceneXml(robotXml: string, props: PropSpec[]): SceneXml {
   const robotJoints = [...doc.querySelectorAll("body > joint")].map((j) =>
     j.getAttribute("name")!,
   );
+
+  // One copy of the robot per duck, namespaced. Meshes and default classes
+  // stay shared; anything that names a body, joint or site is prefixed.
+  const robot = [...worldbody.children].find((c) => c.tagName === "body")!;
+  const actuators = [...(doc.querySelector("actuator")?.children ?? [])];
+  const sensors = [...(doc.querySelector("sensor")?.children ?? [])];
+  const excludes = [...doc.querySelectorAll("contact > exclude")];
+  robot.remove();
+  for (const e of [...actuators, ...sensors, ...excludes]) e.remove();
+  const firstWorldChild = worldbody.firstChild;
+  for (const duck of ducks) {
+    const pre = `${duck.id}/`;
+    const named = (e: Element, attrs: string[]) => {
+      for (const a of attrs) if (e.hasAttribute(a)) e.setAttribute(a, pre + e.getAttribute(a));
+      return e;
+    };
+    const copy = robot.cloneNode(true) as Element;
+    for (const e of [copy, ...copy.querySelectorAll("[name]")]) named(e, ["name"]);
+    copy.setAttribute("pos", fmt([duck.pos[0], duck.pos[1], 0.12]));
+    worldbody.insertBefore(copy, firstWorldChild);
+    for (const a of actuators) doc.querySelector("actuator")!.appendChild(named(a.cloneNode(true) as Element, ["name", "joint"]));
+    for (const s of sensors) doc.querySelector("sensor")!.appendChild(named(s.cloneNode(true) as Element, ["name", "site", "objname", "body"]));
+    for (const x of excludes) excludes[0]!.parentElement?.appendChild(named(x.cloneNode(true) as Element, ["body1", "body2"]));
+  }
 
   root.appendChild(el("option", { timestep: String(TIMESTEP) }));
   worldbody.appendChild(
@@ -108,6 +133,7 @@ export function buildSceneXml(robotXml: string, props: PropSpec[]): SceneXml {
     // Fixed top-level props are static; anything that moves, or rides on
     // something that moves, needs its real mass.
     if (p.joint !== "fixed" || p.parent) geom.mass = String(p.mass);
+    if (p.solref) geom.solref = fmt(p.solref);
     const body = el("body", {
       name: p.id,
       pos: fmt(p.pos),
@@ -149,10 +175,14 @@ export function buildSceneXml(robotXml: string, props: PropSpec[]): SceneXml {
     props.filter((p) => p.parent === parent).flatMap((p) => [p, ...tree(p.id)]);
   const dynamicProps = tree().filter((p) => p.joint !== "fixed");
 
-  // STAND keyframe: robot spawn pose, then each dynamic prop at rest.
+  // STAND keyframe: each duck at its spawn in the home crouch (DEFAULT_POSE,
+  // not the XML's straight-leg qpos0), then each dynamic prop at rest.
   const poseByName = new Map(JOINT_NAMES.map((n, i) => [n, DEFAULT_POSE[i]!]));
-  const qpos: number[] = [SPAWN[0], SPAWN[1], 0.12, 1, 0, 0, 0];
-  for (const j of robotJoints) qpos.push(poseByName.get(j as never) ?? 0);
+  const qpos: number[] = [];
+  for (const duck of ducks) {
+    qpos.push(duck.pos[0], duck.pos[1], 0.12, Math.cos(duck.yaw / 2), 0, 0, Math.sin(duck.yaw / 2));
+    for (const j of robotJoints) qpos.push(poseByName.get(j as never) ?? 0);
+  }
   for (const p of dynamicProps) {
     if (p.joint === "free") {
       const h = p.yaw / 2;
@@ -160,7 +190,7 @@ export function buildSceneXml(robotXml: string, props: PropSpec[]): SceneXml {
     } else qpos.push(p.rest ?? 0);
   }
   const kf = doc.createElement("keyframe");
-  kf.appendChild(el("key", { name: "STAND", qpos: fmt(qpos), ctrl: fmt([...DEFAULT_POSE]) }));
+  kf.appendChild(el("key", { name: "STAND", qpos: fmt(qpos), ctrl: fmt(ducks.flatMap(() => [...DEFAULT_POSE])) }));
   root.appendChild(kf);
 
   return { xml: new XMLSerializer().serializeToString(doc), meshFiles, dynamicProps };

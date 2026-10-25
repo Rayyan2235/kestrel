@@ -41,6 +41,20 @@ Tests: `src/state/lab.test.ts`.
 - `src/simulation/rig.ts` builds the three.js rig from `kinematics.json` + `microduck.glb`, with a per-bot shell tint.
 - `public/microduck/` holds the vendored upstream assets: MJCF, kinematics, GLB, 9 collision STLs, 7 ONNX policies, `PROVENANCE.md` and `SHA256SUMS`.
 
+### Two robots and navigation (`two-duck-lab`)
+
+- `src/simulation/mjcf.ts`: `buildSceneXml(robotXml, props, ducks)` duplicates the robot tree, actuators and sensors once per duck, with every name prefixed `<id>/`. The robots come first in qpos.
+- `src/simulation/robot.ts`: `Robot` is one duck's runtime (Duckverse `DuckRuntime`). It resolves addresses through `actuator_trnid` and owns its observation, command, previous action, mode, fall recovery and `TaskRunner`. It only writes `ctrl[ctrlAdr]`.
+- `src/simulation/duckSim.ts`: one world. Each control step: tasks → one inference per robot → 4 substeps, with the holds before each and the contact audit after each. Also the apparatus runner (`release_plank`/`lock_plank`), the `BalanceExperiment` and the `CrewPlan`.
+  - Exposes `contacts()`, `touchForce()`, `perf` and `assertNoCrossTalk()`.
+  - `place_weight` always runs on the weight's owner (`MOMENTS.weights[].owner`).
+- `src/simulation/navigate.ts`: `Navigator` (`NAV` holds the measured commands). Pivot-then-walk with hysteresis, never commanding dead zones, settling before "arrived".
+- `src/simulation/moments.ts`: `PlaceWeight` (the per-robot interaction state machine), `BalanceExperiment`, `momentsFor()` (moments from measured rails), `CrewPlan` (staged multi-robot plans).
+- `src/simulation/tasks.ts`: `WorldView` carries `id`, `speed`, `others` and `touching`. `routeAround()` detours push approaches around movable props and the other robot.
+- `src/sandbox/ExperimentPanel.tsx`: targets, prediction, run, and measured result. `SandboxScene` renders every robot, plus the walkway, the pivot stand and pin, the lock collar, and the paddle contact glow.
+- `src/simulation/THIRD_PARTY.md`: what was adapted from microduck-simulator and ROSClaw Duckverse.
+- **Invariant:** typed arrays over WASM memory (`model.geom_bodyid`, `data.qpos`, …) go stale when the heap grows. Read them fresh, or copy static ones. Out-parameters (e.g. `mj_contactForce`) need a `mujoco.DoubleBuffer`; a JS array never receives the result.
+
 ### packages/contracts additions (`src/lab.ts`, re-exported from index)
 
 - `PropSpec` and `LabKit`, with builders `tile()` and `block()`, and kits `pythagorasKit()`, `momentsKit()`, `freeKit()` and `roomProps()`. Kits are listed in `KITS`. `PropSpec` also has `parent`, `anchor`, `range`, `damping` and `rest`, for props mounted on other props.

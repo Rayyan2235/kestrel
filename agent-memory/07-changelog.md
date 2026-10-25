@@ -166,3 +166,25 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
 - Ran this branch's API (Bedrock credentials from the owner's local `.env`) behind the sandbox page, Moments lesson, voice off, and typed "Can you balance the plank?".
 - Claude: worked out 4000 vs 2000 g·cm, called `place_weight {weight-200, 10}` (measured: moved from 20 cm to 10 cm), then `release_plank` (measured: stayed level, 0.0°), then a closing explanation consistent with the measurement. 3 model turns, 1.3–2.2 s each, no errors, no page errors.
 - Not checked: spoken input and replies for Moments; "what are moments?".
+
+## 2026-10-24 · Claude Code (for the owner) · Two robots, faster navigation, cooperative experiments (`two-duck-lab`, uncommitted)
+
+- **Measured the walking policy first.** Dead zones: forward 0.10–0.20, backward −0.15 to −0.30, pure turns ≤ 1.0, and lateral entirely. Top safe forward command is about 0.6 (0.27 m/s); 1.0 falls. Pivots work at 1.6–4.0. Full table in `04-status.md`.
+- **Root causes fixed:** the old controllers commanded inside those dead zones (turn creep 0.1, push 0.12–0.20, back-up −0.2), and pushes ignored placed squares. A new `Navigator` replaced them: twice as fast, final error 6.2 → 2.6 cm, path 1.94× → 1.34× straight line.
+- **Two robots in one MjModel/MjData**, after ROSClaw Duckverse's composer and runtime, with a cross-talk check.
+- **Duckverse-style per-substep contact ledger.** Two binding bugs found and fixed along the way:
+  - stale WASM typed-array views;
+  - `mj_contactForce` needs a `DoubleBuffer` out-parameter.
+- **Moments:**
+  - The rail clamp no longer eases a carriage onto the mark; it only holds it where the robot left it.
+  - The pin was raised to 8 cm, the pivot narrowed, and the paddles stiffened.
+  - Added `set_balance`, the two-robot experiment, with a learner prediction panel.
+- **Pythagoras:** `build_squares` (two stages, two robots). Pushes withdraw off the square and detour around other props.
+- **Claude:** `set_balance` and `build_squares` tools, plus crew guidance in the prompt.
+- **Attribution:** `apps/web/src/simulation/THIRD_PARTY.md`. The mesh-licence caution (CC BY-SA-NC per Duckverse) is in `PROVENANCE.md`.
+- **Checks:**
+  - `pnpm check` pass (159 tests).
+  - `pnpm test:e2e` 121 passed and 1 skipped by design. The new UI spec runs the real two-robot experiment.
+  - Benchmarks in `scripts/bench/`.
+  - REA 6.7.0 `list-browser-targets` and `inspect-web-page` against the running sandbox reported no workers, and the changed modules are served.
+- **Not run:** a spoken (voice) or live-Claude run on this branch.

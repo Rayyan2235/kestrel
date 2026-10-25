@@ -5,6 +5,7 @@ import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
+import { ExperimentPanel } from "./ExperimentPanel";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 
@@ -18,9 +19,9 @@ const LESSONS: { id: KitId; subject: string; topic: string }[] = [
 
 const OBJECTIVE: Record<KitId, string> = {
   pythagoras:
-    "Push each square onto the side of the right triangle that matches it. Count the tiles: does 9 + 16 make 25?",
+    "Each square goes on the side of the right triangle that matches it. Count the tiles: does 9 + 16 make 25? Pip and Nova can build it together.",
   moments:
-    "A 200 g and a 100 g weight sit 20 cm either side of the pivot. Which way will the plank tip? Release it to check, then ask Pip to balance it.",
+    "Pip moves the 200 g weight, Nova the 100 g. Choose where each goes, predict which way the plank tips, then run it.",
   free: "Walk, turn, kick and push blocks around the lab.",
 };
 
@@ -53,6 +54,10 @@ function describe(task: DuckTask, name: (id: string) => string = (id) => id): st
       return "Release the plank";
     case "lock_plank":
       return "Lock the plank";
+    case "set_balance":
+      return `Balance test: left ${task.left_cm} cm, right ${task.right_cm} cm`;
+    case "build_squares":
+      return "Build the squares together";
     default:
       return task.kind[0]!.toUpperCase() + task.kind.slice(1);
   }
@@ -65,6 +70,7 @@ export function SandboxApp() {
   const [boot, setBoot] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<SimStatus | null>(null);
+  const [nova, setNova] = useState<SimStatus | null>(null);
   const [log, setLog] = useState<LogEntry[]>([]);
   const [text, setText] = useState("");
   const [filled, setFilled] = useState<string[]>([]);
@@ -92,8 +98,8 @@ export function SandboxApp() {
     (e: SimEvent) => {
       session.current?.event(e);
       if (e.type === "task-done") add("duck", e.summary, e.ok);
-      else if (e.type === "fell") add("duck", "Whoops, I fell. Getting back up…", false);
-      else if (e.type === "recovered") add("duck", "Back on my feet.", true);
+      else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false);
+      else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true);
       else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset") add("duck", e.reason, false);
     },
     [add],
@@ -122,7 +128,10 @@ export function SandboxApp() {
 
   useEffect(() => {
     if (!sim) return;
-    const t = window.setInterval(() => setStatus(sim.status()), 200);
+    const t = window.setInterval(() => {
+      setStatus(sim.status());
+      setNova(sim.status("nova"));
+    }, 200);
     return () => window.clearInterval(t);
   }, [sim]);
 
@@ -139,6 +148,15 @@ export function SandboxApp() {
     sim?.setKit(next);
     add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
   }
+
+  /** A two-robot plan or experiment, started by the learner. */
+  const crew = (task: DuckTask): string | null => {
+    if (!sim) return null;
+    session.current?.cancel();
+    const refusal = sim.runTask(task);
+    add("duck", refusal ?? `${describe(task)}: Pip and Nova are on it.`, !refusal);
+    return refusal;
+  };
 
   // The learner works the plank's lock pin directly; the measured result lands in the log.
   const plank = (kind: "release_plank" | "lock_plank") => {
@@ -195,7 +213,7 @@ export function SandboxApp() {
       } else if (k === "f") skill("peck", "Peck");
       else if (k === "t") skill("roll", "Roll");
       else if (k === "escape") {
-        sim.tasks.cancel();
+        sim.stopAll();
         add("duck", "Stopped.");
       }
     };
@@ -288,6 +306,11 @@ export function SandboxApp() {
               </div>
             )}
             {solved && <strong className={styles.solved}>Right triangle built: 9 + 16 = 25.</strong>}
+            {kit.id === "pythagoras" && !solved && (
+              <button className={styles.runButton} onClick={() => crew({ kind: "build_squares" })} disabled={!sim || status?.task?.kind === "build_squares"}>
+                {status?.task?.kind === "build_squares" ? `Building · ${status.experiment?.phase ?? ""}` : "Build it together"}
+              </button>
+            )}
             {balance && (
               <div className={styles.chips} data-testid="balance">
                 {balance.weights.map((w) => (
@@ -312,6 +335,7 @@ export function SandboxApp() {
                 </button>
               </div>
             )}
+            {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
           </div>
 
           <div className={styles.keys} aria-label="Keyboard controls">
@@ -354,6 +378,16 @@ export function SandboxApp() {
                 <dd>{status.hz} Hz</dd>
               </div>
             </dl>
+          )}
+          {status && nova && (
+            <div className={styles.crew} data-testid="crew">
+              <span>
+                <i className={styles.pipDot} /> Pip · {status.phase ?? (status.task ? "busy" : status.mode)}
+              </span>
+              <span>
+                <i className={styles.novaDot} /> Nova · {nova.phase ?? (nova.task ? "busy" : nova.mode)}
+              </span>
+            </div>
           )}
           <div className={styles.log} role="log" aria-live="polite" ref={logRef}>
             {log.length === 0 ? (

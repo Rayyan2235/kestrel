@@ -34,9 +34,8 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 ## B. Multiple bots
 
-8. **[later] A second duck in the same MuJoCo model.**
-   - Prefix the robot bodies, joints and actuators per bot when building the MJCF; run one policy session per bot; tint per bot.
-   - Benchmark the frame rate with two bots before adding a third.
+8. **[done on `two-duck-lab`, not merged] A second duck in the same MuJoCo model.** Pip and Nova are namespaced copies in one MjModel/MjData, each with its own observation, previous action and task runner; a compile-time check refuses shared addresses. Measured on an M3 Pro: 120 fps with both robots, a 0.92 ms control step, no long tasks.
+   - Still open: avoiding each other while both walk the same lane (lanes are scheduled one at a time instead), and a third bot.
 9. **[later] Bot-to-bot exchange.** Per the owner's rules: user-triggered, bounded turns (proposed 2), with stop and reset, explicit sender and recipient, and object ownership so two bots can't push the same tile.
 10. **[later] Good-teacher / bad-teacher mode.** One bot demonstrates a plausible mistake (3 + 4 = 7) and the learner judges from the measured evidence. It must be labelled as a deliberate mistake.
 

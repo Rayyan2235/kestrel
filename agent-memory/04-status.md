@@ -59,6 +59,72 @@ A temporary demo of two robots talking to each other and to the learner. It runs
 7. **`pnpm format:check` flags 42 files** on Windows (likely CRLF). New files are not Prettier-formatted yet either.
 8. **Asset licences.** The Microduck mesh and policy licences aren't stated upstream beyond Apache-2.0 for the app and code. See `apps/web/public/microduck/PROVENANCE.md`.
 
+## Two robots and navigation (2026-10-24, branch `two-duck-lab`, uncommitted)
+
+**Measured movement contract (BEST_alpha_walking.onnx, fast-stepped MuJoCo, flat floor):**
+
+| Command | Result |
+| --- | --- |
+| Forward vx 0.10–0.20 | **0 m/s**: dead zone, the gait never starts |
+| Forward vx 0.25 / 0.30 / 0.40 / 0.50 / 0.60 | 0.108 / 0.137 / 0.171 / 0.214 / 0.272 m/s |
+| Forward vx 1.0 | falls |
+| Backward vx −0.15 to −0.30 | **0 m/s** |
+| Backward vx −0.40 | −0.19 to −0.24 m/s |
+| Lateral vy up to ±0.25 | 0 m/s (the policy ignores strafe) |
+| Pure turn wz 1.0 | stalls |
+| Pure turn wz 1.6 / 3.0 / 4.0 | 0.86 / 1.75 / 2.3 rad/s, pivot radius ≤ 1 cm |
+| Walk 0.25 while turning wz 1.0–1.6 | turn radius 0.14–0.17 m |
+| Stop from 0.25 / 0.40 | coasts 1.0 / 1.8 cm, settles in ~0.5 s |
+| 0.64 N·m torque clamp (Duckverse, `infer_policy.py`) | no change on flat walking; the peak joint torque is 0.51 N·m |
+
+**Defects found in the old controllers:**
+
+- `steerTo` turned with a 0.1 m/s creep and wz ≤ 1.0, both inside dead zones, so turns stalled until the 1.5 s kick-start fired.
+- The tile push walked at vx 0.12–0.20, which never starts the gait, so it only advanced in kick-start bursts. That is why the 5×5 push was unreliable.
+- `move` backed up at −0.2, which never moves the duck.
+- Push approaches didn't route around placed squares, so the 3×3 push knocked the 4×4 69 cm off its slot.
+
+**Navigator, before → after** (20 start/goal pairs, 4 headings; `scripts/bench/nav-bench.mjs`):
+
+| Metric | Before | After |
+| --- | --- | --- |
+| Completed | 20/20 | 20/20 |
+| Mean / max time | 10.0 / 16.4 s | 5.1 / 7.2 s |
+| Final error, mean (p90) | 6.2 (6.4) cm | 2.6 (3.0) cm |
+| Path ÷ straight line | 1.94 | 1.34 |
+| Falls | 0 | 0 |
+
+**Two robots in one world:**
+
+- Pip has ctrl 0–13 and Nova ctrl 14–27, each with its own qpos/qvel slice. `assertNoCrossTalk` throws at compile time if any address is shared.
+- Robot↔robot and robot↔apparatus contacts are live.
+
+**Cooperative Moments experiment** (`set_balance`; `scripts/bench/coop-bench.mjs`):
+
+- Sequence: lock, both robots push their own paddles (together when their lanes don't overlap, otherwise one at a time), stop, withdraw, verify clear and still for 0.5 s, release, measure.
+- Per robot: TRAVEL → ALIGN → APPROACH → CONTACT → PUSH → STOP → WITHDRAW → VERIFY → READY. The rail clamp comes off only on real MuJoCo paddle contact. Bounded retries.
+- Results over 8 runs on the final geometry (plus the UI run and the e2e run): every one completed with 0 falls and positions within 0.1 cm of the targets, in 11.7–13.8 s (1.1 s when nothing needs moving). The predicted and measured outcomes agreed every time:
+  - level: 10/20 and 15/30;
+  - left down: 20/20, 25/12, 30/15 and 11/20;
+  - right down: 10/30 and 10/22.
+- 5/8 cm is correctly refused (no room to stand between the weights).
+- Contact ledger: paddle push peaks of 4–16 N and max penetration 1.2–3.9 mm (paddle `solref` 0.005). No robot touched the pivot or the other robot.
+
+**Cooperative Pythagoras** (`build_squares`; `scripts/bench/crew-bench.mjs`): Pip 5×5 with Nova 4×4 in parallel, then Pip 3×3. It takes 63 s (one robot alone: about 117 s). All three squares land 2.5–2.9 cm from their slots, none disturbed, 0 falls, 0 robot–robot contact.
+
+**Performance** (M3 Pro, headed Chromium, during a live two-robot experiment):
+
+- Rendering: 120 fps (display-limited), with frame times of p50 8.3 ms and max 9.4 ms. Zero long tasks.
+- Control step: 0.92 ms (both inferences 0.27 ms, physics 0.48 ms, contact audit 0.11 ms) within each 20 ms tick.
+- REA 6.7.0 `inspect-web-page` reported **no workers**: physics and inference run on the main thread, so a Web Worker isn't needed at this load.
+
+**Idealisations, stated in the UI and README:**
+
+- The lock pin is a kinematic hold that levels the plank at a fixed rate.
+- Each rail clamp holds its carriage where it is and engages when the carriage reaches the requested mark. It never moves a carriage.
+- The plank's pin is 8 cm above the plank, like a beam balance's pivot above the centre of mass.
+- The tilt stops at ±0.1 rad (5.7°), so most imbalances read as "down 5.7°".
+
 ## Moments lesson (2026-10-24, branch `moments-floor-push`)
 
 - **Apparatus.** The plank is a beam balance, held level by a lock pin until released. Each weight rides a slide joint on its own side of the pivot (200 g left, 100 g right, both starting at 20 cm; rails run 5–30 cm). A paddle hangs off each weight into a walking lane beside the plank.
