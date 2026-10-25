@@ -101,6 +101,12 @@ export function ChannelPanel({
   useEffect(() => setPrediction(null), [handbackId]);
   const { callsUsed, hopsUsed } = view.budget;
   const compact = useCompact();
+  const strip = useRef<HTMLDivElement>(null);
+  // On phones the strip can sit below the fold: bring it into view. Scrolling never moves focus.
+  useEffect(() => {
+    if (compact && handbackId)
+      strip.current?.scrollIntoView({ block: "nearest" });
+  }, [compact, handbackId]);
   const [tab, setTab] = useState<"you" | "bots">("you");
   const counts = { you: view.youThread.length, bots: view.botChannel.length };
   const [seen, setSeen] = useState(counts);
@@ -295,6 +301,7 @@ export function ChannelPanel({
       </div>
       {view.handback && (
         <div
+          ref={strip}
           className={styles.handback}
           data-testid="handback-strip"
           data-source={view.handback.source}

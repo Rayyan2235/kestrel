@@ -1,6 +1,6 @@
 import { BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { Eye } from "lucide-react";
-import { type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { Bubble } from "./model.js";
 import { useCompact } from "./useCompact.js";
 import styles from "./BubbleLayer.module.css";
@@ -80,14 +80,58 @@ const shorten = (text: string, name: string): string => {
   return text.length <= room ? text : `${text.slice(0, room - 1)}…`;
 };
 
+/** A bubble stays at least this long before the same bot's next one replaces it. */
+export const DWELL_MS = 700;
+
+/**
+ * View-only: holds each bot's current bubble for DWELL_MS so a short line
+ * ("Let me check with Nova.") is readable before the handoff pill replaces it.
+ * The ledger and deriveBubbles are untouched.
+ */
+function useDwell(target: Bubble[], ms: number): Bubble[] {
+  const [shown, setShown] = useState<Bubble[]>(target);
+  const [tick, setTick] = useState(0);
+  const held = useRef(shown);
+  const since = useRef(new Map<string, number>());
+  useEffect(() => {
+    const now = Date.now();
+    const timers: number[] = [];
+    const next: Bubble[] = [];
+    for (const t of target) {
+      const cur = held.current.find((s) => s.anchor === t.anchor);
+      const age = cur ? now - (since.current.get(cur.eventId) ?? 0) : ms;
+      if (!cur || cur.eventId === t.eventId || age >= ms) {
+        next.push(t);
+        if (!since.current.has(t.eventId)) since.current.set(t.eventId, now);
+      } else {
+        next.push(cur);
+        timers.push(window.setTimeout(() => setTick((n) => n + 1), ms - age));
+      }
+    }
+    const same =
+      next.length === held.current.length &&
+      next.every((b, i) => b.eventId === held.current[i]!.eventId);
+    if (!same) {
+      held.current = next;
+      setShown(next);
+    }
+    return () => timers.forEach((id) => window.clearTimeout(id));
+  }, [target, tick, ms]);
+  return shown;
+}
+
 export function BubbleLayer({
-  bubbles: all,
+  bubbles: latest,
   anchors,
+  staleBefore = null,
 }: {
   bubbles: Bubble[];
   anchors: Anchors;
+  /** Bubbles from events with a lower seq were cut off by Stop and read as stopped. */
+  staleBefore?: number | null;
 }) {
   const compact = useCompact();
+  const all = useDwell(latest, DWELL_MS);
   const bubbles = compact ? onePerRoom(all) : all;
   let slot = 0;
   return (
@@ -109,6 +153,7 @@ export function BubbleLayer({
             data-anchor={b.anchor}
             data-tail={p.tail}
             data-source={b.source}
+            data-stale={staleBefore !== null && seqOf(b) < staleBefore}
             role="group"
             aria-label={b.ariaLabel}
             style={{ "--x": `${p.x}%`, "--y": `${p.y}%` } as CSSProperties}
@@ -125,6 +170,11 @@ export function BubbleLayer({
               <span className={styles.source} data-testid="bubble-source">
                 {b.source}
               </span>
+              {staleBefore !== null && seqOf(b) < staleBefore && (
+                <span className={styles.stopped} data-testid="bubble-stopped">
+                  stopped
+                </span>
+              )}
             </div>
             <p className={styles.text}>
               <strong>{BOT_NAMES[b.anchor]}</strong>{" "}

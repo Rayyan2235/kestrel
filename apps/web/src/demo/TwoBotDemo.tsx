@@ -36,6 +36,7 @@ export function TwoBotDemo() {
   const [delay, setDelay] = useState<number>(1000);
   const [step, setStep] = useState<string | null>(null);
   const [pulsing, setPulsing] = useState(false);
+  const [stoppedSeq, setStoppedSeq] = useState<number | null>(null);
   const delayRef = useRef(delay);
   delayRef.current = delay;
   const runId = useRef(0);
@@ -119,14 +120,21 @@ export function TwoBotDemo() {
     setStep(null);
   }
 
+  /** Stop: bubbles from before this point read as stopped until a newer turn. */
+  function halt() {
+    setStoppedSeq(c.ledger().length);
+    c.stop();
+  }
+
   function stop() {
     runId.current++;
     setStep(null);
-    c.stop();
+    halt();
   }
 
   function reset() {
     runId.current++;
+    setStoppedSeq(null);
     focus.current = null;
     undo.current = [];
     setStep(null);
@@ -145,6 +153,7 @@ export function TwoBotDemo() {
     focus.current = null;
     undo.current = [];
     c.reset();
+    setStoppedSeq(null);
     setSelected("pip");
     (await go("1 of 5 · fast command, no model", async () => {
       command("move the left weight to 30 cm", "pip");
@@ -161,7 +170,7 @@ export function TwoBotDemo() {
       (await go("4 of 5 · Stop in the middle of a chain", async () => {
         c.askPeer("nova", "pip");
         await sleep(delayRef.current + 400);
-        c.stop();
+        halt();
         await sleep(800);
       })) &&
       (await go("5 of 5 · done", async () => void (await sleep(300))));
@@ -252,7 +261,11 @@ export function TwoBotDemo() {
                 </div>
               );
             })}
-            <BubbleLayer bubbles={bubbles} anchors={ANCHORS} />
+            <BubbleLayer
+              bubbles={bubbles}
+              anchors={ANCHORS}
+              staleBefore={stoppedSeq}
+            />
             <CapsuleOverlay
               ledger={ledger}
               anchors={ANCHORS}

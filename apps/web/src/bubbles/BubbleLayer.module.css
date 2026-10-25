@@ -127,3 +127,15 @@
     border-style: dashed;
   }
 }
+/* Cut off by Stop: dimmed and labelled, not removed. */
+.bubble[data-stale="true"] {
+  opacity: 0.65;
+}
+.stopped {
+  padding: 0 6px;
+  border: 1.5px dashed currentColor;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
