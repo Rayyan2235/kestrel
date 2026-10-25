@@ -8,12 +8,25 @@ import type { Skill } from "../simulation/tasks";
 import { RescuePanel, type RescueOutcome } from "./RescuePanel";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { ObjectivesBoard } from "./ObjectivesBoard";
+import { ConsolePane } from "./ConsolePane";
+import { CREW_TASKS, handoffLine, type CrewLine } from "./crewChannel";
 import { LEVEL_HOLD_MS, OBJECTIVES, beamLevel, type ObjectiveId } from "./objectives";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 import { ArrowPill, Button } from "./gic";
 
 type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
+type Pane = "you" | "crew" | null;
+
+const PANE_KEY = "kestrel.console.window";
+function savedPane(): Pane {
+  try {
+    const v = window.localStorage.getItem(PANE_KEY);
+    return v === "crew" || v === "none" ? (v === "crew" ? "crew" : null) : "you";
+  } catch {
+    return "you";
+  }
+}
 
 const LESSONS: { id: KitId; subject: string; topic: string }[] = [
   { id: "rescue", subject: "Mission", topic: "Robot rescue" },
@@ -98,12 +111,24 @@ export function SandboxApp() {
   // Set when the balance-beam objective starts: release the plank once the lab has loaded.
   const tipOnLoad = useRef(false);
   const levelSince = useRef<number | null>(null);
+  const [pane, setPane] = useState<Pane>(savedPane);
+  const [crewLog, setCrewLog] = useState<CrewLine[]>([]);
+  const [crewSeen, setCrewSeen] = useState(-1);
+  const crewRef = useRef<HTMLDivElement>(null);
+  // Each two-robot task is handed over once; Pip's own reports join the channel while one runs.
+  const announced = useRef(new WeakSet<object>());
+  const crewOn = useRef(false);
 
   const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => {
     const id = nextId.current++;
     setLog((l) => [...l, { id, who, text: line, ok }].slice(-40));
     // The duck's replies also appear as a bubble beside it in the room.
     if (who === "duck") setBubble({ id, text: line });
+  }, []);
+
+  const crewSay = useCallback((from: CrewLine["from"], text: string, ok?: boolean) => {
+    const id = nextId.current++;
+    setCrewLog((l) => [...l, { id, from, text, ok }].slice(-40));
   }, []);
 
   useEffect(() => {
@@ -130,12 +155,20 @@ export function SandboxApp() {
         setRescueOutcome({ok:false, summary:e.reason === "Rescue retry" ? "Pip is back at the start. Try a different checkpoint order." : "Course ready. Tell Pip the checkpoint order.",reset:true});
         setRescueRoute(null); setBubble(null);
       }
+      if (e.type === "task-done") {
+        if (e.duck === "nova") crewSay("nova", e.summary, e.ok);
+        else if (e.duck === "pip" && crewOn.current) crewSay("pip", e.summary, e.ok);
+        else if (e.duck === "lab" && CREW_TASKS.has(e.task.kind)) {
+          crewOn.current = false;
+          crewSay("crew", e.summary, e.ok);
+        }
+      } else if ((e.type === "fell" || e.type === "recovered") && e.duck === "nova") crewSay("nova", e.type === "fell" ? "I fell. Getting back up…" : "Back on my feet.", e.type === "recovered");
       if (e.type === "task-done") add("duck", e.summary, e.ok);
       else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false);
       else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true);
       else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset" && e.reason !== "Rescue retry") add("duck", e.reason, false);
     },
-    [add],
+    [add, crewSay],
   );
 
   useEffect(() => {
@@ -163,15 +196,45 @@ export function SandboxApp() {
   useEffect(() => {
     if (!sim) return;
     const t = window.setInterval(() => {
-      setStatus(sim.status());
-      setNova(sim.status("nova"));
+      const pip = sim.status();
+      const nova = sim.status("nova");
+      setStatus(pip);
+      setNova(nova);
+      // Pip hands Nova its part when a task needs both robots, or Nova's own weight.
+      const plan = pip.task && CREW_TASKS.has(pip.task.kind) ? pip.task : null;
+      // Inside a balance test Nova's weight move is part of the plan already announced.
+      const idle = !pip.experiment || pip.experiment.phase === "DONE";
+      const task = plan ?? (idle && nova.task?.kind === "place_weight" ? nova.task : null);
+      if (task && !announced.current.has(task)) {
+        announced.current.add(task);
+        const line = handoffLine(task);
+        if (line) {
+          if (plan) crewOn.current = true;
+          crewSay("pip", line);
+        }
+      }
     }, 200);
     return () => window.clearInterval(t);
-  }, [sim]);
+  }, [sim, crewSay]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
-  }, [log]);
+  }, [log, pane]);
+
+  useEffect(() => {
+    crewRef.current?.scrollTo({ top: crewRef.current.scrollHeight });
+    if (pane === "crew") setCrewSeen(crewLog.at(-1)?.id ?? -1);
+  }, [crewLog, pane]);
+
+  function togglePane(p: Exclude<Pane, null>) {
+    const next = pane === p ? null : p;
+    setPane(next);
+    try {
+      window.localStorage.setItem(PANE_KEY, next ?? "none");
+    } catch {
+      /* The choice just isn't remembered. */
+    }
+  }
 
   function chooseLesson(id: KitId) {
     if (id === kitId) return;
@@ -183,6 +246,8 @@ export function SandboxApp() {
     setRescueRoute(null);
     setKit(next);
     setFilled([]);
+    setCrewLog([]);
+    crewOn.current = false;
     sim?.setKit(next);
     if(id !== "rescue") add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
   }
@@ -470,30 +535,55 @@ export function SandboxApp() {
               </div>
             </dl>
           )}
-          {status && nova && (
-            <div className={`label ${styles.crew}`} data-testid="crew">
-              <span>
-                <i className={styles.pipDot} /> Pip · {status.phase ?? (status.task ? "busy" : status.mode)}
-              </span>
-              <span>
-                <i className={styles.novaDot} /> Nova · {nova.phase ?? (nova.task ? "busy" : nova.mode)}
-              </span>
+          <ConsolePane
+            title="You and Pip"
+            dot={<i className={styles.pipDot} />}
+            state={status ? `Pip · ${status.phase ?? (status.task ? "busy" : status.mode)}` : undefined}
+            open={pane === "you"}
+            onToggle={() => togglePane("you")}
+          >
+            <div className={styles.log} role="log" aria-live="polite" ref={logRef}>
+              {log.length === 0 ? (
+                <p className={`body ${styles.empty}`}>
+                  Hold to talk, or ask <em>What is the Pythagorean theorem?</em> I can explain and move the squares to demonstrate. You can also ask me to push a box or drive with the keyboard.
+                </p>
+              ) : (
+                log.map((l) => (
+                  <div key={l.id} className={`body-alt ${l.who === "you" ? styles.fromYou : styles.fromDuck}`}>
+                    {l.ok === false && <span className={styles.warn}>!</span>}
+                    {l.text}
+                  </div>
+                ))
+              )}
             </div>
-          )}
-          <div className={styles.log} role="log" aria-live="polite" ref={logRef}>
-            {log.length === 0 ? (
-              <p className={`body ${styles.empty}`}>
-                Hold to talk, or ask <em>What is the Pythagorean theorem?</em> I can explain and move the squares to demonstrate. You can also ask me to push a box or drive with the keyboard.
-              </p>
-            ) : (
-              log.map((l) => (
-                <div key={l.id} className={`body-alt ${l.who === "you" ? styles.fromYou : styles.fromDuck}`}>
-                  {l.ok === false && <span className={styles.warn}>!</span>}
-                  {l.text}
-                </div>
-              ))
-            )}
-          </div>
+          </ConsolePane>
+          <ConsolePane
+            title="Pip and Nova"
+            dot={<i className={styles.novaDot} />}
+            state={nova ? `Nova · ${nova.phase ?? (nova.task ? "busy" : nova.mode)}` : undefined}
+            open={pane === "crew"}
+            onToggle={() => togglePane("crew")}
+            unread={crewLog.filter((l) => l.id > crewSeen).length}
+          >
+            <div className={styles.log} role="log" aria-label="Pip and Nova" aria-live="polite" ref={crewRef}>
+              {crewLog.length === 0 ? (
+                <p className={`body ${styles.empty}`}>
+                  When a job needs both robots, Pip hands Nova its part here and each one reports what the simulator measured.
+                </p>
+              ) : (
+                crewLog.map((l) => (
+                  <div
+                    key={l.id}
+                    className={`body-alt ${styles.fromDuck} ${l.from === "nova" ? styles.fromNova : l.from === "pip" ? styles.fromPip : styles.fromCrew}`}
+                  >
+                    {l.ok === false && <span className={styles.warn}>!</span>}
+                    <span className={styles.crewFrom}>{l.from === "pip" ? "Pip" : l.from === "nova" ? "Nova" : "Together"}</span>
+                    {l.text}
+                  </div>
+                ))
+              )}
+            </div>
+          </ConsolePane>
           {(phase !== "Ready" || status?.task) && (
             <div className={`label ${styles.running}`} role="status">
               <span data-testid="agent-phase">{phase}{status?.task ? ` · ${describe(status.task, name)}` : ""}</span>

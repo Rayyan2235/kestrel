@@ -624,6 +624,8 @@
   width: auto;
   flex: 1;
   min-height: 0;
+  /* On short screens the console scrolls instead of its parts overlapping. */
+  overflow-y: auto;
 }
 .objectives {
   flex: none;
@@ -752,4 +754,60 @@
   .objectives {
     max-height: none;
   }
+}
+
+/* Console windows: You and Pip, Pip and Nova. One open at a time. */
+.pane {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Open, a window takes the spare height and its log scrolls inside it; 160px keeps a few lines readable. */
+.pane[data-open="true"] {
+  flex: 1;
+  min-height: 160px;
+}
+.paneHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: #ffffff59;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 250ms;
+}
+.paneHead:hover {
+  background: #ffffff99;
+}
+.paneState {
+  margin-left: auto;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pushRight {
+  margin-left: auto;
+}
+.paneHead[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.crewFrom {
+  font-weight: 600;
+  margin-right: 4px;
+}
+.fromPip {
+  box-shadow: inset 3px 0 0 #454b54, var(--shadow-card);
+}
+.fromNova {
+  box-shadow: inset 3px 0 0 #244267, var(--shadow-card);
+}
+.fromCrew {
+  background: #fff6dc;
 }
