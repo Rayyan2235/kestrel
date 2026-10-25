@@ -4,7 +4,7 @@
 import { defineConfig } from "@playwright/test";
 import base from "./playwright.config";
 
-const PORT = 5181;
+const PORT = 5191; // 5180 web and 5181 api belong to `pnpm dev`; never collide or proxy into them
 
 export default defineConfig({
   ...base,
