@@ -83,6 +83,8 @@ TRANSCRIPTION_MODEL=gpt-transcribe
 PORT=5181
 ```
 
+`TIGER_DATABASE_URL` (optional, server only): a Tiger Data/Postgres connection string. On startup the API creates the `attempts` hypertable; if the URL is unset or the database is unreachable it logs one line and `/api/progress*` returns 503. `/api/health` reports `capabilities.progress`.
+
 Never prefix secrets with `VITE_`. Keys must stay server-side in `apps/api`.
 
 ## Production-ish

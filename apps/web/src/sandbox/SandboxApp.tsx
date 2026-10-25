@@ -16,6 +16,7 @@ import { CLASH, FIGHT, RECOIL, aimError, chargeTwist, distance, faceTwist, isCla
 import { playBoom, unlockAudio } from "./sfx";
 import { CREW_TASKS, handoffLine, type CrewLine } from "./crewChannel";
 import { LEVEL_HOLD_MS, OBJECTIVES, beamLevel, type ObjectiveId } from "./objectives";
+import { beamReading, loadEarned, logAttempt } from "./progress";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 import { ArrowPill, Button } from "./gic";
@@ -159,6 +160,15 @@ export function SandboxApp() {
     setLog((l) => [...l, { id, who, text: line, ok }].slice(-40));
     // The duck's replies also appear as a bubble beside it in the room.
     if (who === "duck") setBubble({ id, text: line });
+  }, []);
+
+  // Earned objectives survive a refresh: this browser's copy plus Tiger Data, if connected.
+  useEffect(() => {
+    let live = true;
+    void loadEarned().then((ids) => live && ids.length > 0 && setEarned((e) => new Set([...e, ...ids])));
+    return () => {
+      live = false;
+    };
   }, []);
 
   const crewSay = useCallback((from: CrewLine["from"], text: string, ok?: boolean) => {
@@ -529,6 +539,8 @@ export function SandboxApp() {
     setConfetti((c) => c + 1);
     setEarned((e) => new Set(e).add(objective));
     add("duck", `${o.win} +${o.xp} XP!`, true);
+    const none = { tiltDeg: null, leftCm: null, rightCm: null };
+    void logAttempt({ objective, ok: true, ...(objective === "balance-beam" ? beamReading(status) : none) });
   }, [objective, won, status, kitId, solved, rescueOutcome, add]);
 
   return (
