@@ -400,3 +400,14 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - Levels ported from 3ca07e9 into `progress/levels.ts`, with new tests. The Objectives card shows "Level N" and a bar to the next level. `LevelUpToast` fires only when an earn crosses a level, never on load.
 - The ExperimentPanel steppers stay at 1 cm because sandbox.spec expects "15 cm" after 5 clicks. Its results already show 0.1 cm.
 - Checks: pnpm check 229/229. Desktop Playwright `--workers=1`: beam-xp-levels 2/2, plus sandbox, console-entry and rescue-navigation 8/8.
+
+## 2026-10-25 · Claude Code · README rewritten for Devpost judges
+
+- Rewrote `README.md` against the code on `main` at `9f0e56e` (rescue-main, landing redesign, Tiger Data progress, deploy guide and judges kit merged) (objectives/XP and the collapsible You and Pip / Pip and Nova windows included). It now covers two robots, GIC light glass over the playground, the chirp with one-sentence bubbles (no text-to-speech), Rescue/Pythagoras/Moments/Free play, a no-keys demo path, named idealisations and credits. It flags the reply sound's unrecorded provenance and the mesh licence caution.
+- Hero image: the owner's console screenshot (Robot rescue, Objectives board), added as `docs/images/kestrel-console.webp`. No Team section, per the owner.
+- Rebased on `main` `9f0e56e` and updated: progress survives reloads (localStorage, optional Tiger Data), `TIGER_DATABASE_URL`, the deploy guide, landing credits (Arc UI and the balance toy are gone; Midjourney hero art, real console cards), `docs/judges/` and `deploy/` in the repo map.
+- Added "Pip vs Nova, just for fun" from `4cdc4ca`/`aa81e1d`: the Free play fight, its clash rule, the live 9-clashes-in-40-s check, and the scripted-shove, random-loser idealisation. Demo path step 4, Free play row, confetti and Pixelify Sans credit.
+- Removed stale claims: purple/noir glass, spoken ElevenLabs replies, "one Microduck", the separate `/sandbox.html` section and "two-robot physics on other branches".
+- Measured on this branch (headless SwiftShader, fast-stepped, web dev server on port 5230): `coop-bench.mjs` 5/5 balance runs, 0 falls, weights within 0.2 cm, predicted side = measured side every time, 10.6–12.3 s; `speed-bench.mjs` faster preset 6/6, mean 4.2 s, 2.4 cm mean error, 0 falls.
+- Checks: `pnpm exec prettier --check README.md` pass; every relative link and backticked path resolves; README commands match `package.json`; `pnpm test` 209/209. No paid calls. Committed locally only; not pushed.
+- Stale docs reported to the owner, not edited: `PRODUCT.md` scaffold scope, `docs/ARCHITECTURE.md` provider, `THIRD_PARTY.md` (Microduck assets, fonts).
