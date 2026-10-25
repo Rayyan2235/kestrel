@@ -37,10 +37,11 @@ export function dressingFor(rig: DuckRig, baseColor: string): RigDressing {
   const head =
     HEAD_NODES.map((n) => rig.placer.getObjectByName(n)).find(Boolean) ?? null;
   const box = new THREE.Box3().setFromObject(head ?? rig.trunk);
+  // Measured in the placer's frame, which is three.js +Y up (the rig root turns MuJoCo +Z up).
   const top = new THREE.Vector3(
     (box.min.x + box.max.x) / 2,
-    (box.min.y + box.max.y) / 2,
-    box.max.z,
+    box.max.y,
+    (box.min.z + box.max.z) / 2,
   );
   const body = new THREE.Box3().setFromObject(rig.trunk);
   const back = new THREE.Vector3(
@@ -48,14 +49,10 @@ export function dressingFor(rig: DuckRig, baseColor: string): RigDressing {
     (body.min.y + body.max.y) / 2,
     (body.min.z + body.max.z) / 2,
   );
-  const size = Math.max(0.01, box.max.z - box.min.z);
-  // Props are modelled with +Y up; the rig frame is MuJoCo's, with +Z up.
-  const align = new THREE.Quaternion().setFromUnitVectors(
-    new THREE.Vector3(0, 1, 0),
-    new THREE.Vector3(0, 0, 1),
-  );
+  const size = Math.max(0.01, box.max.y - box.min.y);
+  // Props are modelled +Y up, like the placer frame: undo each node's own rotation.
   const local = (node: THREE.Object3D) =>
-    node.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(align);
+    node.getWorldQuaternion(new THREE.Quaternion()).invert();
   return {
     shells: [...shells],
     baseColor,
