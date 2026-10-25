@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { useReducedMotion } from "motion/react";
 import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, Pause, Play, RotateCcw, Square } from "lucide-react";
-import { BOT_NAMES, KITS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
+import { BOT_NAMES, KITS, MOMENTS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
 import { BubbleLayer, type Anchors } from "../bubbles/BubbleLayer.js";
 import { CapsuleOverlay } from "../capsule/CapsuleOverlay.js";
 import { createCoordinator } from "../coordinator/index.js";
@@ -23,6 +23,7 @@ import { deriveChannel } from "../handoff/model.js";
 import { usePresentation } from "../presentation/usePresentation.js";
 import { createMockProvider } from "../provider/mock.js";
 import { consoleSim, createConversation, threadOf } from "./conversation";
+import { Contained } from "./Contained";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
@@ -182,24 +183,44 @@ export function SandboxApp() {
   );
   const view = useProgress(store);
   const adapterRef = useRef<ReturnType<typeof createDuckSimAdapter> | null>(null);
-  const { coordinator } = useMemo(() => {
-    const real =
-      sim && kitId === "moments"
-        ? createDuckSimAdapter(sim, (fn) => {
-            relay.current.add(fn);
-            return () => void relay.current.delete(fn);
-          })
-        : null;
-    adapterRef.current = real;
-    return {
-      coordinator: createCoordinator({
-        sim: real ?? consoleSim(() => ({ balance: sim?.status().balance ?? null })),
-        provider: createMockProvider({ delayMs: 1000 }),
-        ...(real ? { log: labLog, tolGcm: DUCKSIM_TOL_GCM, settleMs: 400 } : {}),
-      }),
+  const [adapter, setAdapter] = useState<ReturnType<typeof createDuckSimAdapter> | null>(null);
+  // The real adapter measures both weights on the balance, so it is built only once
+  // DuckSim reports them, never during render; each lesson change rebuilds it.
+  useEffect(() => {
+    if (!sim || kitId !== "moments") return;
+    let made: ReturnType<typeof createDuckSimAdapter> | null = null;
+    const t = window.setInterval(() => {
+      const rails = sim.status().balance?.rails;
+      if (!rails || !MOMENTS.weights.every((w) => rails.has(w.id))) return;
+      window.clearInterval(t);
+      try {
+        made = createDuckSimAdapter(sim, (fn) => {
+          relay.current.add(fn);
+          return () => void relay.current.delete(fn);
+        });
+        adapterRef.current = made;
+        setAdapter(made);
+      } catch (e) {
+        console.error("Moments adapter could not start", e);
+      }
+    }, 100);
+    return () => {
+      window.clearInterval(t);
+      made?.dispose();
+      if (adapterRef.current === made) adapterRef.current = null;
+      setAdapter(null);
     };
-  }, [sim, kitId, labLog]);
-  useEffect(() => () => adapterRef.current?.dispose(), [coordinator]);
+  }, [sim, kitId]);
+  const { coordinator } = useMemo(
+    () => ({
+      coordinator: createCoordinator({
+        sim: adapter ?? consoleSim(() => ({ balance: sim?.status().balance ?? null })),
+        provider: createMockProvider({ delayMs: 1000 }),
+        ...(adapter ? { log: labLog, tolGcm: DUCKSIM_TOL_GCM, settleMs: 400 } : {}),
+      }),
+    }),
+    [sim, adapter, labLog],
+  );
   useEffect(() => {
     conv.resetMirror();
     return coordinator.subscribe(() => {
@@ -236,6 +257,7 @@ export function SandboxApp() {
     coordinator.endChallenge();
     // The adapter polls the balance, which only exists on the Moments lesson.
     adapterRef.current?.dispose();
+    adapterRef.current = null;
     const next = KITS[id]();
     setKitId(id);
     setKit(next);
@@ -395,10 +417,12 @@ export function SandboxApp() {
           {sim ? (
             <>
               <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} />
-              <div className={styles.overlayTokens}>
+              <Contained label="Speech bubbles">
+            <div className={styles.overlayTokens}>
               <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
               <CapsuleOverlay beat={pres.beat} state={pres.capsuleState} anchors={ANCHORS} reducedMotion={reducedMotion} paused={paused} speed={1} />
             </div>
+            </Contained>
             </>
           ) : (
             <div className={styles.boot} role="status">
@@ -545,7 +569,13 @@ export function SandboxApp() {
               {paused ? <Play size={13} aria-hidden="true" /> : <Pause size={13} aria-hidden="true" />} {paused ? "Resume" : "Pause"}
             </button>
           </div>
-          {kitId === "moments" && (
+          {kitId === "moments" && !adapter && (
+            <p className={styles.lightScope} role="status" data-testid="progress-loading">
+              Loading lab…
+            </p>
+          )}
+          {kitId === "moments" && adapter && (
+            <Contained label="Progress">
             <section className={styles.lightScope} aria-label="Challenges and progress">
               <ProgressHud store={store} paused={paused} speed={1} onWorkshop={() => setWorkshop(true)} />
               <ChallengeBar
@@ -572,6 +602,7 @@ export function SandboxApp() {
               <WorkshopDialog store={store} open={workshop} onOpenChange={setWorkshop} persisted={!demoProfile} />
               {demoProfile && <p>Demo profile: progress is not saved.</p>}
             </section>
+            </Contained>
           )}
           <form className={styles.command} onSubmit={send}>
             <input
@@ -634,7 +665,9 @@ export function SandboxApp() {
             </button>
           </div>
         </aside>
+        <Contained label="Conversation">
         <ChannelPanel embedded view={channel} threadBot={selected} running={asking || coordinator.holding()} onAsk={(from, to) => void coordinator.askPeer(from, to)} onStop={() => coordinator.stop()} />
+        </Contained>
       </main>
     </div>
   );

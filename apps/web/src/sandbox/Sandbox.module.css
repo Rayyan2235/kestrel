@@ -806,7 +806,8 @@
 }
 .picker button[aria-pressed="true"] {
   background: var(--on-dark, #fff);
-  color: var(--glass, #111);
+  color: #22172d;
+  font-weight: 700;
 }
 
 /* Bubbles and the capsule are drawn for light panels on dark glass: give them their own tokens. */
