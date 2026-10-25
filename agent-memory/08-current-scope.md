@@ -52,3 +52,14 @@ Multiple simultaneous ducks in physics, new trained skills (Isaac Lab training n
 | Learner's own controllable bot | Partly: keyboard control of the one duck |
 
 Lesson for the next agent: build and demonstrate the voice/agent loop first, with the existing sandbox as its body, and verify it end to end before reporting. When you describe something as verified, say exactly what was checked; a key check is not a working pipeline.
+
+## Progress update (2026-10-24, after the Codex and Claude Code session)
+
+| Goal | State |
+|---|---|
+| **Speak → capture → transcribe → understand → act → speak back** | **Built and verified live** (voice round trip; Claude acts; bubble, chat and TTS) |
+| Bot explains the theorem, then demonstrates by pushing squares, in one turn | Works; the full 3-square demo is unreliable (see `06-handoff.md`) |
+| "Move the box to the right" | Works (screen-relative), with an accurate measured report |
+| Moments physics | Works (the plank tips correctly) |
+| Moments experiment (place weights, balance) | Not possible yet: needs a `place_weight` action and prompt guidance |
+| Code on GitHub | Branch `as-kestrel` (public repo) |
