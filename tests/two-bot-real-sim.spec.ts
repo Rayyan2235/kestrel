@@ -123,10 +123,14 @@ test("Stop mid-push leaves the weight where the robot left it", async ({
     "data-state",
     "acting",
   );
-  // Stop once the weight has started to move.
+  // Stop once the weight has started to move. A fixed 100 ms interval: the
+  // default backoff (up to 1 s) let a fast CI push reach 27.8 cm first.
   await expect
-    .poll(async () => (await readout(page)).right, { timeout: 150000 })
-    .toBeGreaterThan(21);
+    .poll(async () => (await readout(page)).right, {
+      timeout: 150000,
+      intervals: [100],
+    })
+    .toBeGreaterThan(20.5);
   await page.getByTestId("dock-stop").click();
   await expect(page.getByTestId("status-nova")).toHaveAttribute(
     "data-state",

@@ -235,3 +235,11 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - `pnpm check` pass (160 tests);
   - e2e 123 passed, 1 skipped by design;
   - 10-case balance bench: all completed, 0 falls, directions all match.
+
+## 2026-10-25 · Claude Code (side session for the owner) · End-stop fix brought into PR #7 (`two-bot-real-sim`)
+
+- Reverted `a28d829` (`d715923`). That commit loosened the Moments e2e to accept tilt when the moments said level, and recorded the wrong diagnosis. The real cause was the rail end-stop bug, fixed on `moments-floor-push` (`1b8eea1`).
+- Merged `origin/moments-floor-push` (merge `e0f70f7`). The only conflict was in this changelog, where both sides' entries were kept. The two-bot code builds no `ExperimentPorts` and does not call `momentsFor`, so the new stiffness parameter needed no changes.
+- Checks: `pnpm check` pass (190 tests); e2e (sandbox, two-bot-real-sim, two-bot-demo, pacing, integration): 118 passed, 3 skipped, 1 failed. The failure is `sandbox.spec.ts:54` ("Claude balances the plank"), which still expects exactly "stayed level"; a ~10.1 cm landing measured 0.6° left, as the stiffness predicts. That assertion comes from `1b8eea1` and is reported to the session fixing `moments-floor-push`.
+- Fixed a flaky Stop timing in `tests/two-bot-real-sim.spec.ts`: CI run `40165539290` stopped at 27.8 cm because `expect.poll` backs off to 1 s; it now polls every 100 ms and stops at > 20.5 cm (4/4 locally). `tests/lab.spec.ts` "stop interrupts a pending exchange" failed once on mobile CI in the same run; its files are untouched by this branch and it passed on the two runs before (flake, not fixed here)..
+
