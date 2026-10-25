@@ -1,6 +1,24 @@
 # Handoff
 
-_Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, Moments balance on `moments-floor-push`)._
+_Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, two robots and faster navigation on `two-duck-lab`)._
+
+## Two robots, faster navigation, cooperative experiments (branch `two-duck-lab`, uncommitted)
+
+Built on `moments-floor-push` (PR #5). It is **not committed or pushed**: the owner asked not to commit unless requested. What it does (details and numbers in `04-status.md`):
+
+- Pip and Nova are both real Microducks in one MuJoCo world (`mjcf.ts`, `robot.ts`, `duckSim.ts`).
+- A new `Navigator` (`navigate.ts`) drives every task without commanding the measured dead zones, about twice as fast as before.
+- Moments: both robots push their own weights at once, step clear, and the lab verifies they are clear before releasing (`set_balance`). The learner predicts first.
+- Pythagoras: both robots build the squares in two stages (`build_squares`).
+- Claude has `set_balance` and `build_squares`.
+
+**Next:**
+1. The owner decides whether to commit it as a PR (it stacks on PR #5).
+2. A spoken (voice) run of both experiments.
+3. The owner's UI and palette pass.
+4. Robot-to-robot avoidance if lanes ever have to be shared.
+
+Benchmarks to rerun after any change to movement are in `scripts/bench/` (see `02-runbook.md`).
 
 ## Moments balance branch (added 2026-10-24, Claude Code for the owner)
 

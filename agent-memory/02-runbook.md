@@ -34,6 +34,19 @@ pnpm dev
 
 Things to try in the preview UI: "right weight to 40 cm" (balances the beam), "left weight to 10 cm", "hint", **Ask the crew** (two-turn scripted exchange), Stop, Reset.
 
+## Movement and experiment benchmarks
+
+With the dev server running, these drive the sandbox headlessly and fast-step the physics, so results are deterministic:
+
+```sh
+node scripts/bench/motion-bench.mjs   # commanded vs achieved velocity, dead zones, stopping
+node scripts/bench/nav-bench.mjs      # old vs new navigator over 20 start/goal pairs
+CASES='[[10,20],[15,30]]' node scripts/bench/coop-bench.mjs   # the two-robot balance experiment
+node scripts/bench/crew-bench.mjs     # the two-robot Pythagoras build
+```
+
+They default to `http://127.0.0.1:5180`; set `URL` to point elsewhere. On this Mac they need Playwright's Chromium.
+
 ## Checks
 
 | Command | What it does | Time |
