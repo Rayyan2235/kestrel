@@ -1,15 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, ArrowUp, Bird, Check, Keyboard, RotateCcw, Square } from "lucide-react";
-import { KITS, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
+import { KITS, type BotId, type DuckTask, type KitId, type LabKit } from "@kestrel/contracts";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD } from "../simulation/constants";
 import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
+import type { LessonId } from "../lessons/lessonContent";
+import { makeQuizQuestions } from "../lessons/lessonContent";
+import { LessonBookOverlay, type LessonMeasurements } from "../lessons/LessonBookOverlay";
+import { DemoOutcomeOverlay } from "../lessons/DemoOutcomeOverlay";
+import { QuizOverlay } from "../lessons/QuizOverlay";
+import type { Recipient } from "./agentSession";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 
-type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
+type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean; speaker?: BotId };
+type LearningFlow = { step: "book" | "demo" | "demo-complete" | "demo-incomplete" | "quiz"; lesson: LessonId; message?: string } | null;
 
 const LESSONS: { id: KitId; subject: string; topic: string }[] = [
   { id: "pythagoras", subject: "Maths", topic: "Pythagorean theorem" },
@@ -75,17 +82,21 @@ export function SandboxApp() {
   const [text, setText] = useState("");
   const [filled, setFilled] = useState<string[]>([]);
   const nextId = useRef(0);
-  const [bubble, setBubble] = useState<{ id: number; text: string } | null>(null);
+  const [bubble, setBubble] = useState<{ id: number; text: string; speaker: BotId } | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const session = useRef<AgentSession | null>(null);
+  const demoAttempt = useRef(0);
   const [phase, setPhase] = useState<AgentPhase>("Ready");
-  const [voice, setVoice] = useState(true);
+  const [robotSound, setRobotSound] = useState(true);
+  const [recipient, setRecipient] = useState<Recipient>("pip");
+  const [learningFlow, setLearningFlow] = useState<LearningFlow>(null);
+  const [quizQuestions, setQuizQuestions] = useState(() => makeQuizQuestions());
 
-  const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean) => {
+  const add = useCallback((who: LogEntry["who"], line: string, ok?: boolean, speaker: BotId = "pip") => {
     const id = nextId.current++;
-    setLog((l) => [...l, { id, who, text: line, ok }].slice(-40));
+    setLog((l) => [...l, { id, who, text: line, ok, speaker }].slice(-40));
     // The duck's replies also appear as a bubble beside it in the room.
-    if (who === "duck") setBubble({ id, text: line });
+    if (who === "duck") setBubble({ id, text: line, speaker });
   }, []);
 
   useEffect(() => {
@@ -96,10 +107,15 @@ export function SandboxApp() {
 
   const onEvent = useCallback(
     (e: SimEvent) => {
-      session.current?.event(e);
-      if (e.type === "task-done") add("duck", e.summary, e.ok);
-      else if (e.type === "fell") add("duck", e.duck === "pip" ? "Whoops, I fell. Getting back up…" : "Nova fell. Getting back up…", false);
-      else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true);
+      if (e.type === "task-done") {
+        const handled = session.current?.event(e) ?? false;
+        if (handled) return;
+        // Crew's square pushes are internal steps; announce only the shared build result.
+        if (e.task.kind === "push" && e.task.toward === "slot") return;
+        if (["kick", "sit", "stand", "peck", "roll"].includes(e.task.kind)) return;
+        add("duck", e.summary, e.ok, e.duck === "nova" ? "nova" : "pip");
+      } else if (e.type === "fell") add("duck", e.duck === "pip" ? "Pip fell and is recovering." : "Nova fell and is recovering.", false);
+      else if (e.type === "recovered") return;
       else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset") add("duck", e.reason, false);
     },
     [add],
@@ -114,7 +130,15 @@ export function SandboxApp() {
         if (!live) return;
         s.start();
         setSim(s);
-        session.current = new AgentSession(s, add, setPhase);
+        session.current = new AgentSession(s, add, setPhase, (action, lesson) => {
+          if (action === "book") setLearningFlow({ step: "book", lesson });
+          else {
+            setQuizQuestions(makeQuizQuestions());
+            setLearningFlow({ step: "quiz", lesson });
+          }
+        });
+        session.current.setRobotSound(robotSound);
+        session.current.setRecipient(recipient);
         // Dev-only handle for browser tests and debugging.
         if (import.meta.env.DEV) (window as unknown as { kestrelSim: DuckSim }).kestrelSim = s;
       })
@@ -140,13 +164,14 @@ export function SandboxApp() {
   }, [log]);
 
   function chooseLesson(id: KitId) {
+    demoAttempt.current++;
     session.current?.cancel(true);
     const next = KITS[id]();
     setKitId(id);
     setKit(next);
     setFilled([]);
     sim?.setKit(next);
-    add("duck", `Lesson set: ${next.subject} · ${next.topic}.`);
+    setLearningFlow(null);
   }
 
   /** A two-robot plan or experiment, started by the learner. */
@@ -154,7 +179,7 @@ export function SandboxApp() {
     if (!sim) return null;
     session.current?.cancel();
     const refusal = sim.runTask(task);
-    add("duck", refusal ?? `${describe(task)}: Pip and Nova are on it.`, !refusal);
+    if (refusal) add("duck", refusal, false);
     return refusal;
   };
 
@@ -167,13 +192,14 @@ export function SandboxApp() {
   };
 
   const skill = useCallback(
-    (s: Skill, label: string) => {
+    (s: Skill, _label: string) => {
       if (!sim) return;
       session.current?.cancel();
-      const refusal = sim.trigger(s);
-      add("duck", refusal ?? `${label}.`, !refusal);
+      const targets: BotId[] = recipient === "both" ? ["pip", "nova"] : [recipient];
+      const refusals = targets.map(id => sim.trigger(s, id)).filter(Boolean);
+      if (refusals.length) add("duck", refusals.join(" "), false);
     },
-    [sim, add],
+    [sim, add, recipient],
   );
 
   // Keyboard: held keys drive the walking command; letters fire skills.
@@ -240,15 +266,50 @@ export function SandboxApp() {
   function send(e: FormEvent) {
     e.preventDefault();
     if (!sim || !text.trim()) return;
-    void session.current?.submit(text.trim());
+    const original = text.trim();
+    const addressed = original.match(/^\s*(?:hey\s+)?(pip|nova|both|the crew)\b\s*[,,:-]?\s*(.*)$/i);
+    const target: Recipient = addressed ? (addressed[1]!.toLowerCase() === "nova" ? "nova" : addressed[1]!.toLowerCase() === "pip" ? "pip" : "both") : recipient;
+    const prompt = addressed?.[2]?.trim() || original;
+    session.current?.setRecipient(target);
+    void session.current?.submit(prompt, target);
     setText("");
   }
+
+  function beginDemonstration(lessonId: LessonId) {
+    const attempt = ++demoAttempt.current;
+    setLearningFlow({ step: "demo", lesson: lessonId });
+    void session.current?.demonstrate(lessonId).then(async result => {
+      if (attempt !== demoAttempt.current) return;
+      await session.current?.announce(result.summary, result.ok, false);
+      if (attempt !== demoAttempt.current) return;
+      setLearningFlow({ step: result.ok ? "demo-complete" : "demo-incomplete", lesson: lessonId, message: result.summary });
+    }).catch(error => {
+      if (attempt !== demoAttempt.current) return;
+      const message = (error as Error).name === "AbortError"
+        ? "The demonstration was interrupted before all measurements were complete. Reset the board and try again."
+        : "The demonstration stopped before all measurements were complete. Reset the board and try again.";
+      add("duck", message, false);
+      setLearningFlow({ step: "demo-incomplete", lesson: lessonId, message });
+    });
+  }
+
+  const balance = status?.balance ? balanceSnapshot(status.balance) : null;
+  const liveMeasurements: LessonMeasurements = {
+    filledSlots: filled,
+    totalSlots: kit.slots.length,
+    leftMoment: (balance?.weights.find(w => w.side === "left")?.grams ?? 0) * (balance?.weights.find(w => w.side === "left")?.cm ?? 0),
+    rightMoment: (balance?.weights.find(w => w.side === "right")?.grams ?? 0) * (balance?.weights.find(w => w.side === "right")?.cm ?? 0),
+    tiltDeg: balance?.tiltDeg ?? 0,
+  };
 
   const name = (id: string) => sim?.kit.props.find((p) => p.id === id)?.label ?? id;
   const lesson = LESSONS.find((l) => l.id === kitId)!;
   const solved = kit.slots.length > 0 && filled.length === kit.slots.length;
-  const sitting = status?.mode === "sitstand";
-  const balance = status?.balance ? balanceSnapshot(status.balance) : null;
+  const activeStatus = recipient === "nova" ? nova : status;
+  const skillIsActive = (mode: string) => recipient === "both"
+    ? status?.mode === mode || nova?.mode === mode
+    : activeStatus?.mode === mode;
+  const sitting = activeStatus?.mode === "sitstand";
 
   return (
     <div className={styles.app}>
@@ -356,7 +417,7 @@ export function SandboxApp() {
               <strong>Your duck</strong>
             </div>
             <span className={styles.mode} data-testid="duck-mode">
-              {status ? (sitting ? (status.sitting ? "sitting" : "sitting down") : status.mode) : "loading"}
+              {activeStatus ? (sitting ? (activeStatus.sitting ? "sitting" : "sitting down") : activeStatus.mode) : "loading"}
             </span>
           </div>
           {status && (
@@ -398,6 +459,7 @@ export function SandboxApp() {
               log.map((l) => (
                 <div key={l.id} className={l.who === "you" ? styles.fromYou : styles.fromDuck}>
                   {l.ok === false && <span className={styles.warn}>!</span>}
+                  {l.who === "duck" && <strong>{l.speaker === "nova" ? "Nova: " : "Pip: "}</strong>}
                   {l.text}
                 </div>
               ))
@@ -416,6 +478,18 @@ export function SandboxApp() {
               </button>
             </div>
           )}
+          <label className={styles.recipient}>
+            To
+            <select aria-label="Robot recipient" value={recipient} onChange={e => {
+              const value = e.target.value as Recipient;
+              setRecipient(value);
+              session.current?.setRecipient(value);
+            }}>
+              <option value="pip">Pip</option>
+              <option value="nova">Nova</option>
+              <option value="both">Both robots</option>
+            </select>
+          </label>
           <form className={styles.command} onSubmit={send}>
             <input
               aria-label="Task for your duck"
@@ -443,25 +517,25 @@ export function SandboxApp() {
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
             >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</button>
-            <button type="button" aria-label="Spoken replies" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
-              {voice ? "Voice on" : "Voice off"}
+            <button type="button" aria-label="Robot reply sound" aria-pressed={robotSound} onClick={() => { setRobotSound(!robotSound); session.current?.setRobotSound(!robotSound); }}>
+              {robotSound ? "Robot sound on" : "Robot sound off"}
             </button>
           </div>
-          <small className={styles.providerNote}>Claude on Bedrock · ElevenLabs voice. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
+          <small className={styles.providerNote}>Claude on Bedrock · BD-1 reply sound. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
           <div className={styles.skills}>
-            <button onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
+            <button data-active={sitting} aria-pressed={sitting} onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
               {sitting ? "Stand" : "Sit"}
             </button>
-            <button onClick={() => skill("kickL", "Left kick")} disabled={!sim}>
+            <button data-active={skillIsActive("kickL")} aria-pressed={skillIsActive("kickL")} onClick={() => skill("kickL", "Left kick")} disabled={!sim}>
               Kick L
             </button>
-            <button onClick={() => skill("kickR", "Right kick")} disabled={!sim}>
+            <button data-active={skillIsActive("kickR")} aria-pressed={skillIsActive("kickR")} onClick={() => skill("kickR", "Right kick")} disabled={!sim}>
               Kick R
             </button>
-            <button onClick={() => skill("peck", "Peck")} disabled={!sim}>
+            <button data-active={skillIsActive("peck")} aria-pressed={skillIsActive("peck")} onClick={() => skill("peck", "Peck")} disabled={!sim}>
               Peck
             </button>
-            <button onClick={() => skill("roll", "Roll")} disabled={!sim}>
+            <button data-active={skillIsActive("roll")} aria-pressed={skillIsActive("roll")} onClick={() => skill("roll", "Roll")} disabled={!sim}>
               Roll
             </button>
             <button
@@ -478,6 +552,44 @@ export function SandboxApp() {
           </div>
         </aside>
       </main>
+      {learningFlow?.step === "book" && (
+        <LessonBookOverlay
+          lesson={learningFlow.lesson}
+          measurements={liveMeasurements}
+          onClose={() => setLearningFlow(null)}
+          onDemonstrate={() => beginDemonstration(learningFlow.lesson)}
+        />
+      )}
+      {learningFlow?.step === "demo" && (
+        <div className={styles.demoStatus} role="status">Pip and Nova are demonstrating in the lab…</div>
+      )}
+      {(learningFlow?.step === "demo-complete" || learningFlow?.step === "demo-incomplete") && (
+        <DemoOutcomeOverlay
+          complete={learningFlow.step === "demo-complete"}
+          message={learningFlow.message ?? "No measured result was reported."}
+          onContinue={() => {
+            setQuizQuestions(makeQuizQuestions());
+            setLearningFlow({ step: "quiz", lesson: learningFlow.lesson });
+          }}
+          onRetry={() => {
+            const lessonId = learningFlow.lesson;
+            sim?.reset();
+            beginDemonstration(lessonId);
+          }}
+        />
+      )}
+      {learningFlow?.step === "quiz" && (
+        <QuizOverlay
+          key={`${learningFlow.lesson}-${quizQuestions.map(q => q.id).join("-")}`}
+          questions={quizQuestions}
+          onComplete={(score, total) => { void session.current?.announce(`You got ${score} of ${total} questions right.`, true, false); }}
+          onClose={() => setLearningFlow(null)}
+          onFollowUp={question => {
+            setLearningFlow(null);
+            void session.current?.submit(question, recipient, "follow-up");
+          }}
+        />
+      )}
     </div>
   );
 }

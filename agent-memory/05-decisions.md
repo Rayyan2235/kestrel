@@ -9,10 +9,10 @@ Summaries only. For detail and rationale read the named planning note in `contex
 - 2–3 selectable bots share one world, with addressed conversations and visible object interactions.
 - The three differentiators (see `01-overview.md`).
 - 3D Kestrel look in an Open Space-inspired isometric 3D room. Move away from Blender/MCP authoring.
-- Hold-to-talk, thought bubbles and robot sounds. No natural-language TTS selected.
+- Hold-to-talk, thought bubbles and robot sounds. Current owner request: offer a short beep-bop response sound instead of narrating the full response; concise text remains visible.
 - Ordinary commands act directly; a whole-solution request gets another try and a hint first (ADR 0004).
 - Pythagoras stays in scope. Projectile Playground stays a direction.
-- Stack (October 24 recommendation, now scaffolded): pnpm, TypeScript, React 19/Vite, Three/Fiber 9, MuJoCo WASM + onnxruntime-web, CSS Modules/Radix/Motion/Lucide, Zustand, Fastify, Zod, Vitest, Playwright. OpenAI is the proposed provider; Gemini is excluded for under-18 audiences.
+- Stack (October 24 recommendation, now scaffolded): pnpm, TypeScript, React 19/Vite, Three/Fiber 9, MuJoCo WASM + onnxruntime-web, CSS Modules/Radix/Motion/Lucide, Zustand, Fastify, Zod, Vitest, Playwright. The owner-selected live agent is Claude Sonnet 4.6 on AWS Bedrock; ElevenLabs provides STT. The supplied BD-1 MP3 is the optional spoken-reply sound. Gemini remains excluded for the under-18 audience.
 
 Sources: `build-order.md` ("Settled"), `adr/README.md`, `codebase-architecture.md`.
 
@@ -28,11 +28,3 @@ Sources: `build-order.md` ("Settled"), `adr/README.md`, `codebase-architecture.m
 | Kestrel asset provenance; Microduck MJCF/policy compatibility | Benchmark one body, then two | `apps/web/src/simulation/README.md` |
 | Latency and cost budget, target device, hosting, demo duration, team owners | — | queue #6 |
 | ADR 0005 (data and grounded actions) | Still **proposed**; don't treat it as accepted | `adr/0005-…` |
-
-## 2026-10-25 — UI treatment
-
-Owner requested a separate UI branch from main, to merge later: `glass-windows`. Owner selected Nox Noir #141414, Royal Amethyst #7E49B3 and Steel Mist #CFCFCF, Open Space-inspired glass windows, and rounded buttons from the supplied visual prompt. This pass applies to the sandbox panels and controls; wider scene art remains outside this pass.
-
-## 2026-10-25 — Main product entry and merge authorization
-
-Owner directs deletion of the original scripted view, landing Open console navigation to the existing real voice/physics lab, dark-purple glass windows, and merging landing plus console to main for teammates. Canonical console URL is `/console`; `/lab` and `/sandbox.html` retain compatibility. The separate teammate demo and unrelated two-robot integration branches are outside this merge. This supersedes the earlier freeze on main for this specific integration.
