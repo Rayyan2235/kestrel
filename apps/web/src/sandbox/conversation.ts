@@ -31,13 +31,15 @@ export interface Conversation {
   ): void;
   /** Copies coordinator events (handoff, handback) in, once each. */
   mirror(events: readonly LedgerEvent[]): void;
+  /** A new coordinator starts a new ledger: forget what was copied. */
+  resetMirror(): void;
 }
 
 export const createConversation = (): Conversation => {
   let events: LedgerEvent[] = [];
   let selected: BotId = "pip";
   let turn = 0;
-  let mirrored = 0;
+  const mirrored = new Set<string>();
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((fn) => fn());
   const record: Conversation["record"] = (
@@ -85,12 +87,17 @@ export const createConversation = (): Conversation => {
     },
     record,
     mirror(incoming) {
-      for (const e of incoming.slice(mirrored))
+      for (const e of incoming) {
+        if (mirrored.has(e.id)) continue;
+        mirrored.add(e.id);
         record(e.from, e.to, e.kind, e.text, e.source, {
           hop: e.hop,
           evidence: e.evidence,
         });
-      mirrored = incoming.length;
+      }
+    },
+    resetMirror() {
+      mirrored.clear();
     },
   };
 };

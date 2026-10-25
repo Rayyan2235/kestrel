@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "curveVersion": 1,
+  "awards": [
+    { "awardId": "lock|moments-1|moments-1/p1", "ruleId": "lock", "xp": 10, "reason": "prediction locked", "triggeredBy": 3 },
+    { "awardId": "match|moments-1|moments-1/p1", "ruleId": "match", "xp": 15, "reason": "prediction matched", "triggeredBy": 3 },
+    { "awardId": "complete|moments-1", "ruleId": "complete", "xp": 50, "reason": "challenge complete", "triggeredBy": 4 },
+    { "awardId": "explain|moments-1", "ruleId": "explain", "xp": 20, "reason": "explained", "triggeredBy": 5 },
+    { "awardId": "lock|moments-2|moments-2/p1", "ruleId": "lock", "xp": 10, "reason": "prediction locked", "triggeredBy": 9 },
+    { "awardId": "comeback|moments-2|moments-2/p1", "ruleId": "comeback", "xp": 10, "reason": "comeback", "triggeredBy": 12 },
+    { "awardId": "complete|moments-2", "ruleId": "complete", "xp": 50, "reason": "challenge complete", "triggeredBy": 12 }
+  ],
+  "picks": [{ "itemId": "shell-gold", "atLevel": 2 }],
+  "equipped": {
+    "pip": { "shell": "shell-gold", "accent": "accent-amber", "eye": "eye-white", "eyeShape": "round", "head": "none", "back": "none", "neck": "none" },
+    "nova": { "shell": "shell-mint", "accent": "accent-coral", "eye": "eye-white", "eyeShape": "round", "head": "none", "back": "none", "neck": "none" }
+  },
+  "seen": ["lock|moments-1|moments-1/p1", "shell-gold"]
+}

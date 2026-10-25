@@ -1,5 +1,6 @@
 import type {
   Addressee,
+  PredictionChoice,
   BotId,
   LedgerEvent,
   Respond,
@@ -47,6 +48,20 @@ export type TurnHandle = {
   done: Promise<void>;
 };
 
+/** A move waiting for the learner's prediction. Nothing has mutated yet. */
+export type HeldMove = {
+  /** Logs prediction_locked, applies, then logs move_applied. Refused once voided. */
+  commit(choice: PredictionChoice): Promise<void>;
+  /** Applies with no prediction event. Still logs a scorable move_applied (no attempt). */
+  skip(): Promise<void>;
+  /** Releases the lock and logs prediction_voided. */
+  cancel(reason: string): void;
+};
+
+export type HeldMoveContext = { challengeId: string; promptId: string };
+
+export type SetupMove = { side: "left" | "right"; cm: number };
+
 export interface Coordinator {
   ledger(): readonly LedgerEvent[];
   botState(bot: BotId): BotState;
@@ -60,6 +75,29 @@ export interface Coordinator {
   localTurn(recipient: BotId, text: string, reply: LocalReply): TurnHandle;
   /** Learner pulls a handoff: `from` asks `to`, `to` answers the learner. */
   askPeer(from: BotId, to: BotId): TurnHandle;
+  /**
+   * Challenge move that waits for a prediction. The bot says "Lock your
+   * prediction, then I'll move it" and the chain ends. `supersede()` cancels it.
+   */
+  heldTurn(
+    recipient: BotId,
+    text: string,
+    reply: LocalReply,
+    context: HeldMoveContext,
+  ): HeldMove;
+  /** Resets (clears epoch, chat ledger and held move), then applies each setup move tagged `setup`. */
+  /** Resolves true when every setup push finished and the challenge started; false if it failed or was superseded. */
+  startChallenge(challengeId: string, setup: SetupMove[]): Promise<boolean>;
+  /** The bot whose weight is being pushed right now, or null. */
+  pushing(): BotId | null;
+  /** Leaves the active challenge: cancels any held move; later asks and moves are free play. */
+  endChallenge(): void;
+  /** Current epoch, for stamping lab events made outside the coordinator. */
+  epoch(): number;
+  /** True while a held move waits for its prediction. */
+  holding(): boolean;
+  /** Active challenge id, or null. */
+  challengeId(): string | null;
   /** Aborts the chain and drops late results. */
   stop(): void;
   /** Aborts, resets the world, bumps epoch and version. */
