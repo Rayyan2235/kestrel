@@ -76,4 +76,5 @@ The system Caddy service starts from `/etc/caddy/Caddyfile`, not this repository
 
 - `pm2 logs kestrel-api` shows API output; `journalctl -u caddy` shows Caddy.
 - 502 on `/api/*`: the API is not running on `127.0.0.1:5181`.
+- 403 "Use the local Kestrel page." on `/api/*`: the API accepts only local Origins, so the Caddyfile rewrites the site's own Origin (`https://<your-host>`) to `http://127.0.0.1`. Check that `KESTREL_HOST` matches the address in the browser exactly; any other Origin is still refused.
 - 403 or blank page: the `caddy` user cannot read `/opt/kestrel/apps/web/dist`.
