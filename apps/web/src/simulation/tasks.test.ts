@@ -259,4 +259,41 @@ describe("navigation and coordination", () => {
     expect(() => assertNoCrossTalk([duck("pip", 0), duck("nova", 21)])).not.toThrow();
     expect(() => assertNoCrossTalk([duck("pip", 0), { ...duck("nova", 21), ctrlAdr: [0] }])).toThrow(/share ctrl 0/);
   });
+
+  it.each([
+    { rails: [-0.15, 0.3], degrees: 0, lowSide: "level", cm: [15, 30], moments: [29.43, 29.43] },
+    // CI's near-target placements have matching moments within 2%, but a
+    // genuine tilt outside 0.5°. Never replace that measurement with the plan.
+    { rails: [-0.1512, 0.2992], degrees: 0.7, lowSide: "left", cm: [15.1, 29.9], moments: [29.67, 29.35] },
+    { rails: [-0.1492, 0.3], degrees: -0.7, lowSide: "right", cm: [14.9, 30], moments: [29.27, 29.43] },
+  ])("keeps measured $lowSide tilt independent of a level moments prediction", async ({ rails, degrees, lowSide, cm, moments }) => {
+    const { BalanceExperiment } = await import("./moments");
+    const balance: BalanceView = {
+      pin: "locked", angle: 0,
+      rails: new Map([["weight-200", rails[0]!], ["weight-100", rails[1]!]]),
+    };
+    const ports = {
+      world: (id: "pip" | "nova"): WorldView => ({ ...world(), id, kit: momentsKit(), balance }),
+      start: () => { throw new Error("The weights are already at their marks; no push should start."); },
+      busy: () => false,
+      clearFor: () => 10,
+    };
+    const exp = new BalanceExperiment({ kind: "set_balance", left_cm: 15, right_cm: 30 });
+    expect(exp.plan(ports)).toBeNull();
+    for (let i = 0; i < 100 && !exp.result; i++) {
+      const step = exp.step(ports, 0.02, new Map());
+      if (step.pin === "release") {
+        balance.pin = "free";
+        balance.angle = degrees * Math.PI / 180;
+      }
+    }
+    expect(balance.pin).toBe("free");
+    expect(exp.result).toMatchObject({
+      ok: true,
+      predicted: "level",
+      left: { grams: 200, cm: cm[0], moment: moments[0] },
+      right: { grams: 100, cm: cm[1], moment: moments[1] },
+      measured: { lowSide, tiltDeg: Math.abs(degrees) },
+    });
+  });
 });

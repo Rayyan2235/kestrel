@@ -1,5 +1,13 @@
 # Status
 
+## PR #7 CI fix — 2026-10-25 (Codex)
+
+- Local test-only fix on `two-bot-real-sim`: the cooperative Moments browser assertion checks successful placement within 0.2 cm, clean measurement, tilt below 2°, paddle ownership and truthful prediction feedback. It no longer assumes the physical beam must be classified level after approximate pushes.
+- CI evidence: measured 15.1/29.9 cm, moments 29.67/29.35 N·cm (within the 2% prediction tolerance), tilt 0.7° left (outside the 0.5° measured-level threshold). The app's measured result was valid; no physics or thresholds were changed.
+- Validation: Node 24.16.0 `pnpm check` passed, 186 tests; affected desktop Playwright test passed 3/3 repeats. Full browser suite and GitHub CI were not rerun.
+- Reviewed and committed by Claude Code. One assertion was removed: that a tilt follows the larger moment. CI run `40164561770` measured 29.44 vs 29.47 N·cm and still settled 1° left, so near balance the direction is noise. The spec checks the reporting only.
+- Open product question (owner): the measured-level threshold (0.5°) is tighter than the sim's near-balance noise (~1°). A correct "Stays level" prediction can be told "not this time".
+
 _Last updated: 2026-10-24 by Claude Code. The Moments sections reflect branch `moments-floor-push` (on top of `4154acf`); the rest is unchanged from earlier sessions._
 
 ## Implemented
