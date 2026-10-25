@@ -1,7 +1,7 @@
-import { BOT_NAMES, type BotId } from "@kestrel/contracts";
+import { BOT_NAMES, type BotId, type LedgerEvent } from "@kestrel/contracts";
 import { Eye } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { Bubble } from "./model.js";
+import { deriveBubbles, type Bubble } from "./model.js";
 import { useCompact } from "./useCompact.js";
 import styles from "./BubbleLayer.module.css";
 
@@ -82,56 +82,69 @@ const shorten = (text: string, name: string): string => {
 
 /** A bubble stays at least this long before the same bot's next one replaces it. */
 export const DWELL_MS = 700;
+const BOTS = ["pip", "nova"] as const;
 
 /**
- * View-only: holds each bot's current bubble for DWELL_MS so a short line
- * ("Let me check with Nova.") is readable before the handoff pill replaces it.
- * The ledger and deriveBubbles are untouched.
+ * View-only: plays each bot's ledger events in order, holding each for DWELL_MS,
+ * so a short line ("Let me check with Nova.") is readable before the handoff
+ * pill replaces it even when both land in the same tick. More than two events
+ * behind skips to the newest. The ledger and deriveBubbles are untouched.
  */
-function useDwell(target: Bubble[], ms: number): Bubble[] {
-  const [shown, setShown] = useState<Bubble[]>(target);
+function usePlayback(ledger: readonly LedgerEvent[], ms: number): Bubble[] {
+  const [shown, setShown] = useState<Partial<Record<BotId, string>>>({});
   const [tick, setTick] = useState(0);
-  const held = useRef(shown);
-  const since = useRef(new Map<string, number>());
+  const at = useRef<Partial<Record<BotId, number>>>({});
   useEffect(() => {
     const now = Date.now();
     const timers: number[] = [];
-    const next: Bubble[] = [];
-    for (const t of target) {
-      const cur = held.current.find((s) => s.anchor === t.anchor);
-      const age = cur ? now - (since.current.get(cur.eventId) ?? 0) : ms;
-      if (!cur || cur.eventId === t.eventId || age >= ms) {
-        next.push(t);
-        if (!since.current.has(t.eventId)) since.current.set(t.eventId, now);
-      } else {
-        next.push(cur);
-        timers.push(window.setTimeout(() => setTick((n) => n + 1), ms - age));
+    const next = { ...shown };
+    let changed = false;
+    for (const bot of BOTS) {
+      const mine = ledger.filter((e) => e.from === bot);
+      if (mine.length === 0) {
+        if (next[bot] !== undefined) {
+          delete next[bot];
+          changed = true;
+        }
+        continue;
       }
+      const last = mine.length - 1;
+      const i = mine.findIndex((e) => e.id === next[bot]);
+      if (i === last) continue;
+      const age = i < 0 ? ms : now - (at.current[bot] ?? 0);
+      if (age < ms) {
+        timers.push(window.setTimeout(() => setTick((n) => n + 1), ms - age));
+        continue;
+      }
+      const step = last - i > 2 ? last : i + 1;
+      next[bot] = mine[step]!.id;
+      at.current[bot] = now;
+      changed = true;
+      if (step < last)
+        timers.push(window.setTimeout(() => setTick((n) => n + 1), ms));
     }
-    const same =
-      next.length === held.current.length &&
-      next.every((b, i) => b.eventId === held.current[i]!.eventId);
-    if (!same) {
-      held.current = next;
-      setShown(next);
-    }
+    if (changed) setShown(next);
     return () => timers.forEach((id) => window.clearTimeout(id));
-  }, [target, tick, ms]);
-  return shown;
+  }, [ledger, shown, tick, ms]);
+  const events = BOTS.flatMap((bot) => {
+    const e = ledger.find((x) => x.id === shown[bot]);
+    return e ? [e] : [];
+  });
+  return deriveBubbles(events);
 }
 
 export function BubbleLayer({
-  bubbles: latest,
+  ledger,
   anchors,
   staleBefore = null,
 }: {
-  bubbles: Bubble[];
+  ledger: readonly LedgerEvent[];
   anchors: Anchors;
   /** Bubbles from events with a lower seq were cut off by Stop and read as stopped. */
   staleBefore?: number | null;
 }) {
   const compact = useCompact();
-  const all = useDwell(latest, DWELL_MS);
+  const all = usePlayback(ledger, DWELL_MS);
   const bubbles = compact ? onePerRoom(all) : all;
   let slot = 0;
   return (

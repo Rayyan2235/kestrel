@@ -262,7 +262,7 @@ export function TwoBotDemo() {
               );
             })}
             <BubbleLayer
-              bubbles={bubbles}
+              ledger={ledger}
               anchors={ANCHORS}
               staleBefore={stoppedSeq}
             />
