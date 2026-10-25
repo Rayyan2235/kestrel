@@ -171,3 +171,7 @@ On `lab-workshop-camera`, Botanical room now has a lesson-specific teaching boar
 On `lab-workshop-camera` (uncommitted): the classroom became a full-screen playground on a grass island with an open court, garden picket fence on the boundary wall, swings, slide, seesaw, sandpit, lesson board, Folio-style trees and grass, and clouds. Fixed furniture removed from physics. Console restyled with the owner's General Intelligence Company glass system (light toast glass over the scene, Inter, Home removed). Low-power mode for software WebGL.
 
 Verified: `pnpm check` (185 tests, typecheck, builds, API smoke). Playwright: camera + console-entry 11 passed, 1 intentional skip (after adding a 120 s file timeout to the camera spec; it passed with 120 s alone under load average ~20); sandbox spec 9 passed, 1 skipped on the final scene. Screenshots of both lessons inspected at 1440×900 and iPhone 13. Known: headless SwiftShader renders ~1–2 fps on this machine even without the playground (2 fps bare scene); the board can be clipped at the top in some follow framings on short screens.
+
+## Crew windows — 2026-10-25
+
+Branch `crew-windows` (from `lab-workshop-camera`) merges main (#11 gamification, #12 voice addressing) into the playground console. Conflicts in `SandboxApp.tsx` and `Sandbox.module.css` resolved by keeping all of main's behaviour and moving its panels into the glass layout; the teammate's Pip/Nova rail is now a collapsible accordion in the right column. `pnpm check`: 316 tests, typecheck, builds, API smoke. Browser results in the changelog.

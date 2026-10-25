@@ -124,3 +124,9 @@ World/experiment state, per-bot session, crew coordinator (turn/time/token budge
 - `gic.tsx`/`gic.css`: General Intelligence Company tokens and components (`ArrowPill`, `Button`, nav, toast glass, field, tag, icon button). `Sandbox.module.css` holds layout only.
 - `SandboxScene.tsx`: sun/sky lighting, `SOFTWARE_GL` low-power detection (`?hq` override). `StudioLighting.tsx` still supplies the filtered environment.
 - `roomProps()` in contracts now returns no furniture: the court is open in physics too. Removed: `Workshop.tsx`, `studioMaterials.ts`, `scripts/bake-workshop.mjs`, `public/workshop/`.
+
+## Crew windows — 2026-10-25 (branch `crew-windows`)
+
+- `handoff/ChannelPanel.tsx`: optional `open`/`onToggle` props turn the embedded rail into accordion panes (`fold-you`, `fold-bots`, `count-*` test ids; Ask/Stop in the bots header). Without them (the two-bot demo) the markup is unchanged. `RailPane` type exported.
+- `sandbox/SandboxApp.tsx`: main's coordinator, addressing, progress and bubbles, inside the playground layout. Console accordion state `win` (`log` | `you` | `bots` | null) persisted as `kestrel.console.window`; new robot-channel lines open `bots`.
+- `Sandbox.module.css`: accordion, picker, and `overlayTokens`/`lightScope` token scopes that dress teammate components in GIC values.

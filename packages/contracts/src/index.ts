@@ -2,6 +2,7 @@ import { z } from "zod";
 import { BotSchema, type BotId } from "./bot.js";
 export { BotSchema, type BotId } from "./bot.js";
 export * from "./ledger.js";
+export * from "./progress.js";
 export const CommandSchema = z
   .object({
     botId: BotSchema,

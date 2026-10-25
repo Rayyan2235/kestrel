@@ -1,4 +1,8 @@
-# Current handoff — playground console
+# Current handoff — crew windows
+
+Branch `crew-windows` (worktree `../kestrel-crew-windows`) = `lab-workshop-camera` + main (#11, #12) + collapsible Pip/Nova windows. Its PR targets `lab-workshop-camera`; merging it clears PR #14's conflicts with main. Codex's `rescue-navigation` (main checkout, uncommitted) also edits `SandboxApp.tsx` and will need a merge after this lands.
+
+# Earlier handoff — playground console
 
 Continue on `lab-workshop-camera`. Work from the 2026-10-25 Claude Code session is **uncommitted** in the working tree (the owner reviews before any commit; no push or merge).
 
