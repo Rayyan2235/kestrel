@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { Bird, Check, Keyboard, RotateCcw, Square } from "lucide-react";
+import { Bird, Check, ChevronDown, Keyboard, RotateCcw, Square, Volume2, VolumeX, Zap } from "lucide-react";
 import { KITS, type DuckTask, type KitId, type LabKit, type RescueRoute } from "@kestrel/contracts";
 import { AgentSession, balanceSnapshot, type AgentPhase } from "./agentSession";
 import { VEL_ANG, VEL_BACK, VEL_FWD, VEL_STEER, VEL_TURN_WALK } from "../simulation/constants";
-import { DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
+import { BOTS, DuckSim, type SimEvent, type SimStatus } from "../simulation/duckSim";
 import type { Skill } from "../simulation/tasks";
 import { RescuePanel, type RescueOutcome } from "./RescuePanel";
 import { ExperimentPanel } from "./ExperimentPanel";
 import { ObjectivesBoard } from "./ObjectivesBoard";
 import { ConsolePane } from "./ConsolePane";
+import { Confetti } from "./Confetti";
+import { BLAST_LIFE } from "./Explosion";
+import { CLASH, FIGHT, RECOIL, aimError, chargeTwist, distance, faceTwist, isClash, type FightPhase, type Pose } from "./fight";
+import { playBoom, unlockAudio } from "./sfx";
 import { CREW_TASKS, handoffLine, type CrewLine } from "./crewChannel";
 import { LEVEL_HOLD_MS, OBJECTIVES, beamLevel, type ObjectiveId } from "./objectives";
 import { SandboxScene } from "./SandboxScene";
@@ -19,6 +23,14 @@ type LogEntry = { id: number; who: "you" | "duck"; text: string; ok?: boolean };
 type Pane = "you" | "crew" | null;
 
 const PANE_KEY = "kestrel.console.window";
+const CONTROLS_KEY = "kestrel.controls.open";
+function remember(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    /* The choice just isn't remembered. */
+  }
+}
 function savedPane(): Pane {
   try {
     const v = window.localStorage.getItem(PANE_KEY);
@@ -41,7 +53,7 @@ const OBJECTIVE: Record<KitId, string> = {
     "Each square goes on the side of the right triangle that matches it. Count the tiles: does 9 + 16 make 25? Pip and Nova can build it together.",
   moments:
     "Pip moves the 200 g weight, Nova the 100 g. Choose where each goes, predict which way the plank tips, then run it.",
-  free: "Walk, turn, kick and push blocks around the lab.",
+  free: "Walk, turn, kick and push blocks around the playground. Or set Pip and Nova on each other: they charge, clash and get back up.",
 };
 
 const KEYS: [string, string][] = [
@@ -107,11 +119,24 @@ export function SandboxApp() {
   const [won, setWon] = useState(false);
   const [earned, setEarned] = useState<ReadonlySet<ObjectiveId>>(new Set());
   const [boardOpen, setBoardOpen] = useState(true);
+  const [confetti, setConfetti] = useState(0);
+  const [fighting, setFighting] = useState(false);
+  const [score, setScore] = useState({ pip: 0, nova: 0 });
+  const [blasts, setBlasts] = useState<{ id: number; t: number; at: [number, number, number] }[]>([]);
+  const fight = useRef<{ on: boolean; phase: FightPhase; since: number }>({ on: false, phase: "face", since: 0 });
+  const voiceRef = useRef(true);
   const simRef = useRef<DuckSim | null>(null);
   // Set when the balance-beam objective starts: release the plank once the lab has loaded.
   const tipOnLoad = useRef(false);
   const levelSince = useRef<number | null>(null);
   const [pane, setPane] = useState<Pane>(savedPane);
+  const [controlsOpen, setControlsOpen] = useState(() => {
+    try {
+      return window.localStorage.getItem(CONTROLS_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [crewLog, setCrewLog] = useState<CrewLine[]>([]);
   const [crewSeen, setCrewSeen] = useState(-1);
   const crewRef = useRef<HTMLDivElement>(null);
@@ -131,6 +156,14 @@ export function SandboxApp() {
     setCrewLog((l) => [...l, { id, from, text, ok }].slice(-40));
   }, []);
 
+  /** End a robot fight and let go of both robots. */
+  const endFight = useCallback(() => {
+    if (!fight.current.on) return;
+    fight.current.on = false;
+    setFighting(false);
+    for (const id of BOTS) if (simRef.current) simRef.current.robot(id).manual = { vx: 0, wz: 0 };
+  }, []);
+
   useEffect(() => {
     if (!bubble) return;
     const t = window.setTimeout(() => setBubble(null), Math.max(12000, bubble.text.length * 70));
@@ -140,6 +173,7 @@ export function SandboxApp() {
   const onEvent = useCallback(
     (e: SimEvent) => {
       session.current?.event(e);
+      if (e.type === "reset") endFight();
       if (e.type === "reset" && tipOnLoad.current) {
         tipOnLoad.current = false;
         // A beat on the level, locked beam first, so the learner sees it tip.
@@ -172,7 +206,7 @@ export function SandboxApp() {
       else if (e.type === "recovered") add("duck", e.duck === "pip" ? "Back on my feet." : "Nova is back up.", true);
       else if (e.type === "reset" && e.reason !== "Lab loaded" && e.reason !== "Reset" && e.reason !== "Rescue retry") add("duck", e.reason, false);
     },
-    [add, crewSay],
+    [add, crewSay, endFight],
   );
 
   useEffect(() => {
@@ -229,15 +263,13 @@ export function SandboxApp() {
   function togglePane(p: Exclude<Pane, null>) {
     const next = pane === p ? null : p;
     setPane(next);
-    try {
-      window.localStorage.setItem(PANE_KEY, next ?? "none");
-    } catch {
-      /* The choice just isn't remembered. */
-    }
+    remember(PANE_KEY, next ?? "none");
   }
 
   function chooseLesson(id: KitId) {
     if (id === kitId) return;
+    endFight();
+    setScore({ pip: 0, nova: 0 });
     session.current?.cancel(true);
     const next = KITS[id]();
     setKitId(id);
@@ -278,6 +310,90 @@ export function SandboxApp() {
     }
     chooseLesson(id);
   }
+
+  function startFight() {
+    if (!sim) return;
+    session.current?.cancel();
+    unlockAudio();
+    fight.current = { on: true, phase: "face", since: performance.now() };
+    setFighting(true);
+    crewSay("pip", "Nova, en garde!");
+    crewSay("nova", "Bring it, Pip!");
+  }
+
+  useEffect(() => {
+    voiceRef.current = voice;
+  }, [voice]);
+
+  // Free play: watch for fast clashes (an explosion each), and run the fight when it is on.
+  useEffect(() => {
+    if (!sim || kitId !== "free") return;
+    const a = { pos: [0, 0, 0], quat: [1, 0, 0, 0] } as Parameters<DuckSim["readTrunk"]>[0];
+    const b = { pos: [0, 0, 0], quat: [1, 0, 0, 0] } as Parameters<DuckSim["readTrunk"]>[0];
+    // Distance samples over the last CLASH.windowMs, oldest first.
+    const recent: { d: number; t: number }[] = [];
+    let armed = true;
+    const pose = (s: SimStatus): Pose => ({ x: s.pose.x, y: s.pose.y, yaw: (s.pose.yawDeg * Math.PI) / 180 });
+    const upright = (s: SimStatus) => s.mode !== "fallen" && s.mode !== "recovering";
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const ps = sim.status("pip");
+      const ns = sim.status("nova");
+      const P = pose(ps);
+      const N = pose(ns);
+      const d = distance(P, N);
+      recent.push({ d, t: now });
+      while (recent.length > 1 && now - recent[1]!.t >= CLASH.windowMs) recent.shift();
+      const first = recent[0]!;
+      if (d > CLASH.rearm) armed = true;
+      const hit = armed && now - first.t >= CLASH.windowMs * 0.8 && isClash(first.d, d, (now - first.t) / 1000);
+      if (hit) {
+        armed = false;
+        // One of them loses, at random: a scripted shove knocks it over.
+        const loser = Math.random() < 0.5 ? "pip" : "nova";
+        const winner = loser === "pip" ? "nova" : "pip";
+        const L = loser === "pip" ? P : N;
+        const W = loser === "pip" ? N : P;
+        sim.knock(loser, [L.x - W.x, L.y - W.y]);
+        setScore((sc) => ({ ...sc, [winner]: sc[winner] + 1 }));
+        crewSay(winner, winner === "pip" ? "Ha! That round is mine, Nova." : "Gotcha, Pip! My round.");
+        sim.readTrunk(a, "pip");
+        sim.readTrunk(b, "nova");
+        const id = nextId.current++;
+        const at: [number, number, number] = [(a.pos[0] + b.pos[0]) / 2, (a.pos[1] + b.pos[1]) / 2, (a.pos[2] + b.pos[2]) / 2];
+        setBlasts((list) => [...list.filter((x) => now - x.t < BLAST_LIFE * 1000 + 500), { id, t: now, at }]);
+        if (voiceRef.current) playBoom();
+      }
+      const f = fight.current;
+      if (!f.on) return;
+      const pip = sim.robot("pip");
+      const nova = sim.robot("nova");
+      const ep = aimError(P, N);
+      const en = aimError(N, P);
+      const go = (phase: FightPhase) => {
+        f.phase = phase;
+        f.since = now;
+      };
+      if (f.phase === "face") {
+        const ready = upright(ps) && upright(ns);
+        if (ready && Math.abs(ep) < FIGHT.facedRad && Math.abs(en) < FIGHT.facedRad) go("charge");
+        pip.manual = ready && Math.abs(ep) >= FIGHT.facedRad ? faceTwist(ep) : { vx: 0, wz: 0 };
+        nova.manual = ready && Math.abs(en) >= FIGHT.facedRad ? faceTwist(en) : { vx: 0, wz: 0 };
+      } else if (f.phase === "charge") {
+        if (hit || now - f.since > FIGHT.chargeMs || !upright(ps) || !upright(ns)) go("recoil");
+        else {
+          pip.manual = chargeTwist(ep);
+          nova.manual = chargeTwist(en);
+        }
+      }
+      if (f.phase === "recoil") {
+        if (now - f.since > FIGHT.recoilMs) go("face");
+        pip.manual = { ...RECOIL };
+        nova.manual = { ...RECOIL };
+      }
+    }, 50);
+    return () => window.clearInterval(timer);
+  }, [sim, kitId, crewSay]);
 
   /** A two-robot plan or experiment, started by the learner. */
   const crew = (task: DuckTask): string | null => {
@@ -327,12 +443,13 @@ export function SandboxApp() {
     const typing = (e: KeyboardEvent) =>
       e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
     const down = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); session.current?.cancel(); add("duck", "Stopped."); return; }
+      if (e.key === "Escape") { e.preventDefault(); endFight(); session.current?.cancel(); add("duck", "Stopped."); return; }
       if (typing(e) || e.metaKey || e.ctrlKey) return;
-      if (e.code === "Space") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); return; }
+      if (e.code === "Space") { e.preventDefault(); if (!e.repeat) { endFight(); void session.current?.startCapture(); } return; }
       const k = e.key.toLowerCase();
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(k)) {
         e.preventDefault();
+        endFight();
         session.current?.cancel();
         held.add(k);
         apply();
@@ -369,11 +486,12 @@ export function SandboxApp() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
     };
-  }, [sim, skill, add, kitId]);
+  }, [sim, skill, add, kitId, endFight]);
 
   function send(e: FormEvent) {
     e.preventDefault();
     if (!sim || !text.trim()) return;
+    endFight();
     void session.current?.submit(text.trim());
     setText("");
   }
@@ -398,6 +516,7 @@ export function SandboxApp() {
     if (!met) return;
     const o = OBJECTIVES.find((x) => x.id === objective)!;
     setWon(true);
+    setConfetti((c) => c + 1);
     setEarned((e) => new Set(e).add(objective));
     add("duck", `${o.win} +${o.xp} XP!`, true);
   }, [objective, won, status, kitId, solved, rescueOutcome, add]);
@@ -429,7 +548,7 @@ export function SandboxApp() {
         </header>
         <section ref={stageRef} className={`${styles.stage} ${kitId === "rescue" ? styles.rescueStage : ""}`} aria-label="3D playground">
           {sim ? (
-            <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={bubble} rescueRoute={rescueRoute} />
+            <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={bubble} rescueRoute={rescueRoute} blasts={blasts} />
           ) : (
             <div className={styles.boot} role="status">
               <strong>{error ? "The playground could not start" : "Opening the playground…"}</strong>
@@ -482,16 +601,44 @@ export function SandboxApp() {
               </div>
             )}
             {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
+            {kit.id === "free" && (
+              <div className={styles.fightRow}>
+                <Button variant="solid" className={styles.runButton} onClick={fighting ? endFight : startFight} disabled={!sim}>
+                  {fighting ? "Stop the fight" : "Pip vs Nova: fight!"}
+                </Button>
+                {score.pip + score.nova > 0 && (
+                  <span className="gic-tag gic-tag--on" data-testid="fight-score">
+                    <Zap size={12} aria-hidden="true" /> Pip {score.pip} · Nova {score.nova}
+                  </span>
+                )}
+              </div>
+            )}
           </div>}
 
-          {kitId !== "rescue" && <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls">
-            <Keyboard size={15} aria-hidden="true" />
-            {KEYS.map(([k, v]) => (
-              <span key={k}>
-                <kbd>{k}</kbd> {v}
-              </span>
-            ))}
-            <span className={styles.note}>No jump: the base Microduck model has no jump skill.</span>
+          {kitId !== "rescue" && <div className={`gic-toast ${styles.keys}`} aria-label="Keyboard controls" data-open={controlsOpen}>
+            <button
+              type="button"
+              className={styles.keysHead}
+              aria-expanded={controlsOpen}
+              onClick={() => {
+                setControlsOpen(!controlsOpen);
+                remember(CONTROLS_KEY, controlsOpen ? "0" : "1");
+              }}
+            >
+              <Keyboard size={15} aria-hidden="true" />
+              <span className="label">Controls</span>
+              <ChevronDown size={14} aria-hidden="true" className={styles.chevron} />
+            </button>
+            {controlsOpen && (
+              <>
+                {KEYS.map(([k, v]) => (
+                  <span key={k}>
+                    <kbd>{k}</kbd> {v}
+                  </span>
+                ))}
+                <span className={styles.note}>No jump: the base Microduck model has no jump skill.</span>
+              </>
+            )}
           </div>}
         </section>
 
@@ -509,7 +656,7 @@ export function SandboxApp() {
           <div className={styles.consoleHead}>
             <p className="heading-sm">
               <span className={styles.dot} />
-              Your duck
+              Your Kestrel
             </p>
             <span className="gic-tag" data-testid="duck-mode">
               {status ? (sitting ? (status.sitting ? "sitting" : "sitting down") : status.mode) : "loading"}
@@ -619,19 +766,27 @@ export function SandboxApp() {
               variant="solid"
               disabled={!sim}
               aria-label="Hold to talk"
+              arrow={false}
+              title="Your voice is sent to ElevenLabs for transcription when you let go."
               aria-pressed={phase === "Listening"}
-              onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); void session.current?.startCapture(); }}
+              onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); endFight(); void session.current?.startCapture(); }}
               onPointerUp={() => session.current?.endCapture()}
               onPointerCancel={() => session.current?.cancel()}
               onLostPointerCapture={() => session.current?.endCapture()}
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
             >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</Button>
-            <button type="button" className="gic-tag" aria-label="Robot reply sound" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
-              {voice ? "Robot sound on" : "Robot sound off"}
+            <button
+              type="button"
+              className="gic-social"
+              aria-label="Robot reply sound"
+              aria-pressed={voice}
+              title={voice ? "Mute the robots' chirps" : "Turn the robots' chirps back on"}
+              onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}
+            >
+              {voice ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
             </button>
           </div>
-          <small className={`caption ${styles.providerNote}`}>Claude on Bedrock · ElevenLabs transcription · robot sound. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
           <div className={styles.skills}>
             <button className="gic-tag" onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
               {sitting ? "Stand" : "Sit"}
@@ -664,6 +819,7 @@ export function SandboxApp() {
         </aside>}
         </div>
       </main>
+      <Confetti burst={confetti} />
     </div>
   );
 }

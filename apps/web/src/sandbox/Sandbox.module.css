@@ -385,9 +385,6 @@
 .voiceControls > :last-child {
   min-height: 40px;
 }
-.providerNote {
-  color: var(--ink-muted);
-}
 .skills {
   display: flex;
   flex-wrap: wrap;
@@ -426,29 +423,100 @@
 .note {
   color: var(--ink-muted);
 }
+/* Collapsed, the controls are one small "Controls" pill; open, the keys wrap under it. */
+.keysHead {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.keys[data-open="true"] .keysHead {
+  flex-basis: 100%;
+}
+.keysHead .chevron {
+  transform: rotate(180deg);
+}
+.keysHead[aria-expanded="true"] .chevron {
+  transform: none;
+}
 
 /* Speech bubble beside Pip: a toast card. */
+/*
+ * Pixel-art thought bubble. The stepped outline is hard box-shadows (no
+ * blur): the white body grows one pixel step out, then ink one step past it
+ * with ink corner pixels, which notches every corner like a sprite. Two
+ * pixel dots trail down to Pip. One "pixel" is --px.
+ */
 .bubble {
+  --px: 3px;
+  --bubble-ink: #2c2c2c;
   position: absolute;
   left: 0;
   top: 0;
   z-index: 2;
-  max-width: 260px;
-  padding: 10px 13px;
-  border: 1px solid var(--wash-toast);
-  border-radius: var(--radius-2xl) var(--radius-2xl) var(--radius-2xl) var(--radius-sm);
-  background: var(--wash-toast);
-  -webkit-backdrop-filter: blur(var(--blur-toast));
-  backdrop-filter: blur(var(--blur-toast));
-  box-shadow: var(--shadow-card);
+  max-width: 250px;
+  padding: 7px 11px;
+  background: #ffffff;
   color: var(--ink);
-  font: 400 13px/19.5px var(--font-sans);
+  font: 500 15px/20px "Pixelify Sans", var(--font-sans);
+  letter-spacing: 0.2px;
+  box-shadow:
+    0 calc(var(--px) * -1) #ffffff,
+    0 var(--px) #ffffff,
+    calc(var(--px) * -1) 0 #ffffff,
+    var(--px) 0 #ffffff,
+    0 calc(var(--px) * -2) var(--bubble-ink),
+    0 calc(var(--px) * 2) var(--bubble-ink),
+    calc(var(--px) * -2) 0 var(--bubble-ink),
+    calc(var(--px) * 2) 0 var(--bubble-ink),
+    calc(var(--px) * -1) calc(var(--px) * -1) var(--bubble-ink),
+    var(--px) calc(var(--px) * -1) var(--bubble-ink),
+    calc(var(--px) * -1) var(--px) var(--bubble-ink),
+    var(--px) var(--px) var(--bubble-ink),
+    0 calc(var(--px) * 4) #00000024;
+  transform-origin: 50% 100%;
   pointer-events: none;
-  animation: bubbleIn 250ms ease-out;
+  animation: bubbleIn 280ms steps(4, end) both;
+}
+.bubble::before,
+.bubble::after {
+  content: "";
+  position: absolute;
+  background: #ffffff;
+  box-shadow:
+    0 calc(var(--px) * -1) var(--bubble-ink),
+    0 var(--px) var(--bubble-ink),
+    calc(var(--px) * -1) 0 var(--bubble-ink),
+    var(--px) 0 var(--bubble-ink);
+}
+.bubble::before {
+  width: calc(var(--px) * 3);
+  height: calc(var(--px) * 3);
+  left: calc(50% - var(--px) * 3);
+  bottom: calc(var(--px) * -6);
+}
+.bubble::after {
+  width: var(--px);
+  height: var(--px);
+  left: calc(50% - var(--px) * 1);
+  bottom: calc(var(--px) * -10);
 }
 @keyframes bubbleIn {
   from {
     opacity: 0;
+    scale: 0.6;
+  }
+  70% {
+    opacity: 1;
+    scale: 1.06;
+  }
+  to {
+    scale: 1;
   }
 }
 
@@ -810,4 +878,20 @@
 }
 .fromCrew {
   background: #fff6dc;
+}
+
+/* Confetti over everything when an objective is met; never catches the pointer. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50;
+  pointer-events: none;
+}
+.fightRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }

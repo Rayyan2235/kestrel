@@ -599,6 +599,32 @@ export class DuckSim {
     return out;
   }
 
+  /**
+   * Free play fights only, and not physics from the clash itself: a scripted
+   * shove that knocks a robot over. It adds trunk velocity away from the
+   * other robot and a spin that tips its top the same way; the robot's own
+   * fall detection and get-up policy take over from there.
+   */
+  knock(id: BotId, away: [number, number], push = 0.8, lift = 0.4, spin = 8) {
+    const r = this.robot(id);
+    const { qpos, qvel } = this.data;
+    const n = Math.hypot(away[0], away[1]) || 1;
+    const ax = away[0] / n;
+    const ay = away[1] / n;
+    qvel[r.freeV] += ax * push;
+    qvel[r.freeV + 1] += ay * push;
+    qvel[r.freeV + 2] += lift;
+    // Tipping axis in world axes is up × away. A free joint takes angular
+    // velocity in the body's axes, so rotate it by the inverse trunk rotation.
+    const f = r.freeQ;
+    const [qw, qx, qy, qz] = [qpos[f + 3]!, -qpos[f + 4]!, -qpos[f + 5]!, -qpos[f + 6]!];
+    const v = [-ay * spin, ax * spin, 0];
+    const t = [2 * (qy * v[2]! - qz * v[1]!), 2 * (qz * v[0]! - qx * v[2]!), 2 * (qx * v[1]! - qy * v[0]!)];
+    qvel[r.freeV + 3] = v[0]! + qw * t[0]! + (qy * t[2]! - qz * t[1]!);
+    qvel[r.freeV + 4] = v[1]! + qw * t[1]! + (qz * t[0]! - qx * t[2]!);
+    qvel[r.freeV + 5] = v[2]! + qw * t[2]! + (qx * t[1]! - qy * t[0]!);
+  }
+
   /** Body pose of a prop in MuJoCo coordinates, quat as [w, x, y, z]. */
   readProp(id: string, out: Pose7): Pose7 | null {
     const b = this.propBodies.get(id);

@@ -11,6 +11,7 @@ import {
   type SlotSpec,
 } from "@kestrel/contracts";
 import { LabCamera } from "./LabCamera";
+import { Explosion } from "./Explosion";
 import { RescueCourse } from "./RescueCourse";
 import type { RescueRoute } from "@kestrel/contracts";
 import { Playground } from "./Playground";
@@ -21,6 +22,7 @@ import { Focus, Minus, Plus, RotateCcw, ScanEye } from "lucide-react";
 import type { BotId } from "@kestrel/contracts";
 import { BOTS, type DuckSim } from "../simulation/duckSim";
 import { buildDuckRig, poseDuckRig, type DuckRig } from "../simulation/rig";
+import "@fontsource/pixelify-sans/500.css";
 import styles from "./Sandbox.module.css";
 
 // Everything inside <MjFrame> uses MuJoCo coordinates (z up), so props,
@@ -309,9 +311,10 @@ function BubbleAnchor({
       const x = ((head.x + 1) / 2) * size.width;
       const y = ((1 - head.y) / 2) * size.height;
       const visibleX = Math.max(el.offsetWidth / 2 + 8, Math.min(size.width - el.offsetWidth / 2 - 8, x));
-      const visibleY = Math.max(el.offsetHeight + 8, Math.min(size.height - 8, y));
+      // The thought dots hang 30px under the bubble, down to the head.
+      const visibleY = Math.max(el.offsetHeight + 38, Math.min(size.height - 8, y));
       el.style.visibility = "visible";
-      el.style.transform = `translate(${visibleX.toFixed(1)}px, ${visibleY.toFixed(1)}px) translate(-50%, -100%)`;
+      el.style.transform = `translate(${visibleX.toFixed(1)}px, ${visibleY.toFixed(1)}px) translate(-50%, calc(-100% - 30px))`;
     }
   });
   return null;
@@ -373,6 +376,7 @@ export function SandboxScene({
   onProgress,
   bubble,
   rescueRoute = null,
+  blasts = [],
 }: {
   sim: DuckSim;
   kit: LabKit;
@@ -381,6 +385,8 @@ export function SandboxScene({
   onProgress: (filled: string[]) => void;
   /** Latest public reply from the duck, shown next to it. */
   bubble: { id: number; text: string } | null;
+  /** Clashes to draw an explosion for, in MuJoCo coordinates. */
+  blasts?: { id: number; at: [number, number, number] }[];
 }) {
   const bubbleRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<CameraMode>("follow");
@@ -450,6 +456,11 @@ export function SandboxScene({
       </MjFrame>
       {rigs && BOTS.map((id) => <Robot key={id} sim={sim} id={id} rig={rigs[id]} />)}
       {rigs && <BubbleAnchor sim={sim} bubble={bubbleRef} />}
+      <MjFrame>
+        {blasts.map((b) => (
+          <Explosion key={b.id} at={b.at} reducedMotion={reducedMotion} />
+        ))}
+      </MjFrame>
     </Canvas>
       <div className={styles.cameraControls} role="group" aria-label="Camera controls" onKeyUp={e => { if ([" ", "Enter", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) e.stopPropagation(); }} onKeyDown={e => {
         const pan: Record<string, CameraCommand["kind"]> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
