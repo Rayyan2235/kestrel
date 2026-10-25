@@ -11,6 +11,8 @@ import {
   type World,
 } from "@kestrel/contracts";
 import { createSimulation } from "../simulation/runtime.js";
+import { createLinkedController } from "../microduck/controller.js";
+import { link } from "../microduck/link.js";
 
 type Lab = {
   simulation: SimulationSnapshot;
@@ -26,12 +28,16 @@ type Lab = {
   submitAction: (input: unknown) => ActionSubmission;
   moveWeight: (side: "left" | "right", cm: number) => void;
   send: (text: string) => void;
-  startExchange: () => number;
+  /** Address one bot explicitly, whatever is selected in the room. */
+  sendTo: (botId: BotId, text: string) => void;
+  startExchange: (initiator?: BotId) => number;
   deliverExchange: (token: number, turn: number) => void;
   stop: () => void;
   reset: () => void;
 };
-const runtime = createSimulation();
+// Microduck bodies drive the approach when their physics is running; otherwise
+// the authored reference controller does.
+const runtime = createSimulation({ controller: createLinkedController() });
 let requestSequence = 0;
 
 export const useLab = create<Lab>((set, get) => ({
@@ -75,10 +81,11 @@ export const useLab = create<Lab>((set, get) => ({
       parameters: { positionCm: cm },
     });
   },
-  send: (text) => {
+  send: (text) => get().sendTo(get().selected, text),
+  sendTo: (botId, text) => {
     const s = get();
     const parsed = CommandSchema.safeParse({
-      botId: s.selected,
+      botId,
       text,
       worldVersion: s.world.version,
     });
@@ -88,7 +95,7 @@ export const useLab = create<Lab>((set, get) => ({
     const capturedSnapshot = runtime.getSnapshot();
     const userMessage: Message = {
       speaker: "you",
-      recipient: s.selected,
+      recipient: parsed.data.botId,
       text: parsed.data.text,
     };
     set({ messages: [...s.messages, userMessage].slice(-30) });
@@ -122,15 +129,16 @@ export const useLab = create<Lab>((set, get) => ({
       }));
     }
   },
-  startExchange: () => {
+  startExchange: (initiator) => {
     const s = get();
+    const from = initiator ?? s.selected;
     // The fixture exchanges observations only while the apparatus is settled.
     if (runtime.getSnapshot().activeAction) return s.epoch;
     const epoch = s.epoch + 1;
     set({
       epoch,
       busy: true,
-      queued: previewExchange(s.selected, s.world),
+      queued: previewExchange(from, s.world),
       nextTurn: 0,
     });
     return epoch;
@@ -171,7 +179,9 @@ runtime.subscribe((event) => {
       messages.push({
         speaker: action.request.botId,
         recipient: "you",
-        text: "I’ll approach the balance station and operate its weight control. (Game-controlled fixture.)",
+        text: link.ready
+          ? "Walking to the balance station to operate its weight control."
+          : "I’ll approach the balance station and operate its weight control. (Game-controlled fixture.)",
       });
     if (action?.status === "completed" && action.result) {
       const side = action.request.objectId === "left-weight" ? "left" : "right";

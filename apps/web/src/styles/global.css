@@ -1,72 +1,52 @@
 @import url("./tokens.css");
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
 }
 body {
   margin: 0;
-  font-family: "Plus Jakarta Sans Variable", sans-serif;
+  overflow: hidden;
+  font-family: var(--font);
+  font-size: var(--fs-body);
+  line-height: 1.5;
   color: var(--ink);
-  background: var(--canvas);
+  background: var(--sky);
+  -webkit-font-smoothing: antialiased;
 }
 button,
 input {
   font: inherit;
+  color: inherit;
 }
 button {
   cursor: pointer;
-}
-button,
-a,
-input {
   -webkit-tap-highlight-color: transparent;
 }
 button:disabled {
-  opacity: 0.45;
   cursor: not-allowed;
 }
-button {
-  transition:
-    background 0.16s,
-    color 0.16s;
-}
-button:focus-visible,
-a:focus-visible,
-input:focus-visible {
-  outline: 3px solid #558b77;
-  outline-offset: 4px;
+:focus-visible {
+  outline: 3px solid var(--amethyst);
+  outline-offset: 3px;
 }
 ::selection {
-  background: #c5dfa2;
-  color: #19382c;
+  background: #dccdee;
 }
-input {
-  caret-color: #32664f;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
-input[type="range"] {
-  accent-color: #456c53;
-  cursor: pointer;
-}
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #799186 transparent;
-}
-.scene-fallback {
-  display: grid;
-  place-items: center;
-  height: 100%;
-  padding: 30px;
-  max-width: 460px;
-  margin: auto;
-  line-height: 1.65;
-  text-align: center;
-  color: var(--muted);
-}
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
+.num {
+  font-variant-numeric: tabular-nums;
 }

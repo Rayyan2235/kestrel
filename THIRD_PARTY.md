@@ -1,9 +1,9 @@
 # References and provenance
 
-- [Open Space](https://github.com/Fantomiald/open-space), MIT: visual/interaction reference for an inhabited room, character identity, bubbles and compact conversation windows. No source, screenshots or art from it is bundled in this scaffold.
-- [Microduck simulator](https://huggingface.co/spaces/pollen-robotics/microduck-simulator), Apache-2.0 application: intended physics/policy integration reference. Robot geometry and policy assets can have separate licenses; verify each before importing. No upstream robot mesh, MJCF or ONNX policy asset is bundled yet.
+- [Open Space](https://github.com/Fantomiald/open-space) @ `3f971d1`, MIT (Copyright (c) 2026 VibesMoney): the per-bot agent-window model. Window geometry helpers in `apps/web/src/windows/geometry.ts` are adapted from its `src/state/windows.ts`; the licence is at `apps/web/src/windows/OPEN-SPACE-LICENSE`. Its coding-agent backend, terminal controls, permission system and pixel-art office are not used.
+- [Microduck simulator](https://huggingface.co/spaces/pollen-robotics/microduck-simulator) @ `ad9d41a`, Apache-2.0: the robot rig, colourways and constants are vendored in `apps/web/src/vendor/microduck/` (licence and per-file provenance there), and the MJCF, kinematics, GLB meshes and the walking policy are pinned in `apps/web/public/microduck/`. The physics loop in `apps/web/src/microduck/` is adapted from its `game.js`. The policies and MJCF originate in pollen-robotics/microduck and pollen-robotics/microduck_rl (both Apache-2.0).
 - [Burrow](https://github.com/jerryjlwang/Burrow): prior art for conversational embodied interaction, not a runtime dependency.
 - Font: Plus Jakarta Sans, supplied through its Fontsource package; its license is included in `apps/web/public/licenses/PlusJakartaSans-OFL.txt` and copied to the built site.
-- All room and robot geometry in the scaffold is newly authored procedural placeholder geometry. It is not a BD-1 asset or a recovered practice export.
+- The open floor and balance apparatus are newly authored procedural geometry. The procedural placeholder robots remain only as a fallback when the Microduck physics cannot start.
 
 Installed dependencies retain their respective licenses. Public repository visibility does not automatically grant a license to original project code; the owner can choose that license separately.

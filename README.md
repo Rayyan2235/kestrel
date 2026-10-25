@@ -21,7 +21,9 @@ Try **right weight to 40 cm**, **left weight to 10 cm**, or **hint**. Select Pip
 
 ## What is implemented
 
-- Responsive React interface, isometric Three.js room and two original procedural placeholder robots.
+- Responsive React interface on an open isometric Three.js lab floor.
+- Pip and Nova as real Microduck robots: the upstream MuJoCo WASM model and trained ONNX walking policy step at 50 Hz in the browser, and the linked controller makes each action's approach follow the body's real pose along its fixture lane. Docking and station operation timing, and the weight change itself, remain game-controlled.
+- Open Space-style agent windows per bot (drag, snap, resize, minimise, close, arrange, Show lab, keyboard moves, remembered geometry) and a tabbed conversation sheet on phones.
 - Analytic mass × distance balance fixture, sliders and a small supported typed-command grammar.
 - Deterministic local action runtime with authored approach, docking and station operation, measured results, read-only snapshots, retry deduplication and exclusive station ownership. Controls submit actions; completion messages follow actual results.
 - Addressed messages, explicit bot-to-bot recipients, a two-turn exchange limit, stop/reset and a 30-message display cap.
@@ -29,9 +31,9 @@ Try **right weight to 40 cm**, **left weight to 10 cm**, or **hint**. Select Pip
 
 ## What is not integrated yet
 
-Live LLM conversation, microphone/STT, MuJoCo physics, ONNX walking, final Kestrel assets, general navigation, physical manipulation, accounts and deployment. MuJoCo/ONNX/OpenAI dependencies are pinned integration foundations; package presence is not runtime capability. `/api/commands` validates requests and returns an explicit `501 PROVIDER_NOT_CONNECTED`.
+Live LLM conversation, microphone/STT, final Kestrel assets, general navigation (bodies follow fixture lanes), robot-to-robot contact (each body is simulated in its own MuJoCo world), physical manipulation, accounts and deployment. MuJoCo/ONNX/OpenAI dependencies are pinned integration foundations; package presence is not runtime capability. `/api/commands` validates requests and returns an explicit `501 PROVIDER_NOT_CONNECTED`.
 
-The beam is an **ideal massless model** and its visual tilt is illustrative. The runtime uses game-controlled waypoints and station actuation, not trained walking or physical gripping. It supplies bot poses/progress for rendering; the original scene in this branch still uses static bot placements until the separate presentation integration lands. Runtime unit tests do not establish rendered-action evidence. The UI explicitly labels scripted behavior.
+The beam is an **ideal massless model** and its visual tilt is illustrative. Station actuation is game-controlled, not physical gripping. Without a running Microduck body (tests, WebGL failure or a physics load error) the runtime falls back to its authored reference controller and the UI says so. Local browser tests use the Mac's GPU; software WebGL is too slow for the Microduck scene. The UI explicitly labels scripted behavior.
 
 See [simulation interface v1](docs/simulation-interface.md) for typed requests, results, a provider-free mock sender, cancellation/revision semantics and scene coordinates. The balance is a development fixture; the first product physics mission remains open.
 

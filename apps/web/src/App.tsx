@@ -1,393 +1,282 @@
-import {
-  lazy,
-  Suspense,
-  useEffect,
-  useRef,
-  useState,
-  type FormEvent,
-} from "react";
-import * as Dialog from "@radix-ui/react-dialog";
-import {
-  ArrowUp,
-  Bird,
-  BookOpen,
-  Check,
-  Info,
-  MessageCircle,
-  RotateCcw,
-  Sparkles,
-  Square,
-  X,
-} from "lucide-react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Eye, EyeOff, LayoutPanelLeft, RotateCcw } from "lucide-react";
 import { useReducedMotion } from "motion/react";
-import { balance, BOT_NAMES } from "@kestrel/contracts";
+import { BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { useLab } from "./state/lab";
+import { useWindows } from "./windows/store";
+import { useMicroduck } from "./microduck/status";
+import { Dock, MobileSheet, WindowsLayer } from "./components/Crew";
+import { FlatLab } from "./components/FlatLab";
+import { KestrelMark } from "./components/KestrelMark";
+import { actionStatus } from "./components/measure";
+import { WeightPanel } from "./components/WeightPanel";
+import { WorldLabels, type Bubble } from "./components/WorldLabels";
+import type { Insets } from "./world/LabScene";
+import { SceneBoundary, webglAvailable } from "./world/support";
 import styles from "./App.module.css";
-import { WeightControl } from "./components/WeightControl";
-const LabScene = lazy(() =>
-  import("./world/LabScene").then((module) => ({ default: module.LabScene })),
-);
+
+const LabScene = lazy(() => import("./world/LabScene").then((m) => ({ default: m.LabScene })));
+
+const BUBBLE_MS = 7000;
+const phaseShort = { approach: "Walking", dock: "Lining up", operate: "Operating", done: "Done" } as const;
+
+function useWide() {
+  const query = "(min-width: 900px)";
+  const [wide, setWide] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const on = () => setWide(m.matches);
+    m.addEventListener("change", on);
+    return () => m.removeEventListener("change", on);
+  }, []);
+  return wide;
+}
 
 export function App() {
   const lab = useLab();
-  const [text, setText] = useState("");
-  const [chatOpen, setChatOpen] = useState(true);
-  const reopen = useRef<HTMLButtonElement>(null);
-  const close = useRef<HTMLButtonElement>(null);
+  const win = useWindows();
+  const physics = useMicroduck();
   const reduced = Boolean(useReducedMotion());
-  const log = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (log.current)
-      log.current.scrollTop = lab.messages.length
-        ? log.current.scrollHeight
-        : 0;
-  }, [lab.messages, chatOpen]);
+  const wide = useWide();
+  const [gl] = useState(webglAvailable);
+  const [sceneFailed, setSceneFailed] = useState(false);
+  const flat = !gl || sceneFailed;
+  const [openSide, setOpenSide] = useState<"left" | "right" | null>(null);
+  const [focusBot, setFocusBot] = useState<BotId | null>(null);
+  const [bubbles, setBubbles] = useState<Partial<Record<BotId, Bubble & { at: number }>>>({});
+  const [chrome, setChrome] = useState({ top: 96, bottom: 120 });
+  const top = useRef<HTMLElement>(null);
+  const bottom = useRef<HTMLDivElement>(null);
+  const weightButtons = useRef<Record<"left" | "right", HTMLButtonElement | null>>({ left: null, right: null });
+  const seen = useRef(0);
+
+  const simulation = lab.simulation;
+  const active = simulation.activeAction;
+  const activeBot = active?.request.botId ?? null;
+  const status = actionStatus(simulation);
+  const rejected = lab.lastSubmission && !lab.lastSubmission.accepted ? lab.lastSubmission.error : null;
+
+  // Scripted crew exchange delivery (the runtime owns only action motion).
   useEffect(() => {
     if (!lab.busy || lab.simulation.activeAction) return;
     const token = lab.epoch;
-    const timer = window.setTimeout(
-      () => useLab.getState().deliverExchange(token, lab.nextTurn),
-      lab.nextTurn === 0 ? 650 : 1100,
-    );
+    const timer = window.setTimeout(() => useLab.getState().deliverExchange(token, lab.nextTurn), lab.nextTurn === 0 ? 650 : 1400);
     return () => window.clearTimeout(timer);
   }, [lab.busy, lab.epoch, lab.nextTurn, lab.simulation.activeAction]);
-  const result = balance(lab.world);
-  const latest = [...lab.messages].reverse().find((m) => m.speaker !== "you");
-  const simulation = lab.simulation;
-  const active = simulation.activeAction;
-  const last = simulation.lastAction;
-  const live = simulation.mode === "game-controlled";
-  const rejected =
-    lab.lastSubmission && !lab.lastSubmission.accepted
-      ? lab.lastSubmission.error
-      : null;
-  const actionText = active
-    ? `${BOT_NAMES[active.request.botId]} · ${active.phase === "approach" ? "Approaching the bench" : active.phase === "dock" ? "Getting into position" : "Adjusting the weight"}`
-    : last?.status === "completed"
-      ? `${BOT_NAMES[last.request.botId]} finished · ${last.request.parameters.positionCm} cm`
-      : last?.status === "cancelled"
-        ? "Action stopped. Ready when you are."
-        : last?.status === "failed"
-          ? "Action could not finish. Try again."
-          : "Choose a weight. Predict what will change.";
-  function send(e: FormEvent) {
-    e.preventDefault();
-    if (!text.trim()) return;
-    lab.send(text);
-    setText("");
-    setChatOpen(true);
-  }
+
+  // Bubbles and windows read the same messages: a new bot message is also a short bubble above the speaker.
+  useEffect(() => {
+    if (lab.messages.length < seen.current) setBubbles({});
+    const fresh = lab.messages.slice(Math.min(seen.current, lab.messages.length));
+    seen.current = lab.messages.length;
+    const next: Partial<Record<BotId, Bubble & { at: number }>> = {};
+    fresh.forEach((m, i) => {
+      if (m.speaker !== "you") next[m.speaker] = { text: m.text, speaker: m.speaker, recipient: m.recipient, key: Date.now() + i, at: Date.now() };
+    });
+    if (Object.keys(next).length) setBubbles((b) => ({ ...b, ...next }));
+  }, [lab.messages]);
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setBubbles((b) => {
+        const now = Date.now();
+        const kept = Object.fromEntries(Object.entries(b).filter(([, v]) => v && now - v.at < BUBBLE_MS));
+        return Object.keys(kept).length === Object.keys(b).length ? b : kept;
+      });
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useLayoutEffect(() => {
+    const measure = () =>
+      setChrome({
+        top: (top.current?.getBoundingClientRect().bottom ?? 80) + 8,
+        bottom: bottom.current ? window.innerHeight - bottom.current.getBoundingClientRect().top + 8 : 120,
+      });
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (top.current) ro.observe(top.current);
+    if (bottom.current) ro.observe(bottom.current);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [wide]);
+
+  // The camera frames the experiment in the space the windows leave free.
+  const insets: Insets = useMemo(() => {
+    let left = 16,
+      right = 16;
+    if (wide && !win.hidden && win.area) {
+      for (const id of ["pip", "nova"] as const) {
+        const b = win.boxes[id];
+        if (win.state[id] !== "open" || !b) continue;
+        if (b.left + b.width / 2 < win.area.width / 2) left = Math.max(left, b.left + b.width + 16);
+        else right = Math.max(right, win.area.width - b.left + 16);
+      }
+      const spare = window.innerWidth - left - right;
+      if (spare < 480) {
+        const scale = Math.max(0, (window.innerWidth - 480) / (left + right));
+        left *= scale;
+        right *= scale;
+      }
+    }
+    return { top: chrome.top, bottom: chrome.bottom, left, right };
+  }, [wide, win.hidden, win.area, win.boxes, win.state, chrome]);
+
+  const pickBot = (id: BotId) => {
+    lab.select(id);
+    if (wide) {
+      win.open(id);
+      setFocusBot(id);
+      requestAnimationFrame(() => setFocusBot(null));
+    } else win.setMobile(id, true);
+  };
+  const closeWeight = () => {
+    const side = openSide;
+    setOpenSide(null);
+    if (side) requestAnimationFrame(() => weightButtons.current[side]?.focus());
+  };
+  const bubbleView = useMemo(
+    () => Object.fromEntries(Object.entries(bubbles).map(([k, v]) => [k, v && { text: v.text, speaker: v.speaker, recipient: v.recipient, key: v.key }])),
+    [bubbles],
+  ) as Partial<Record<BotId, Bubble>>;
+  const anyOpen = win.state.pip === "open" || win.state.nova === "open";
+  const shared = {
+    messages: lab.messages,
+    simulation,
+    busy: lab.busy,
+    focusBot,
+    onSend: (id: BotId, text: string) => lab.sendTo(id, text),
+    onCompare: (id: BotId) => lab.startExchange(id),
+  };
+  const capability =
+    physics.state === "running"
+      ? "Robots: Microduck bodies in MuJoCo, walked by its trained policy in your browser. Station action and replies are scripted; live AI is not connected."
+      : physics.state === "failed"
+        ? `Microduck physics could not start (${physics.error}); placeholder robots use authored movement. Replies are scripted.`
+        : physics.state === "disabled"
+          ? "Microduck physics is off for this run; placeholder robots use authored movement. Replies are scripted; live AI is not connected."
+        : "Loading Microduck physics… Replies are scripted; live AI is not connected.";
+
   return (
-    <div className={styles.app}>
-      <header className={styles.header}>
-        <a className={styles.brand} href="/" aria-label="Kestrel home">
-          <Bird size={25} strokeWidth={1.7} />
-          <h1>Kestrel</h1>
-        </a>
-        <span className={styles.tagline}>A little world of why.</span>
-        <div className={styles.headerActions}>
-          <span className={styles.preview}>Lab preview · scripted bots</span>
-          <Dialog.Root>
-            <Dialog.Trigger asChild>
-              <button
-                className={styles.iconButton}
-                aria-label="About this preview"
-              >
-                <Info size={19} />
-              </button>
-            </Dialog.Trigger>
-            <Dialog.Portal>
-              <Dialog.Overlay className={styles.overlay} />
-              <Dialog.Content className={styles.dialog}>
-                <Dialog.Title>A small beginning. A curious crew.</Dialog.Title>
-                <Dialog.Description>
-                  This scaffold explores Kestrel’s room, conversations and a
-                  balance experiment. The robots and their exchanges are
-                  scripted placeholders.
-                </Dialog.Description>
-                <p>
-                  Try “right weight to 40 cm” or “hint”. Ask the crew to watch
-                  two robots share an observation. You can stop or reset at any
-                  time.
-                </p>
-                <p>
-                  Live AI, voice, trained walking and physical tool interactions
-                  are the next integration milestones. The beam uses an ideal
-                  massless model; its tilt is illustrative.
-                </p>
-                <Dialog.Close asChild>
-                  <button className={styles.primary}>Back to the lab</button>
-                </Dialog.Close>
-              </Dialog.Content>
-            </Dialog.Portal>
-          </Dialog.Root>
-        </div>
-      </header>
-      <main
-        className={`${styles.workspace} ${!chatOpen ? styles.chatClosed : ""}`}
-      >
-        <section className={styles.room} aria-label="Science lab">
-          <div className={styles.mission}>
-            <div className={styles.missionIcon}>
-              <BookOpen size={21} />
-            </div>
-            <div>
-              <h2>A matter of balance</h2>
-              <p>Change one thing. See what happens.</p>
-              <span className={styles.fixtureLabel}>
-                Balance development fixture
-              </span>
-            </div>
-          </div>
-          <div className={styles.scene}>
-            <Suspense
-              fallback={<div className="scene-fallback">Opening the lab…</div>}
-            >
+    <div className={styles.app} data-flat={flat} style={{ ["--bottom-inset" as string]: `${chrome.bottom}px`, ["--top-inset" as string]: `${chrome.top}px` } as React.CSSProperties}>
+      <div className={styles.stage}>
+        {flat ? (
+          <FlatLab simulation={simulation} onOpenWeight={setOpenSide} weightButtons={weightButtons} />
+        ) : (
+          <SceneBoundary fallback={<SceneFailed onFail={() => setSceneFailed(true)} />}>
+            <Suspense fallback={<p className={styles.loading}>Opening the lab…</p>}>
               <LabScene
+                selected={lab.selected}
                 reduced={reduced}
-                latest={
-                  active
-                    ? {
-                        speaker: active.request.botId,
-                        recipient: "you",
-                        text:
-                          active.phase === "operate"
-                            ? `Adjusting the ${active.request.objectId === "left-weight" ? "left" : "right"} weight to ${active.request.parameters.positionCm} cm.`
-                            : "On my way to the balance bench.",
-                      }
-                    : latest
-                }
+                insets={insets}
+                onPickBot={pickBot}
+                onPickWeight={setOpenSide}
+                onBackground={() => openSide && setOpenSide(null)}
               />
             </Suspense>
+          </SceneBoundary>
+        )}
+        {!flat ? (
+          <WorldLabels
+            world={lab.world}
+            selected={lab.selected}
+            activeBot={activeBot}
+            phaseLabel={active ? phaseShort[active.phase] : null}
+            bubbles={bubbleView}
+            openSide={openSide}
+            onSelect={pickBot}
+            onOpenWeight={(side) => setOpenSide((s) => (s === side ? null : side))}
+            weightButtons={weightButtons}
+          />
+        ) : null}
+      </div>
+
+      {wide ? <WindowsLayer {...shared} /> : null}
+
+      <header ref={top} className={styles.top}>
+        <div className={styles.intro}>
+          <KestrelMark />
+          <div>
+            <h1 className={styles.title}>Kestrel · Balance bench</h1>
+            <p className={styles.prompt}>Move a weight and watch the beam. Which side turns harder?</p>
           </div>
-          <section
-            className={styles.measurements}
-            aria-label="Balance controls"
-          >
-            <div className={styles.result}>
-              <span
-                className={
-                  result === "balanced"
-                    ? styles.balancedDot
-                    : styles.observationDot
-                }
-              />
-              <strong data-testid="balance-result">
-                {result === "balanced"
-                  ? "Balanced"
-                  : `${result === "left" ? "Left" : "Right"} side down`}
-              </strong>
-              <span>Try a prediction first</span>
-            </div>
-            <div className={styles.sliders}>
-              {(["left", "right"] as const).map((side) => (
-                <WeightControl
-                  key={`${side}-${simulation.resetGeneration}-${live ? 0 : lab.world.version}`}
-                  side={side}
-                  value={lab.world[side === "left" ? "leftCm" : "rightCm"]}
-                  grams={
-                    lab.world[side === "left" ? "leftGrams" : "rightGrams"]
-                  }
-                  disabled={Boolean(active)}
-                  onCommit={(cm) => lab.moveWeight(side, cm)}
-                />
-              ))}
-            </div>
-            <div className={styles.actionState}>
-              <p role="status" aria-live="polite">
-                {actionText}
-              </p>
-              {active && (
-                <progress
-                  aria-label={`${BOT_NAMES[active.request.botId]} action progress`}
-                  max={1}
-                  value={active.progress}
-                />
-              )}
-              {rejected && (
-                <p className={styles.error} role="alert">
-                  {rejected.message}
-                </p>
-              )}
-              {!rejected && last?.status === "failed" && (
-                <p className={styles.error} role="alert">
-                  {last.error?.message}
-                </p>
-              )}
-            </div>
-            <p>Ideal massless beam · tilt is illustrative</p>
-          </section>
-        </section>
-        {chatOpen ? (
-          <aside className={styles.conversation} aria-label="Crew conversation">
-            <div className={styles.chatHeader}>
-              <div>
-                <span className={styles.online} />
-                <strong>The crew</strong>
-                <span className={styles.crewCount}>2 companions</span>
-              </div>
+        </div>
+        <div className={styles.topActions}>
+          {wide ? (
+            <>
               <button
-                className={styles.darkIcon}
-                aria-label="Close conversation"
-                ref={close}
-                onClick={() => {
-                  setChatOpen(false);
-                  requestAnimationFrame(() => reopen.current?.focus());
-                }}
+                type="button"
+                className={styles.glassButton}
+                aria-pressed={win.hidden}
+                disabled={!anyOpen}
+                onClick={win.toggleHidden}
               >
-                <X size={18} />
+                {win.hidden ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+                <span>{win.hidden ? "Show windows" : "Show lab"}</span>
               </button>
-            </div>
-            <div
-              className={styles.log}
-              role="log"
-              aria-live="polite"
-              aria-label="Crew messages"
-              ref={log}
-            >
-              {lab.messages.length === 0 ? (
-                <div className={styles.empty}>
-                  <MessageCircle size={30} strokeWidth={1.3} />
-                  <h3>Start with a question.</h3>
-                  <p>
-                    Move a weight, ask for a hint, or let the crew compare
-                    notes.
-                  </p>
-                  <span>Pip is curious. Nova checks the details.</span>
-                </div>
-              ) : (
-                lab.messages.map((m, i) => (
-                  <div
-                    className={`${styles.message} ${m.speaker === "you" ? styles.fromYou : ""}`}
-                    key={i}
-                  >
-                    <div className={styles.messageMeta}>
-                      {m.speaker === "you" ? "You" : BOT_NAMES[m.speaker]}
-                      <span>
-                        to{" "}
-                        {m.recipient === "you" ? "you" : BOT_NAMES[m.recipient]}
-                      </span>
-                    </div>
-                    <p>{m.text}</p>
-                  </div>
-                ))
-              )}
-              {lab.busy && !active && (
-                <div className={styles.thinking} role="status">
-                  The crew is comparing notes…
-                </div>
-              )}
-            </div>
-            <div className={styles.chatFooter}>
-              <span>
-                <span className={styles.smallDot} /> Scripted exchange · 2 turns
-                max
-              </span>
-              <button
-                className={styles.darkButton}
-                onClick={() => lab.send("hint")}
-              >
-                Give me a hint
+              <button type="button" className={styles.glassButton} onClick={win.arrange}>
+                <LayoutPanelLeft size={17} aria-hidden="true" />
+                <span>Arrange</span>
               </button>
-            </div>
-          </aside>
-        ) : (
+            </>
+          ) : null}
           <button
-            ref={reopen}
-            className={styles.reopen}
+            type="button"
+            className={styles.glassButton}
+            aria-label="Reset lab"
             onClick={() => {
-              setChatOpen(true);
-              requestAnimationFrame(() => close.current?.focus());
+              setOpenSide(null);
+              lab.reset();
             }}
           >
-            <MessageCircle size={18} /> Open conversation
+            <RotateCcw size={17} aria-hidden="true" />
+            <span className={styles.hideNarrow}>Reset</span>
           </button>
-        )}
-        <section className={styles.dock} aria-label="Command dock">
-          <div className={styles.crew}>
-            {(["pip", "nova"] as const).map((id) => (
-              <button
-                key={id}
-                className={`${styles.bot} ${lab.selected === id ? styles.selected : ""}`}
-                onClick={() => lab.select(id)}
-                aria-pressed={lab.selected === id}
-                aria-label={`Select ${BOT_NAMES[id]}`}
-              >
-                <span
-                  className={`${styles.face} ${id === "nova" ? styles.teal : ""}`}
-                >
-                  <i />
-                  <i />
-                </span>
-                <span>
-                  {BOT_NAMES[id]}
-                  <small>
-                    {lab.selected === id
-                      ? "Selected recipient"
-                      : "Select companion"}
-                  </small>
-                </span>
-                {lab.selected === id && <Check size={14} />}
-              </button>
-            ))}
-          </div>
-          <form onSubmit={send} className={styles.command}>
-            <label htmlFor="command">To {BOT_NAMES[lab.selected]}</label>
-            <input
-              id="command"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              maxLength={500}
-              aria-label="Message your robot"
-              placeholder="Try: right weight to 40 cm"
-              autoComplete="off"
-            />
-            <button
-              type="submit"
-              aria-label="Send command"
-              disabled={!text.trim()}
-            >
-              <ArrowUp size={20} />
-            </button>
-          </form>
-          <div className={styles.dockActions}>
-            {lab.busy || active ? (
-              <button
-                className={styles.collaborate}
-                onClick={lab.stop}
-                aria-label={active ? "Stop action" : "Stop exchange"}
-              >
-                <Square size={15} /> Stop
-              </button>
-            ) : (
-              <button
-                className={styles.collaborate}
-                onClick={() => {
-                  lab.startExchange();
-                  setChatOpen(true);
-                }}
-              >
-                <Sparkles size={17} /> Ask the crew
-              </button>
-            )}
-            <button
-              className={styles.reset}
-              aria-label="Reset lab"
-              onClick={lab.reset}
-            >
-              <RotateCcw size={18} /> <span>Reset</span>
-            </button>
-          </div>
-        </section>
-      </main>
-      <footer className={styles.footer}>
-        <span>Select a companion. Try an idea. See why.</span>
-        <span>
-          {live
-            ? "Game-controlled movement · scripted conversation"
-            : "View-only pose fixture · direct apparatus preview"}
-        </span>
-      </footer>
+        </div>
+      </header>
+
+      {openSide ? (
+        <WeightPanel
+          side={openSide}
+          world={lab.world}
+          recipient={lab.selected}
+          busyBot={activeBot}
+          anchored={wide && !flat}
+          onMove={(side, cm) => {
+            lab.moveWeight(side, cm);
+            closeWeight();
+          }}
+          onClose={closeWeight}
+        />
+      ) : null}
+
+      <div ref={bottom} className={styles.bottom}>
+        {!wide ? <MobileSheet {...shared} /> : null}
+        <Dock
+          selected={lab.selected}
+          simulation={simulation}
+          busy={lab.busy}
+          wide={wide}
+          status={rejected && !active ? rejected.message : status.text}
+          tone={rejected && !active ? "failed" : status.tone}
+          onChip={(id) => {
+            if (wide && win.state[id] === "open" && !win.hidden && win.order.at(-1) === id) win.minimize(id);
+            else pickBot(id);
+          }}
+          onStop={lab.stop}
+        />
+        <p className={styles.capability}>{capability}</p>
+      </div>
+      <p className="visually-hidden" aria-live="polite">
+        {active ? `${BOT_NAMES[active.request.botId]} ${phaseShort[active.phase]}` : ""}
+      </p>
     </div>
   );
+}
+
+function SceneFailed({ onFail }: { onFail: () => void }) {
+  useEffect(onFail, [onFail]);
+  return null;
 }
