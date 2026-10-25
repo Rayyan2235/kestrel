@@ -32,6 +32,8 @@ pnpm dev
 - Dev-only console handle: `window.kestrelSim`. For example, `kestrelSim.manual = {vx: 0.2, wz: 0}`, `kestrelSim.status()`, `kestrelSim.propPositions()`.
 - Headless probing works with SwiftShader: `chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] })`.
 
+**Two-bot demo:** http://127.0.0.1:5180/?demo=two-bot runs on the stub. Add `&sim=mujoco` to drive the real Microducks (loads MuJoCo and the policies first, then "Real MuJoCo" shows in the banner; `window.kestrelSim` is the dev handle). Typed commands such as `move the left weight to 10 cm` make the owning robot push its weight (rails 5–30 cm). Add `&provider=live` for live Claude replies (needs Bedrock credentials in the server `.env`; `/api/health` must show `liveAi: true`). Paid check: `node scripts/two-bot-live-check.mjs` with `pnpm dev` running (Pip asks Nova to move the right weight; prints the transcript and measured push). Its e2e is `tests/two-bot-real-sim.spec.ts` (desktop only, ~35 s). If 5191 is taken by another worktree's server, copy `playwright.chrome.config.ts` to an untracked config with a free port and the bundled Chromium.
+
 Things to try in the preview UI: "right weight to 40 cm" (balances the beam), "left weight to 10 cm", "hint", **Ask the crew** (two-turn scripted exchange), Stop, Reset.
 
 ## Movement and experiment benchmarks

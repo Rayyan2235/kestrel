@@ -1,6 +1,23 @@
 # Handoff
 
-_Rewrite this file at the end of every session. Last rewritten: 2026-10-24 (Claude Code, two robots and faster navigation on `two-duck-lab`)._
+_Rewrite this file at the end of every session. Last rewritten: 2026-10-25 (Claude Code, real `SimAdapter` for the two-bot demo on `two-bot-real-sim`)._
+
+## Two-bot demo on the real Microducks (branch `two-bot-real-sim`, PR into `two-duck-lab`)
+
+Cut from `two-duck-lab` (PR #6), so it stacks on #6 → #5. `/?demo=two-bot&sim=mujoco` runs the PR #4 demo on the real two-robot `DuckSim`; without `&sim=mujoco` it is the stub, unchanged.
+
+- **Seam change** (teammate's area, explained in the PR): `apply(task, version, signal?)` returns a promise that settles when the push lands, fails (`reason: "failed"`) or is aborted; optional `summary` on results; coordinator `actTimeoutMs` (60 s) and a chain cap that pauses while a bot acts.
+- **Adapter:** `apps/web/src/simulation/real/` (`index.ts` pure and unit-tested against a fake DuckSim; `load.ts` boots DuckSim on the Moments kit, lazily imported).
+- **Verified:** `pnpm check` (183 tests); stub specs `two-bot-demo`, `pacing`, `integration` (108/108 passed); new `tests/two-bot-real-sim.spec.ts` 2/2 (a real 20 → 10.1 cm push with the measured result in the rail and readout; Stop mid-push leaves the weight clamped where it stood).
+
+- **Live Claude for Pip and Nova** (`&provider=live`): API route `/api/two-bot/respond` (`apps/api/src/twoBot.ts`) and `provider/live.ts`; mock fallback stays labelled. Live check passed: Pip asked Nova, Nova pushed the right weight 20 → 24.9 cm.
+- **Rail end-stop fix merged in** from `moments-floor-push` (`1b8eea1`, merge `e0f70f7`). A carriage held just past its 5/30 cm end stop pressed on MuJoCo's soft limit and tipped a balanced plank; the rails now travel 5 mm past the marks. A loosened test (`a28d829`) that hid it was reverted (`d715923`), so the strict Moments checks from `1b8eea1` apply.
+- PR #7's base is still `two-duck-lab`; #6 is merged into `moments-floor-push`, so the base should move there once the owner approves.
+
+**Next:**
+1. The teammate (PR #4 author) reviews the seam change and the live provider.
+2. Demo follow-ups in `11-remaining-steps.md`: release-and-measure so the room shows measured tilt; a "moving…" cue during the push; reply text after the measured result.
+3. Merge order: #5, then #6, then this PR.
 
 ## Two robots, faster navigation, cooperative experiments (branch `two-duck-lab`, uncommitted)
 
@@ -26,7 +43,7 @@ Branch `moments-floor-push`, one commit on top of `main` (`4154acf`), with an op
 
 ## Two-bot demo branch (added 2026-10-24, implementer session)
 
-Branch `feat/two-bot-demo` holds the two-bot conversation demo (see `04-status.md` and `03-codebase-map.md`) merged with `origin/main` (PR #2). It stays behind `?demo=two-bot`. **Next task, separate PR:** implement `SimAdapter` over `duckSim` and wire the coordinator to it; do not change layers above `SimAdapter`. Open for the owner: default presentation speed, and whether Pause also holds an in-flight model call (currently it does not).
+Branch `feat/two-bot-demo` holds the two-bot conversation demo (see `04-status.md` and `03-codebase-map.md`) merged with `origin/main` (PR #2). It stays behind `?demo=two-bot`. The `SimAdapter` over `duckSim` is now on `two-bot-real-sim` (above). Open for the owner: default presentation speed, and whether Pause also holds an in-flight model call (currently it does not).
 
 ## The goal (teammate slice, see `08-current-scope.md`)
 

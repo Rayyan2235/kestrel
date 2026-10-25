@@ -6,8 +6,8 @@ export const AddresseeSchema = z.enum(["you", ...BotSchema.options]);
 export type Addressee = z.infer<typeof AddresseeSchema>;
 export const SpeakerSchema = AddresseeSchema;
 
-/** Where the words came from. Nothing here claims live AI. */
-export const SourceSchema = z.enum(["built-in", "mock", "scripted"]);
+/** Where the words came from. `live` only when a real model call answered. */
+export const SourceSchema = z.enum(["built-in", "mock", "scripted", "live"]);
 export type Source = z.infer<typeof SourceSchema>;
 
 export const LedgerKindSchema = z.enum([

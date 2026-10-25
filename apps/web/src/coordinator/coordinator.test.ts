@@ -4,6 +4,7 @@ import { createCoordinator } from "./index.js";
 import type { CoordinatorConfig } from "./types.js";
 import type { Provider } from "../provider/types.js";
 import { createFakeSim } from "../simulation/fake/index.js";
+import type { ApplyResult, SimAdapter, SimTask } from "../simulation/types.js";
 import { createMockProvider } from "../provider/mock.js";
 import {
   askPeer,
@@ -20,6 +21,50 @@ const setup = (provider: Provider, config: Partial<CoordinatorConfig> = {}) => {
   const sim = createFakeSim();
   return { sim, c: createCoordinator({ sim, provider, config }) };
 };
+
+/** The stub, but each apply waits like a physical push until the test settles it. */
+const slowSim = () => {
+  const inner = createFakeSim();
+  const pushes: {
+    task: SimTask;
+    signal?: AbortSignal;
+    land: (summary?: string) => void;
+    fail: (summary: string) => void;
+  }[] = [];
+  const sim: SimAdapter = {
+    ...inner,
+    apply: (task, version, signal) =>
+      new Promise<ApplyResult>((resolve) => {
+        signal?.addEventListener(
+          "abort",
+          () => {
+            inner.release(task);
+            resolve({ ok: false, reason: "failed", summary: "Stopped." });
+          },
+          { once: true },
+        );
+        pushes.push({
+          task,
+          signal,
+          land: (summary) =>
+            void inner
+              .apply(task, version)
+              .then((r) => resolve(r.ok && summary ? { ...r, summary } : r)),
+          fail: (summary) => {
+            inner.release(task);
+            resolve({ ok: false, reason: "failed", summary });
+          },
+        });
+      }),
+  };
+  return { sim, pushes };
+};
+
+const move = (side: "left" | "right", cm: number, say = "Moving.") => ({
+  say,
+  action: { side, cm },
+  ask_peer: null,
+});
 
 describe("L2 gate: coordinator", () => {
   it("a learner turn appends addressed, valid, contiguous ledger events", async () => {
@@ -130,6 +175,127 @@ describe("L2 gate: coordinator", () => {
     });
     await h.done;
     expect(sim.snapshot().leftCm).toBe(20);
+  });
+
+  it("waits for a slow physical action: the bot stays acting and replies once it lands", async () => {
+    const { sim, pushes } = slowSim();
+    const { provider } = instantProvider(() => move("left", 25));
+    const c = createCoordinator({ sim, provider });
+    const h = c.learnerTurn("move left to 25", "pip");
+    await flush();
+    expect(c.botState("pip")).toBe("acting");
+    expect(c.ledger().some((e) => e.kind === "say")).toBe(false);
+    pushes[0]!.land();
+    await h.done;
+    expect(sim.snapshot().leftCm).toBe(25);
+    expect(c.ledger().at(-1)).toMatchObject({ kind: "say", from: "pip" });
+  });
+
+  it("the chain cap counts talk time, not a push: a long push is not cut off", async () => {
+    const { sim, pushes } = slowSim();
+    const { provider } = instantProvider(() => move("left", 25, "Done."));
+    const c = createCoordinator({
+      sim,
+      provider,
+      config: { callTimeoutMs: 1000, chainCapMs: 2500 },
+    });
+    const h = c.learnerTurn("move left to 25", "pip");
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(pushes[0]!.signal?.aborted).toBe(false);
+    pushes[0]!.land();
+    await h.done;
+    expect(sim.snapshot().leftCm).toBe(25);
+    expect(c.ledger().at(-1)).toMatchObject({ kind: "say", text: "Done." });
+  });
+
+  it("a push that outlasts actTimeoutMs is aborted, its lock freed, and the learner told", async () => {
+    const { sim, pushes } = slowSim();
+    const { provider } = instantProvider(() => move("left", 25));
+    const c = createCoordinator({
+      sim,
+      provider,
+      config: { actTimeoutMs: 3000 },
+    });
+    const h = c.learnerTurn("move left to 25", "pip");
+    await vi.advanceTimersByTimeAsync(2900);
+    expect(pushes[0]!.signal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    await h.done;
+    expect(pushes[0]!.signal?.aborted).toBe(true);
+    expect(sim.snapshot().leftCm).toBe(20);
+    expect(c.ledger().at(-1)).toMatchObject({ kind: "notice", to: "you" });
+    expect(sim.propose({ ...pushes[0]!.task, id: "next" }).ok).toBe(true);
+  });
+
+  it("Stop during a push aborts it, frees the lock and appends nothing more", async () => {
+    const { sim, pushes } = slowSim();
+    const { provider } = instantProvider(() => move("left", 25));
+    const c = createCoordinator({ sim, provider });
+    const h = c.learnerTurn("move left to 25", "pip");
+    await flush();
+    const len = c.ledger().length;
+    c.stop();
+    await h.done;
+    expect(pushes[0]!.signal?.aborted).toBe(true);
+    expect(c.ledger().length).toBe(len);
+    expect(c.botState("pip")).toBe("idle");
+    expect(sim.propose({ ...pushes[0]!.task, id: "next" }).ok).toBe(true);
+  });
+
+  it("a failed push tells the learner what the sim measured, not a generic notice", async () => {
+    const { sim, pushes } = slowSim();
+    const { provider } = instantProvider(() => move("left", 25));
+    const c = createCoordinator({ sim, provider });
+    const h = c.learnerTurn("move left to 25", "pip");
+    await flush();
+    pushes[0]!.fail(
+      "I lost contact with the paddle. The weight is at 22.4 cm.",
+    );
+    await h.done;
+    expect(c.ledger().at(-1)).toMatchObject({
+      kind: "notice",
+      from: "pip",
+      to: "you",
+      text: "I lost contact with the paddle. The weight is at 22.4 cm.",
+    });
+  });
+
+  it("a refused proposal passes on the sim's reason", async () => {
+    const sim: SimAdapter = {
+      ...createFakeSim(),
+      propose: () => ({
+        ok: false,
+        reason: "invalid",
+        summary: "The rails run from 5 to 30 cm.",
+      }),
+    };
+    const { provider } = instantProvider(() => move("left", 40));
+    const c = createCoordinator({ sim, provider });
+    await c.learnerTurn("move left to 40", "pip").done;
+    expect(c.ledger().at(-1)).toMatchObject({
+      kind: "notice",
+      text: "The rails run from 5 to 30 cm.",
+    });
+  });
+
+  it("a landed push adds its measured result; on a handoff the handback stays last", async () => {
+    const { sim, pushes } = slowSim();
+    const { provider } = instantProvider((req) =>
+      req.peer ? move("right", 15, "Try this.") : askPeer("nova"),
+    );
+    const c = createCoordinator({ sim, provider });
+    const h = c.askPeer("pip", "nova");
+    await flush();
+    expect(c.botState("nova")).toBe("acting");
+    pushes[0]!.land("Moved the 100 g weight from 20 cm to 15.1 cm.");
+    await h.done;
+    const tail = c.ledger().slice(-2);
+    expect(tail[0]).toMatchObject({
+      kind: "notice",
+      from: "nova",
+      text: "Moved the 100 g weight from 20 cm to 15.1 cm.",
+    });
+    expect(tail[1]).toMatchObject({ kind: "handback", text: "Try this." });
   });
 
   it("a pulled handoff makes at most two calls and ends with a handback to the learner", async () => {

@@ -43,8 +43,12 @@ describe("ledger event", () => {
       false,
     );
     expect(
-      LedgerEventSchema.safeParse({ ...event, source: "live" }).success,
+      LedgerEventSchema.safeParse({ ...event, source: "ai" }).success,
     ).toBe(false);
+    // `live` is a real label now: only a real model call may carry it.
+    expect(
+      LedgerEventSchema.safeParse({ ...event, source: "live" }).success,
+    ).toBe(true);
   });
   it("derives stable ids from epoch and seq only", () => {
     expect(eventId(2, 5)).toBe(eventId(2, 5));

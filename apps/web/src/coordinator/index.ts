@@ -34,6 +34,8 @@ const fit = (text: string): string => text.trim().slice(0, 500) || "...";
 
 type CallResult =
   { ok: true; respond: Respond; source: Source } | { ok: false };
+/** `summary`: the sim's own words for what it measured or why it refused. */
+type ActResult = { ok: boolean; summary?: string };
 
 export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
   const { sim, provider } = deps;
@@ -143,8 +145,12 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
      * Applies a bot action through the sim; `version` is the world at dispatch.
      * Runs before the reply is appended so the event carries the new worldVersion.
      */
-    const act = (who: BotId, respond: Respond, version: number): boolean => {
-      if (!respond.action) return true;
+    const act = async (
+      who: BotId,
+      respond: Respond,
+      version: number,
+    ): Promise<ActResult> => {
+      if (!respond.action) return { ok: true };
       setState(who, "acting");
       const task = {
         id: `t${token}-${budget.callsUsed}`,
@@ -156,26 +162,47 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         cm: respond.action.cm,
       };
       const proposed = sim.propose(task);
-      const applied =
-        proposed.ok && sim.apply(task, version).ok
-          ? true
-          : (sim.release(task), false);
-      return applied;
-    };
-    const moveRefused = (who: BotId) =>
-      add(
-        who,
-        "you",
-        "notice",
-        "The lab changed, so I did not make that move.",
-        "scripted",
-        0,
+      if (!proposed.ok) return { ok: false, summary: proposed.summary };
+      pauseCap();
+      const actCtl = new AbortController();
+      const onChainAbort = () => actCtl.abort(signal.reason);
+      signal.addEventListener("abort", onChainAbort, { once: true });
+      const timer = setTimeout(
+        () => actCtl.abort(new Error("act timeout")),
+        cfg.actTimeoutMs,
       );
+      try {
+        const applied = await sim.apply(task, version, actCtl.signal);
+        if (!applied.ok) sim.release(task);
+        return { ok: applied.ok, summary: applied.summary };
+      } finally {
+        clearTimeout(timer);
+        signal.removeEventListener("abort", onChainAbort);
+        resumeCap();
+      }
+    };
+    /** Says what the sim measured, or why the move did not happen. */
+    const report = (who: BotId, moved: ActResult) => {
+      const text = moved.ok
+        ? moved.summary
+        : (moved.summary ?? "The lab changed, so I did not make that move.");
+      if (text) add(who, "you", "notice", text, "scripted", 0);
+    };
 
-    const capTimer = setTimeout(
-      () => chain?.abort(new Error("chain cap")),
-      cfg.chainCapMs,
-    );
+    // The cap bounds talk time. It pauses while a bot acts in the world: a
+    // physical push takes seconds and is bounded by actTimeoutMs instead.
+    const capHit = () => chain?.abort(new Error("chain cap"));
+    let capLeft = cfg.chainCapMs;
+    let capFrom = Date.now();
+    let capTimer = setTimeout(capHit, capLeft);
+    function pauseCap() {
+      clearTimeout(capTimer);
+      capLeft -= Date.now() - capFrom;
+    }
+    function resumeCap() {
+      capFrom = Date.now();
+      capTimer = setTimeout(capHit, Math.max(0, capLeft));
+    }
     try {
       add("you", bot, "learner", learnerText, "built-in", 0);
       setState(bot, "thinking");
@@ -207,9 +234,10 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         setState(bot, "error");
         return;
       }
-      const moved1 = act(bot, r1.respond, v1);
+      const moved1 = await act(bot, r1.respond, v1);
+      if (!alive()) return;
       add(bot, "you", "say", r1.respond.say, r1.source, 0);
-      if (!moved1) moveRefused(bot);
+      report(bot, moved1);
       const ask = r1.respond.ask_peer;
       const peer =
         pull ?? (ask && ask.to !== bot && cfg.maxHops >= 1 ? ask.to : null);
@@ -242,9 +270,10 @@ export const createCoordinator = (deps: CoordinatorDeps): Coordinator => {
         );
         return;
       }
-      const moved2 = act(peer, r2.respond, v2);
+      const moved2 = await act(peer, r2.respond, v2);
+      if (!alive()) return;
       // The handback stays last so the learner always gets the final turn.
-      if (!moved2) moveRefused(peer);
+      report(peer, moved2);
       add(peer, "you", "handback", r2.respond.say, r2.source, 1);
     } finally {
       clearTimeout(capTimer);

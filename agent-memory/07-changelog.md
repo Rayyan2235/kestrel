@@ -189,6 +189,36 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - REA 6.7.0 `list-browser-targets` and `inspect-web-page` against the running sandbox reported no workers, and the changed modules are served.
 - **Not run:** a spoken (voice) or live-Claude run on this branch.
 
+## 2026-10-25 · Claude Code (side session for the owner) · Real `SimAdapter` for the two-bot demo (`two-bot-real-sim`)
+
+- **Seam:** `SimAdapter.apply(task, version, signal?)` is async. It settles when the physical action lands, fails (new `reason: "failed"`) or the signal aborts it, and holds the per-object lock until then. Results carry an optional `summary`. Stub: `apply` became `async`, nothing else.
+- **Coordinator:** `act` awaits the sim with an abort signal (chain + new `actTimeoutMs`, 60 s). The chain cap counts talk time and pauses while a bot acts. A failed action shows the sim's summary (the old notice is the fallback); a measured summary is added after the reply, before a handback.
+- **Adapter:** `apps/web/src/simulation/real/index.ts` over the two-robot `DuckSim`:
+  - `left-weight` → `weight-200` (Pip), `right-weight` → `weight-100` (Nova);
+  - rails 5–30 cm;
+  - snapshots are measured rail positions (0.1 cm, 100 ms poll, version bump on change);
+  - abort cancels the owner's task and the clamp holds the weight where it stands.
+  `real/load.ts` boots DuckSim on the Moments kit.
+- **Demo:** `?demo=two-bot&sim=mujoco` lazily loads the real lab, with a loading banner, falling back to the stub on failure. The banner says which sim runs.
+- **Files:** `apps/web/src/simulation/{types.ts,fake/index.ts,fake/sim.test.ts,real/*}`, `apps/web/src/coordinator/{index.ts,types.ts,coordinator.test.ts}`, `apps/web/src/demo/TwoBotDemo.tsx`, `tests/two-bot-real-sim.spec.ts`.
+- **Checks:**
+  - `pnpm check` pass (183 tests, 159 before).
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - `tests/two-bot-real-sim.spec.ts` 2/2 on desktop: "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)."; readout "Left 10.1 cm · Right 20 cm" equals the sim's measured rail; Pip's paddle contact in the contact ledger; Stop mid-push keeps the weight where it stood.
+- **Not changed:** Moments physics, navigation, contracts.
+- **Not run:** live provider or voice with the real sim; the mobile project for the real-sim spec (skipped by design).
+
+## 2026-10-25 · Claude Code (side session for the owner) · Live Claude for Pip and Nova in the two-bot demo (`two-bot-real-sim`)
+
+- **API:** `POST /api/two-bot/respond` (`apps/api/src/twoBot.ts`), registered in `live.ts`. It makes one Bedrock call per bot turn (`AnthropicBedrock`, `BEDROCK_MODEL_ID`, `AWS_REGION`), uses a persona per bot, forces a flat `respond` tool, maps it onto `Respond` and validates with Zod. A peer turn can never ask again. Keys stay server-side.
+- **Web:** `provider/live.ts` sits behind the existing `Provider`. It is labelled `live`; any API or contract failure falls back to the mock, labelled `mock`; an abort rejects. The demo uses it only for `?provider=live` when `/api/health` reports `liveAi`. The banner and hint say so. The default (`/?demo=two-bot`) is unchanged.
+- **Contracts:** `SourceSchema` gains `live`. The ledger test now rejects an unknown label instead of `live`.
+- **Checks:**
+  - `pnpm check` pass.
+  - New tests: 3 API with mocked Bedrock, 3 live provider with mocked fetch.
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - Live check `scripts/two-bot-live-check.mjs` (paid, cents): Pip handed off to Nova, Nova pushed the right weight 20 → 24.9 cm (measured), then a live handback, 15.7 s in all.
+
 ## 2026-10-25 · Claude Code (for the owner) · Moments: rail end-stop bug, tilt prediction, settling (`moments-floor-push`)
 
 - **CI failure on PR #7 (my Moments e2e):** 200 g at 15 cm against 100 g at 30 cm read "level" by moments (29.44 vs 29.47 N·cm), but the plank measured "left side down 1°".
@@ -205,3 +235,13 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - `pnpm check` pass (160 tests);
   - e2e 123 passed, 1 skipped by design;
   - 10-case balance bench: all completed, 0 falls, directions all match.
+
+## 2026-10-25 · Claude Code (side session for the owner) · End-stop fix brought into PR #7 (`two-bot-real-sim`)
+
+- Reverted `a28d829` (`d715923`). That commit loosened the Moments e2e to accept tilt when the moments said level, and recorded the wrong diagnosis. The real cause was the rail end-stop bug, fixed on `moments-floor-push` (`1b8eea1`).
+- Merged `origin/moments-floor-push` (merge `e0f70f7`). The only conflict was in this changelog, where both sides' entries were kept. The two-bot code builds no `ExperimentPorts` and does not call `momentsFor`, so the new stiffness parameter needed no changes.
+- Checks: `pnpm check` pass (190 tests); e2e (sandbox, two-bot-real-sim, two-bot-demo, pacing, integration): 118 passed, 3 skipped, 1 failed. The failure is `sandbox.spec.ts:54` ("Claude balances the plank"), which still expects exactly "stayed level"; a ~10.1 cm landing measured 0.6° left, as the stiffness predicts. That assertion comes from `1b8eea1` and is reported to the session fixing `moments-floor-push`.
+- Fixed a flaky Stop timing in `tests/two-bot-real-sim.spec.ts`: CI run `40165539290` stopped at 27.8 cm because `expect.poll` backs off to 1 s; it now polls every 100 ms and stops at > 20.5 cm (4/4 locally). `tests/lab.spec.ts` "stop interrupts a pending exchange" failed once on mobile CI in the same run; its files are untouched by this branch and it passed on the two runs before (flake, not fixed here)..
+- Merged `fb8140b` from `moments-floor-push` (merge `3819b27`): the "Claude balances the plank" spec now checks a near-balanced, truthfully reported release instead of exactly level. `pnpm check` pass. Sandbox specs: 9 passed, 1 skipped in a full run, and the balance spec passed 2/2 alone. One earlier full run failed that spec once on a boolean assertion (trace overwritten). The suspected cause is the 0.5° boundary: classification uses the unrounded angle but the report rounds to 0.1°, so 0.45–0.5° reads "level (0.5°)" and fails `reported < 0.5`. Reported to the `moments-floor-push` session.
+- Merged `b09fdf0` from `moments-floor-push`: tilt is rounded to 0.1° before it is called level, in the release task, `BalanceExperiment.finish()` and `balanceSnapshot()`. `pnpm check` pass (191 tests); sandbox specs 18 passed, 2 skipped across two full runs with 2 workers.
+
