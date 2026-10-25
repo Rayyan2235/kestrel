@@ -242,7 +242,7 @@ test.describe("G7: sample run", () => {
 
     await page.getByTestId("start-challenge-moments-2").click();
     await say(page, "move the right weight to 25 cm");
-    await page.getByTestId("predict-left-down").click();
+    await page.getByTestId("predict-right-down").click();
     await expect(page.getByTestId("xp-floater")).toContainText("+10");
     await say(page, "move the right weight to 30 cm");
     await page.getByTestId("predict-balanced").click();
