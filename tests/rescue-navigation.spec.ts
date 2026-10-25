@@ -1,4 +1,11 @@
-import { expect, test } from "@playwright/test";
+import { expect as baseExpect, test } from "@playwright/test";
+
+// On CI's saturated software-WebGL runner a single browser call can take
+// 3-20 s, so the 5 s default for each check here is not enough; a CI trace
+// showed the bubble positioned correctly but the poll's first read had not
+// returned within 5 s. Every check without its own timeout gets 30 s.
+const expect = baseExpect.configure({ timeout: 30000 });
+
 // Real physics walks two whole routes. On CI's software WebGL, sharing the
 // runner with another spec, the long route did not reach "Battery died!" in
 // 170 s (it passes locally in under 6 min end to end), so each route gets 480 s.
@@ -133,6 +140,7 @@ test("spoken long route drains battery, shows death bubble, resets, then shorter
         .getByRole("region", { name: "3D playground" })
         .getByRole("status")
         .evaluate((el) => el.style.transform),
+      { timeout: 30000 },
     )
     .not.toBe("");
   await page.screenshot({
