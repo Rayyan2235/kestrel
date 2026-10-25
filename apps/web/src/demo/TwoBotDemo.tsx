@@ -1,5 +1,6 @@
 // TEMPORARY demo page for the two-bot conversation: stub simulation, mock
-// provider, 2D placeholder stage. Reached only via ?demo=two-bot.
+// provider, 2D placeholder stage. Reached only via ?demo=two-bot; add
+// &sim=mujoco to drive the real MuJoCo Microducks instead of the stub.
 import { balance, BOT_NAMES, type BotId } from "@kestrel/contracts";
 import { useReducedMotion } from "motion/react";
 import {
@@ -22,13 +23,63 @@ import { createMockProvider } from "../provider/mock.js";
 import type { Provider } from "../provider/types.js";
 import { usePresentation } from "../presentation/usePresentation.js";
 import { createFakeSim } from "../simulation/fake/index.js";
+import type { SimAdapter } from "../simulation/types.js";
 import styles from "./TwoBotDemo.module.css";
 
 const ANCHORS: Anchors = { pip: { x: 24, y: 62 }, nova: { x: 76, y: 62 } };
 const DELAYS = [1000, 3000, 6000] as const;
 const SPEEDS = [0.5, 1] as const;
 
+/** Loads the real lab for `?sim=mujoco`; the stub otherwise, or if loading fails. */
 export function TwoBotDemo() {
+  const mujoco =
+    new URLSearchParams(window.location.search).get("sim") === "mujoco";
+  const stub = useMemo(() => createFakeSim(), []);
+  const [real, setReal] = useState<SimAdapter | null>(null);
+  const [boot, setBoot] = useState("Loading the MuJoCo lab");
+  const [failed, setFailed] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mujoco) return;
+    let live = true;
+    let dispose = () => {};
+    import("../simulation/real/load.js")
+      .then(({ loadDuckSimAdapter }) =>
+        loadDuckSimAdapter((line) => live && setBoot(line)),
+      )
+      .then((lab) => {
+        if (!live) return lab.dispose();
+        dispose = lab.dispose;
+        // Dev-only handle for browser tests, as in the sandbox.
+        if (import.meta.env.DEV)
+          (window as unknown as { kestrelSim: unknown }).kestrelSim = lab.duck;
+        setReal(lab.sim);
+      })
+      .catch((e) => live && setFailed(String(e?.message ?? e)));
+    return () => {
+      live = false;
+      dispose();
+    };
+  }, [mujoco]);
+  if (mujoco && !real && !failed)
+    return (
+      <div className={styles.page}>
+        <div className={styles.banner} data-testid="sim-loading" role="status">
+          {boot}…
+        </div>
+      </div>
+    );
+  return <DemoRoom sim={real ?? stub} mujoco={real !== null} failed={failed} />;
+}
+
+function DemoRoom({
+  sim: lab,
+  mujoco,
+  failed,
+}: {
+  sim: SimAdapter;
+  mujoco: boolean;
+  failed: string | null;
+}) {
   const reducedMotion = Boolean(useReducedMotion());
   const [, rerender] = useReducer((n: number) => n + 1, 0);
   const [selected, setSelected] = useState<BotId>("pip");
@@ -51,14 +102,14 @@ export function TwoBotDemo() {
   const input = useRef<HTMLInputElement>(null);
 
   const { sim, c } = useMemo(() => {
-    const sim = createFakeSim();
+    const sim = lab;
     // Reads the delay at call time so the selector applies to the next call.
     const provider: Provider = {
       respond: (req, signal) =>
         createMockProvider({ delayMs: delayRef.current }).respond(req, signal),
     };
     return { sim, c: createCoordinator({ sim, provider }) };
-  }, []);
+  }, [lab]);
   useEffect(() => {
     const offs = [c.subscribe(rerender), sim.subscribe(rerender)];
     return () => offs.forEach((off) => off());
@@ -236,8 +287,19 @@ export function TwoBotDemo() {
   return (
     <div className={styles.page}>
       <div className={styles.banner} data-testid="demo-banner" role="note">
-        <strong>Temporary demo.</strong> Stub simulation and a scripted{" "}
-        <b>mock</b> provider. No AI, no network, no MuJoCo.
+        {mujoco ? (
+          <>
+            <strong>Temporary demo.</strong> Real MuJoCo Microducks push the
+            weights; positions are measured. Scripted <b>mock</b> provider. No
+            AI, no network.
+          </>
+        ) : (
+          <>
+            <strong>Temporary demo.</strong> Stub simulation and a scripted{" "}
+            <b>mock</b> provider. No AI, no network, no MuJoCo.
+            {failed && ` (The MuJoCo lab failed to load: ${failed})`}
+          </>
+        )}
       </div>
       <main className={styles.layout}>
         <section className={styles.left} aria-label="Lab">

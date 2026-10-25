@@ -18,7 +18,9 @@ Isometric room, Pip and Nova placeholders, the analytic balance, the typed gramm
 
 ### Two-bot conversation demo (`/?demo=two-bot`, new, on `feat/two-bot-demo`)
 
-A temporary demo of two robots talking to each other and to the learner. It runs on a **stub simulation** (`simulation/fake/`) and a **scripted mock provider**; nothing calls a model, uses a key, the network or MuJoCo. Fast commands are labelled `built-in`, mock replies `mock`, fixed fallbacks `scripted`. One bubble shows in the room at a time (paced by `presentation/`), with Pause/Resume and a 0.5x speed; the side rail shows everything. Not yet connected to `duckSim`.
+A temporary demo of two robots talking to each other and to the learner. By default it runs on a **stub simulation** (`simulation/fake/`) and a **scripted mock provider**; nothing calls a model, uses a key, the network or MuJoCo. Fast commands are labelled `built-in`, mock replies `mock`, fixed fallbacks `scripted`. One bubble shows in the room at a time (paced by `presentation/`), with Pause/Resume and a 0.5x speed; the side rail shows everything.
+
+**Real sim (`/?demo=two-bot&sim=mujoco`, branch `two-bot-real-sim`, stacked on `two-duck-lab`):** the same demo drives the real MuJoCo Microducks through `simulation/real/`. Verified 2026-10-25 by `tests/two-bot-real-sim.spec.ts` (desktop, SwiftShader): "move the left weight to 10 cm" made Pip physically push the 200 g weight (paddle contact in the contact ledger, no Nova contact); the rail showed "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)." and the readout "Left 10.1 cm · Right 20 cm", equal to the sim's measured rail. Stop mid-push left Nova's weight clamped where it stood. Known limits: the 2D beam's tilt is still the analytic ideal beam from measured positions (the plank stays locked; no release step in the demo); the fast-path reply text is written before the push, so on a failed push it is followed by a correcting notice; mock replies never carry actions, so only typed commands move weights.
 
 ## Not integrated (do not claim)
 

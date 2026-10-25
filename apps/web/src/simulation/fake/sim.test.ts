@@ -16,12 +16,14 @@ const task = (over: Partial<SimTask> = {}): SimTask => ({
 });
 
 describe("L1 gate: SimAdapter over the stub world", () => {
-  it("propose does not mutate; apply at the proposed version mutates and bumps", () => {
+  it("propose does not mutate; apply at the proposed version mutates and bumps", async () => {
     const sim = createFakeSim();
     const before = sim.snapshot();
     expect(sim.propose(task()).ok).toBe(true);
     expect(sim.snapshot()).toEqual(before);
-    expect(sim.apply(task(), before.version)).toMatchObject({ ok: true });
+    await expect(sim.apply(task(), before.version)).resolves.toMatchObject({
+      ok: true,
+    });
     expect(sim.snapshot().leftCm).toBe(30);
     expect(sim.snapshot().version).toBeGreaterThan(before.version);
   });
@@ -47,28 +49,31 @@ describe("L1 gate: SimAdapter over the stub world", () => {
     expect(sim.propose(task({ id: "k2", owner: "nova" })).ok).toBe(true);
   });
 
-  it("apply frees the lock", () => {
+  it("apply frees the lock", async () => {
     const sim = createFakeSim();
     sim.propose(task());
-    sim.apply(task(), sim.snapshot().version);
+    await sim.apply(task(), sim.snapshot().version);
     expect(sim.propose(task({ id: "k2", owner: "nova", cm: 10 })).ok).toBe(
       true,
     );
   });
 
-  it("rejects a stale apply and leaves the world untouched", () => {
+  it("rejects a stale apply and leaves the world untouched", async () => {
     const sim = createFakeSim();
     const v0 = sim.snapshot().version;
     sim.propose(task());
     sim.reset();
     const after = sim.snapshot();
-    expect(sim.apply(task(), v0)).toEqual({ ok: false, reason: "stale" });
+    await expect(sim.apply(task(), v0)).resolves.toEqual({
+      ok: false,
+      reason: "stale",
+    });
     expect(sim.snapshot()).toEqual(after);
   });
 
-  it("rejects apply without propose", () => {
+  it("rejects apply without propose", async () => {
     const sim = createFakeSim();
-    expect(sim.apply(task(), sim.snapshot().version)).toEqual({
+    await expect(sim.apply(task(), sim.snapshot().version)).resolves.toEqual({
       ok: false,
       reason: "not-proposed",
     });
@@ -86,11 +91,11 @@ describe("L1 gate: SimAdapter over the stub world", () => {
     });
   });
 
-  it("reset restores the start layout, bumps the version and frees locks", () => {
+  it("reset restores the start layout, bumps the version and frees locks", async () => {
     const sim = createFakeSim();
     const v0 = sim.snapshot().version;
     sim.propose(task());
-    sim.apply(task(), v0);
+    await sim.apply(task(), v0);
     const moved = sim.snapshot().version;
     sim.propose(task({ id: "k2", object: "right-weight", cm: 40 }));
     const w = sim.reset();
@@ -103,12 +108,12 @@ describe("L1 gate: SimAdapter over the stub world", () => {
     );
   });
 
-  it("notifies subscribers on change and stops after unsubscribe", () => {
+  it("notifies subscribers on change and stops after unsubscribe", async () => {
     const sim = createFakeSim();
     const fn = vi.fn();
     const off = sim.subscribe(fn);
     sim.propose(task());
-    sim.apply(task(), sim.snapshot().version);
+    await sim.apply(task(), sim.snapshot().version);
     expect(fn).toHaveBeenCalledTimes(1);
     expect(fn.mock.calls[0]![0].leftCm).toBe(30);
     off();

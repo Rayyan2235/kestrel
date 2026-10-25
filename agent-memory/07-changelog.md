@@ -188,3 +188,22 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - Benchmarks in `scripts/bench/`.
   - REA 6.7.0 `list-browser-targets` and `inspect-web-page` against the running sandbox reported no workers, and the changed modules are served.
 - **Not run:** a spoken (voice) or live-Claude run on this branch.
+
+## 2026-10-25 · Claude Code (side session for the owner) · Real `SimAdapter` for the two-bot demo (`two-bot-real-sim`)
+
+- **Seam:** `SimAdapter.apply(task, version, signal?)` is async. It settles when the physical action lands, fails (new `reason: "failed"`) or the signal aborts it, and holds the per-object lock until then. Results carry an optional `summary`. Stub: `apply` became `async`, nothing else.
+- **Coordinator:** `act` awaits the sim with an abort signal (chain + new `actTimeoutMs`, 60 s). The chain cap counts talk time and pauses while a bot acts. A failed action shows the sim's summary (the old notice is the fallback); a measured summary is added after the reply, before a handback.
+- **Adapter:** `apps/web/src/simulation/real/index.ts` over the two-robot `DuckSim`:
+  - `left-weight` → `weight-200` (Pip), `right-weight` → `weight-100` (Nova);
+  - rails 5–30 cm;
+  - snapshots are measured rail positions (0.1 cm, 100 ms poll, version bump on change);
+  - abort cancels the owner's task and the clamp holds the weight where it stands.
+  `real/load.ts` boots DuckSim on the Moments kit.
+- **Demo:** `?demo=two-bot&sim=mujoco` lazily loads the real lab, with a loading banner, falling back to the stub on failure. The banner says which sim runs.
+- **Files:** `apps/web/src/simulation/{types.ts,fake/index.ts,fake/sim.test.ts,real/*}`, `apps/web/src/coordinator/{index.ts,types.ts,coordinator.test.ts}`, `apps/web/src/demo/TwoBotDemo.tsx`, `tests/two-bot-real-sim.spec.ts`.
+- **Checks:**
+  - `pnpm check` pass (183 tests, 159 before).
+  - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
+  - `tests/two-bot-real-sim.spec.ts` 2/2 on desktop: "Moved the 200 g weight from 20 cm to 10.1 cm (asked for 10 cm)."; readout "Left 10.1 cm · Right 20 cm" equals the sim's measured rail; Pip's paddle contact in the contact ledger; Stop mid-push keeps the weight where it stood.
+- **Not changed:** Moments physics, navigation, contracts.
+- **Not run:** live provider or voice with the real sim; the mobile project for the real-sim spec (skipped by design).

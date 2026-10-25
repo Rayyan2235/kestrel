@@ -93,8 +93,9 @@ Tests: `src/app.test.ts`. Compiled smoke test: `scripts/check-api.mjs`.
 
 ## Two-bot conversation demo (`apps/web/src/`, `?demo=two-bot`)
 
-- `simulation/types.ts` is the only seam: `SimAdapter` (`snapshot`, `subscribe`, `propose`, `apply(task, version)`, `release`, `reset`). `simulation/fake/` is a TEMPORARY stub; the real sim implements the same interface. No React or model imports there.
-- `coordinator/` owns the ledger, per-bot state, abort/epoch, chain budget (2 calls, 1 hop; cap measured from call-1 dispatch) and the world-version check on every action.
+- `simulation/types.ts` is the only seam: `SimAdapter` (`snapshot`, `subscribe`, `propose`, `apply(task, version, signal?) → Promise`, `release`, `reset`). `apply` settles when the action finishes, fails (`reason: "failed"`) or the signal aborts it; the per-object lock is held until then. Results may carry a `summary` (the sim's measured words). No React or model imports under `simulation/`.
+- `simulation/fake/` is the TEMPORARY stub (analytic world, 5–45 cm, instant). `simulation/real/` is the adapter over the two-robot `DuckSim`: `left-weight`/`right-weight` map to `MOMENTS.weights` (`weight-200` pushed by Pip, `weight-100` by Nova), `apply` runs `place_weight` on the owner and settles on its `task-done`, snapshots are measured rail positions (0.1 cm, polled every 100 ms, version bumps on every measured change), rails are 5–30 cm. `real/load.ts` boots DuckSim on the Moments kit; it is imported lazily, only for `?sim=mujoco`.
+- `coordinator/` owns the ledger, per-bot state, abort/epoch, chain budget (2 calls, 1 hop; the cap counts talk time from call-1 dispatch and pauses while a bot acts), `actTimeoutMs` per action (default 60 s), and the world-version check on every action. A failed or measured action adds a `notice` with the sim's summary; a handback stays last.
 - Invariants: every ledger event has a required `to`; bubbles, chips, gaze and aria all derive from `to` only; a late or stale result is dropped; Stop and Reset abort the chain.
 - `presentation/` paces the room (one bubble, reading-time holds). It never changes the ledger or coordinator timing.
 - `provider/mock.ts` is deterministic and offline. A live provider would use the same `Provider` call shape.

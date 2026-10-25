@@ -80,5 +80,8 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 
 ## Two-bot demo follow-ups
 
-- [next] Implement `SimAdapter` over `duckSim` and wire the two-bot coordinator to it. Acceptance: L2 to L8 unchanged; unit and `tests/two-bot-demo.spec.ts` still green.
+- [x] Implement `SimAdapter` over `duckSim` and wire the two-bot coordinator to it (branch `two-bot-real-sim`, `?demo=two-bot&sim=mujoco`). Unit, `two-bot-demo`, `pacing` and `integration` specs green; `tests/two-bot-real-sim.spec.ts` moves a real weight.
+- [next] Teammate review of the seam change (`apply` async with a signal, `failed` reason, optional `summary`, `actTimeoutMs`, cap paused while acting).
+- [later] Demo: a release-and-measure step so the room shows the measured plank tilt, not the ideal beam; a "moving…" cue during the 5–15 s push; reply text written after the measured result.
+- [later] Decide whether `?sim=mujoco` becomes the default once the 3D room replaces the 2D placeholder stage.
 - [owner] Default presentation speed (1x vs 0.75x); whether Pause holds the in-flight model call.
