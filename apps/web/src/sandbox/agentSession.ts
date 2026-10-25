@@ -30,6 +30,9 @@ export function balanceSnapshot(b: NonNullable<ReturnType<DuckSim["status"]>["ba
 }
 
 /** One owner for capture, requests, physical actions and playback cancellation. */
+/** The robot reply noise (owner-supplied clip). Words appear in the think bubble, not as speech. */
+const ROBOT_SOUND = "/audio/bd1-reply.mp3";
+
 export class AgentSession {
   private controller = new AbortController();
   private version = 0;
@@ -100,17 +103,12 @@ export class AgentSession {
     this.alive(signal);
     this.add("duck", text);
     if (!this.voice) return;
+    // Robots answer with a short robot noise; their words stay in the think bubble.
     this.setPhase("Speaking");
     const speech = new AbortController();
     this.speechController = speech;
     try {
-      const response = await checked(await fetch("/api/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }), signal: AbortSignal.any([signal, speech.signal, AbortSignal.timeout(55000)]) }));
-      const blob = await response.blob();
-      this.alive(signal);
-      if (!this.voice || speech.signal.aborted) return;
-      const url = URL.createObjectURL(blob);
-      this.audioUrl = url;
-      const audio = new Audio(url);
+      const audio = new Audio(ROBOT_SOUND);
       this.audio = audio;
       await new Promise<void>((resolve, reject) => {
         let finished = false;
@@ -123,18 +121,17 @@ export class AgentSession {
           error ? reject(error) : resolve();
         };
         const stop = () => { audio.pause(); finish(aborted()); };
-        const timer = setTimeout(() => { audio.pause(); finish(new Error("Speech playback timed out.")); }, 90000);
+        const timer = setTimeout(() => { audio.pause(); finish(); }, 6000);
         this.playbackCancel = () => finish();
         audio.onended = () => finish();
-        audio.onerror = () => finish(new Error("Speech playback failed."));
+        audio.onerror = () => finish();
         signal.addEventListener("abort", stop, { once: true });
-        void audio.play().catch(() => finish(new Error("Browser blocked speech playback. You can keep using text, or enable sound and try again.")));
+        // A blocked autoplay just means no chirp this time; the bubble still shows the reply.
+        void audio.play().catch(() => finish());
       });
-      URL.revokeObjectURL(url);
-      if (this.audio === audio) { this.audio = null; this.audioUrl = null; }
-    } catch (error) {
+      if (this.audio === audio) this.audio = null;
+    } catch {
       this.alive(signal);
-      if (!speech.signal.aborted) this.add("duck", `Speech unavailable: ${(error as Error).message}`, false);
     }
   }
   private act(task: DuckTask, signal: AbortSignal): Promise<Outcome> {

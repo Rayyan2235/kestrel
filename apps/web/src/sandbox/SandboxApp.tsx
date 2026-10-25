@@ -472,11 +472,11 @@ export function SandboxApp() {
               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!e.repeat) void session.current?.startCapture(); } }}
               onKeyUp={e => { if (e.key === "Enter") session.current?.endCapture(); }}
             >{phase === "Listening" ? "Listening… release to send" : "Hold to talk · Space"}</Button>
-            <button type="button" className="gic-tag" aria-label="Spoken replies" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
-              {voice ? "Voice on" : "Voice off"}
+            <button type="button" className="gic-tag" aria-label="Robot reply sound" aria-pressed={voice} onClick={() => { setVoice(!voice); session.current?.setVoice(!voice); }}>
+              {voice ? "Robot sound on" : "Robot sound off"}
             </button>
           </div>
-          <small className={`caption ${styles.providerNote}`}>Claude on Bedrock · ElevenLabs voice. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
+          <small className={`caption ${styles.providerNote}`}>Claude on Bedrock · ElevenLabs transcription · robot sound. Microphone audio is sent when you release. Stop or Esc interrupts.</small>
           <div className={styles.skills}>
             <button className="gic-tag" onClick={() => skill(sitting ? "stand" : "sit", sitting ? "Standing up" : "Sitting down")} disabled={!sim}>
               {sitting ? "Stand" : "Sit"}
