@@ -39,6 +39,25 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: 18% 50%;
+}
+/* Desktop: the wide plate runs 22% past the bottom of the frame, so the
+   robots stand clear below the buttons and the empty sky sits behind the copy. */
+@media (min-width: 821px) {
+  .plate {
+    height: 122%;
+    object-position: 8% 0%;
+  }
+}
+/* A soft sky-blue fade behind the copy keeps white type readable over clouds. */
+.scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 48% 34% at 50% 30%, rgb(40 92 150 / 38%), transparent 72%),
+    linear-gradient(180deg, rgb(40 92 150 / 18%), transparent 30%);
+  pointer-events: none;
 }
 .video {
   position: absolute;
@@ -157,6 +176,9 @@
 .cta .glass {
   color: var(--white);
   gap: 8px;
+  /* Darker glass than the default so white text holds over bright cloud. */
+  background-color: rgb(31 31 41 / 38%);
+  border-color: rgb(255 255 255 / 35%);
 }
 .play {
   width: 20px;
@@ -283,6 +305,9 @@
     width: auto;
     aspect-ratio: 9 / 8;
     transform: translateX(-18%);
+  }
+  .plate {
+    object-position: 50% 50%;
   }
   .nav {
     height: 72px;

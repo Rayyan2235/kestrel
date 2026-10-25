@@ -4,13 +4,15 @@ import { ArrowPill } from "../sandbox/gic";
 import styles from "./WelcomePage.module.css";
 
 /**
- * Swap the art here. The plate is one 9:8 still (2160×1920 fills the frame
- * exactly; anything else is cropped to cover). `video` is optional: a square
- * loop rendered from the plate mirror-padded 120/1920 top and bottom, laid
- * over it at 100% width, 112.5% height, top −6.25%.
+ * Swap the art here. `plate` is the wide (16:9) scene for desktop, cropped to
+ * cover the 9:8 frame and anchored left so the robots stay in view;
+ * `plateSmall` is a 9:8 scene for phones. `video` is optional: a square loop
+ * rendered from the plate mirror-padded 120/1920 top and bottom, laid over it
+ * at 100% width, 112.5% height, top −6.25%.
  */
 export const LANDING = {
-  plate: "/landing/hero.jpg",
+  plate: "/landing/hero-wide.jpg",
+  plateSmall: "/landing/hero.jpg",
   video: null as string | null,
   cards: [
     { title: "Balance the beam", subject: "Physics · Moments", art: "/welcome/lab-pixel.png" },
@@ -88,7 +90,10 @@ export function WelcomePage() {
     <div className={`gic-root ${styles.page}`} ref={root}>
       <section className={styles.hero} aria-label="Kestrel">
         <div className={styles.scene} aria-hidden="true">
-          <img className={styles.plate} src={LANDING.plate} alt="" />
+          <picture>
+            <source media="(max-width: 820px)" srcSet={LANDING.plateSmall} />
+            <img className={styles.plate} src={LANDING.plate} alt="" />
+          </picture>
           {LANDING.video && <video ref={video} className={styles.video} src={LANDING.video} muted loop playsInline />}
         </div>
 
