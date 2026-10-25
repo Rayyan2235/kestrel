@@ -320,8 +320,10 @@ export function SandboxApp() {
           {sim ? (
             <>
               <SandboxScene sim={sim} kit={kit} tint="#5caca4" onProgress={setFilled} bubble={null} />
+              <div className={styles.overlayTokens}>
               <BubbleLayer beat={pres.beat} phase={pres.phase} collapsed={pres.collapsed} anchors={ANCHORS} staleBefore={null} />
               <CapsuleOverlay beat={pres.beat} state={pres.capsuleState} anchors={ANCHORS} reducedMotion={reducedMotion} paused={paused} speed={1} />
+            </div>
             </>
           ) : (
             <div className={styles.boot} role="status">

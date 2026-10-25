@@ -129,7 +129,11 @@ export function ChannelPanel({
     compact && t !== tab && counts[t] > seen[t];
 
   return (
-    <aside className={styles.rail} aria-label="Conversation" data-testid="rail">
+    <aside
+      className={`${styles.rail} ${embedded ? styles.embedded : ""}`}
+      aria-label="Conversation"
+      data-testid="rail"
+    >
       {compact && (
         <div
           role="tablist"
