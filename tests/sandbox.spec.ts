@@ -111,13 +111,51 @@ test("Moments: the learner predicts, both robots push their own weights, and the
   await page.getByRole("button", { name: "Run it with both robots" }).click();
   const result = page.getByTestId("experiment-result");
   await expect(result).toBeVisible({ timeout: 200000 });
-  await expect(result).toContainText("Moments say: Stays level");
-  await expect(result).toContainText("Measured: level");
-  await expect(result).toContainText("you were right");
+  // Real pushes land within a couple of millimetres of the marks, and the
+  // balance is sensitive: 2 mm on the 200 g weight tilts it about 1°. So check
+  // what must hold however they land: both weights are near their marks, the
+  // measured tilt matches the tilt the measured moments predict, and the
+  // feedback tells the learner the truth about their prediction.
+  const exp = await page.evaluate(() => (window as any).kestrelSim.status().experiment.result);
+  expect(exp.ok, exp.summary).toBe(true);
+  expect(Math.abs(exp.left.cm - 15)).toBeLessThanOrEqual(0.3);
+  expect(Math.abs(exp.right.cm - 30)).toBeLessThanOrEqual(0.3);
+  expect(Math.abs(exp.measured.angleDeg - exp.predictedTiltDeg), exp.summary).toBeLessThanOrEqual(0.4);
+  await expect(result).toContainText(exp.measured.lowSide === "level" ? "you were right" : "not this time");
   // Both weights really moved, and both robots touched only their own paddles.
   const contacts = await page.evaluate(() => Object.keys((window as any).kestrelSim.contacts()));
   expect(contacts).toEqual(expect.arrayContaining(["pip↔weight-200-paddle", "nova↔weight-100-paddle"]));
   expect(contacts).not.toContain("pip↔weight-100-paddle");
   expect(contacts).not.toContain("nova↔weight-200-paddle");
   expect(errors).toEqual([]);
+});
+
+test("Moments: a balanced plank stays level with a weight at the very end of its rail", async ({ page }) => {
+  // Regression: a push that stops a hair past its 30 cm (or 5 cm) mark used to
+  // press the carriage into the rail's joint limit. The limit's reaction acts
+  // below the pivot pin and tipped an equal-moment plank about 1° (CI saw
+  // 29.44 vs 29.47 N·cm read as "left side down 1°"). Fast-stepped real physics.
+  await page.route("**/api/**", route => route.abort());
+  await page.goto("/sandbox.html");
+  await expect(page.getByTestId("duck-mode")).toHaveText("walk", { timeout: 90000 });
+  await page.getByRole("button", { name: /Moments/ }).click();
+  await expect(page.getByTestId("balance")).toContainText("Plank locked");
+  const tilts = await page.evaluate(async () => {
+    const sim = (window as any).kestrelSim;
+    sim.stop();
+    const out: { left: number; right: number; tiltDeg: number }[] = [];
+    // Equal moments (200 g × L = 100 g × R), with each weight at, or just past, an end mark.
+    for (const [left, right] of [[0.15, 0.3], [0.1502, 0.3004], [0.1505, 0.301], [0.0498, 0.0996], [0.0495, 0.099]]) {
+      sim.reset();
+      for (let i = 0; i < 10; i++) await sim.controlStep();
+      sim.rails.get("weight-200").brake = -left;
+      sim.rails.get("weight-100").brake = right;
+      for (let i = 0; i < 25; i++) await sim.controlStep();
+      sim.runTask({ kind: "release_plank" });
+      for (let i = 0; i < 250; i++) await sim.controlStep();
+      out.push({ left, right, tiltDeg: (sim.status().balance.angle * 180) / Math.PI });
+    }
+    return out;
+  });
+  for (const t of tilts) expect(Math.abs(t.tiltDeg), `left ${t.left} m, right ${t.right} m`).toBeLessThan(0.5);
 });

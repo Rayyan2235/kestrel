@@ -115,7 +115,7 @@ const TIMEOUT_S: Record<DuckTask["kind"], number> = {
   place_weight: 90,
   set_balance: 240,
   build_squares: 300,
-  release_plank: 6,
+  release_plank: 8,
   lock_plank: 6,
   kick: 1,
   sit: 1,
@@ -300,9 +300,10 @@ export class TaskRunner {
       run.stillFor = 0;
       return { vx: 0, wz: 0, pin: "release" };
     }
-    run.stillFor = Math.abs(angle - run.lastAngle!) < 0.0003 ? (run.stillFor ?? 0) + 0.02 : 0;
+    // Settled: creeping under ~0.001 rad/s for half a second (see BalanceExperiment).
+    run.stillFor = Math.abs(angle - run.lastAngle!) < 0.00002 ? (run.stillFor ?? 0) + 0.02 : 0;
     run.lastAngle = angle;
-    if ((run.stillFor < 0.5 || run.t < 0.6) && run.t < 4) return { vx: 0, wz: 0 };
+    if ((run.stillFor < 0.5 || run.t < 0.6) && run.t < 6) return { vx: 0, wz: 0 };
     const deg = Math.abs((angle * 180) / Math.PI);
     const summary =
       deg < 0.5

@@ -338,6 +338,8 @@ export type ExperimentPorts = {
   busy(id: BotId): boolean;
   /** Seconds of physics time since the last duck↔apparatus contact. */
   clearFor(): number;
+  /** The balance's restoring stiffness about its pin, N·m per radian, read from the MuJoCo model. */
+  stiffness(): number;
 };
 
 export type BalanceResult = {
@@ -345,16 +347,26 @@ export type BalanceResult = {
   summary: string;
   left: { grams: number; cm: number; moment: number };
   right: { grams: number; cm: number; moment: number };
-  /** Predicted from measured moments: which side goes down. */
+  /** Predicted from the measured moments and the balance's stiffness: which side goes down. */
   predicted: "left" | "right" | "level";
-  measured: { lowSide: "left" | "right" | "level"; tiltDeg: number };
+  /** Predicted tilt, degrees; positive lowers the left side. */
+  predictedTiltDeg: number;
+  /** Measured; angleDeg is signed like predictedTiltDeg. */
+  measured: { lowSide: "left" | "right" | "level"; tiltDeg: number; angleDeg: number };
 };
 
 export const G = 9.81;
-/** Moments within this fraction of each other count as balanced (the pivot's own resolution). */
-export const BALANCE_TOL = 0.02;
+/** Below this tilt the plank counts as level, for the prediction and the measurement alike. */
+export const LEVEL_DEG = 0.5;
 
-export function momentsFor(rails: Map<string, number>) {
+/**
+ * Moments from measured rail positions, and the tilt they predict. The pivot
+ * pin sits above the loaded plank's centre of mass, so the plank is a stiff
+ * pendulum: it settles where the restoring torque k·θ balances the net moment
+ * (up to its stop). Prediction and measurement use the same LEVEL_DEG, so a
+ * small but real imbalance is predicted as a small tilt, not as "level".
+ */
+export function momentsFor(rails: Map<string, number>, stiffness: number) {
   const side = (s: "left" | "right") => {
     const w = MOMENTS.weights.find((x) => x.side === s)!;
     const cm = Math.abs(rails.get(w.id) ?? 0) * 100;
@@ -363,10 +375,11 @@ export function momentsFor(rails: Map<string, number>) {
   };
   const left = side("left");
   const right = side("right");
-  const net = left.moment - right.moment;
-  const predicted: BalanceResult["predicted"] =
-    Math.abs(net) <= BALANCE_TOL * Math.max(left.moment, right.moment) ? "level" : net > 0 ? "left" : "right";
-  return { left, right, predicted };
+  const net = left.moment - right.moment; // N·cm, positive lowers the left
+  const rad = Math.max(-MOMENTS.tilt, Math.min(MOMENTS.tilt, net / 100 / stiffness));
+  const predictedTiltDeg = Math.round(((rad * 180) / Math.PI) * 10) / 10;
+  const predicted: BalanceResult["predicted"] = Math.abs(predictedTiltDeg) < LEVEL_DEG ? "level" : net > 0 ? "left" : "right";
+  return { left, right, net: Math.round(net * 100) / 100, predicted, predictedTiltDeg };
 }
 
 export class BalanceExperiment {
@@ -450,9 +463,12 @@ export class BalanceExperiment {
         this.t = 0;
         return { pin: "release", phase: this.phase };
       case "SETTLE": {
-        this.stillFor = Math.abs(b.angle - this.lastAngle) < 0.0003 ? this.stillFor + dt : 0;
+        // Settled means creeping under ~0.001 rad/s for half a second: a slightly
+        // unbalanced plank creeps toward its tilt for a second or two, and an
+        // early reading would understate it.
+        this.stillFor = Math.abs(b.angle - this.lastAngle) < 0.00002 ? this.stillFor + dt : 0;
         this.lastAngle = b.angle;
-        if ((this.stillFor < 0.5 || this.t < 0.6) && this.t < 4) return { phase: this.phase };
+        if ((this.stillFor < 0.5 || this.t < 0.6) && this.t < 6) return { phase: this.phase };
         return this.finish(ports);
       }
       case "DONE":
@@ -462,20 +478,28 @@ export class BalanceExperiment {
 
   private finish(ports: ExperimentPorts, failure?: string) {
     const b = ports.world("pip").balance!;
-    const m = momentsFor(b.rails);
-    const deg = Math.abs((b.angle * 180) / Math.PI);
-    const measured = { lowSide: (deg < 0.5 ? "level" : b.angle > 0 ? "left" : "right") as BalanceResult["measured"]["lowSide"], tiltDeg: Math.round(deg * 10) / 10 };
+    const m = momentsFor(b.rails, ports.stiffness());
+    const angleDeg = (b.angle * 180) / Math.PI;
+    const deg = Math.abs(angleDeg);
+    const measured = {
+      lowSide: (deg < LEVEL_DEG ? "level" : b.angle > 0 ? "left" : "right") as BalanceResult["measured"]["lowSide"],
+      tiltDeg: Math.round(deg * 10) / 10,
+      angleDeg: Math.round(angleDeg * 10) / 10,
+    };
+    const tilt = Math.abs(m.predictedTiltDeg);
     // Any robot contact after the pin was pulled spoils the reading.
     const contactDuring = !failure && ports.clearFor() < this.t - 0.05;
     const describe = (s: typeof m.left, side: string) => `${side}: ${s.grams} g × ${s.cm} cm = ${s.moment} N·cm`;
     const summary = failure
       ? failure
       : `${describe(m.left, "Left")}; ${describe(m.right, "right")}. ` +
-        (m.predicted === "level" ? "The moments match, so it should balance. " : `The ${m.predicted} moment is bigger, so the ${m.predicted} side should go down. `) +
+        (m.predicted === "level"
+          ? `They differ by ${Math.abs(m.net)} N·cm, so it should stay level (about ${tilt}°). `
+          : `The ${m.predicted} moment is bigger by ${Math.abs(m.net)} N·cm, so the ${m.predicted} side should go down ${tilt >= ((MOMENTS.tilt * 180) / Math.PI) - 0.05 ? "to its stop" : `about ${tilt}°`}. `) +
         (measured.lowSide === "level" ? `Measured: it stayed level (${measured.tiltDeg}°).` : `Measured: the ${measured.lowSide} side went down ${measured.tiltDeg}°.`) +
         (contactDuring ? " Warning: a robot touched the apparatus while it settled, so this reading isn't clean." : "");
     this.phase = "DONE";
-    this.result = { ok: !failure && !contactDuring, summary, left: m.left, right: m.right, predicted: m.predicted, measured };
+    this.result = { ok: !failure && !contactDuring, summary, left: m.left, right: m.right, predicted: m.predicted, predictedTiltDeg: m.predictedTiltDeg, measured };
     return { done: this.result, phase: this.phase };
   }
 }

@@ -218,3 +218,20 @@ Append-only, newest at the bottom. Format: `## YYYY-MM-DD · agent · summary`, 
   - New tests: 3 API with mocked Bedrock, 3 live provider with mocked fetch.
   - Stub e2e `two-bot-demo` + `pacing` + `integration`: 108/108 passed.
   - Live check `scripts/two-bot-live-check.mjs` (paid, cents): Pip handed off to Nova, Nova pushed the right weight 20 → 24.9 cm (measured), then a live handback, 15.7 s in all.
+
+## 2026-10-25 · Claude Code (for the owner) · Moments: rail end-stop bug, tilt prediction, settling (`moments-floor-push`)
+
+- **CI failure on PR #7 (my Moments e2e):** 200 g at 15 cm against 100 g at 30 cm read "level" by moments (29.44 vs 29.47 N·cm), but the plank measured "left side down 1°".
+- **Root cause, measured:** the push stopped 0.4 mm past the 30 cm mark, which was also the rail's joint limit. The soft limit kept pressing the carriage back, and its reaction acts 5.4 cm below the pivot pin, so it tilted a balanced plank: 0° at 30.00 cm, 1.14° at 30.04 cm, 3.7° at 30.10 cm. The same happened at the 5 cm end.
+- **Fix:** each rail now travels 5 mm past its 5 cm and 30 cm marks (`MOMENTS.railTravel`), and the plank is 66 cm long. Regression e2e: equal moments with a weight at or just past each end mark stays level. It fails on the old geometry (1.14°) and passes now.
+- **Second cause of the same flakiness:** "level" was predicted within 2% of the moments, but measured "level" meant under 0.5°. A real 2 mm placement error tilts the plank about 1°.
+  - Now the stiffness is measured from MuJoCo: k = m·g·h from the plank subtree's mass and centre of mass, and the hinge anchor, giving 0.226 N·m/rad.
+  - The tilt is predicted from the net moment, with one `LEVEL_DEG` (0.5°) threshold for both prediction and measurement.
+  - A static probe matched the prediction within 0.14°.
+  - Large tilts (over about 4°) are under-predicted by up to about 1° by this linear model.
+- **Settling:** a slow creep under 0.015 rad/s used to count as "settled", so small tilts were read early: 0.3° measured vs 0.6° predicted. It is now under about 0.001 rad/s for 0.5 s (cap 6 s), and near-balance readings match the prediction to 0.1°.
+- **e2e:** the cooperative spec now checks that both weights are within 0.3 cm of their marks, that the measured tilt is within 0.4° of the predicted tilt, and that the feedback is truthful. It no longer requires a perfect landing.
+- **Checks:**
+  - `pnpm check` pass (160 tests);
+  - e2e 123 passed, 1 skipped by design;
+  - 10-case balance bench: all completed, 0 falls, directions all match.

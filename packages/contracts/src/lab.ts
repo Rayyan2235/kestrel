@@ -221,7 +221,8 @@ export function pythagorasKit(): LabKit {
 // walking into its paddle. Distances on the rails are real centimetres.
 
 const PIVOT_H = 0.06;
-const PLANK = { length: 0.64, width: 0.04, thick: 0.012 };
+// Long enough that a weight at the far end of its rail travel still sits on the plank.
+const PLANK = { length: 0.66, width: 0.04, thick: 0.012 };
 const PADDLE = { reach: 0.11, thick: 0.012, height: 0.085, bottom: 0.04, mass: 0.01 };
 const PIVOT: Vec2 = [0.5, 0];
 /** The duck's chest meets the paddles here, 2 cm inside their tips. */
@@ -253,6 +254,13 @@ export const MOMENTS = {
   pinHeight: 0.08,
   minCm: 5,
   maxCm: 30,
+  /**
+   * Rail travel past each end mark, metres. A push stops within about a
+   * millimetre of its mark; if the rail ended exactly at 5 or 30 cm, that
+   * overshoot would press on the joint limit, and the limit's reaction (acting
+   * below the pivot pin) would tilt a balanced plank by about 1°.
+   */
+  railTravel: 0.005,
   laneX: LANE_X,
   /** A walkway clear of the paddle tips, for getting to and from the lane. */
   transitX: LANE_X - 0.1675,
@@ -323,7 +331,7 @@ export function momentsKit(): LabKit {
             joint: "slide",
             parent: "plank",
             axis: [0, 1, 0],
-            range: w.side === "left" ? [-hi, -lo] : [lo, hi],
+            range: w.side === "left" ? [-(hi + MOMENTS.railTravel), -(lo - MOMENTS.railTravel)] : [lo - MOMENTS.railTravel, hi + MOMENTS.railTravel],
             damping: 3,
             rest: railAt(w.side, w.cm),
             pos: [0, 0, z],

@@ -122,6 +122,8 @@ A temporary demo of two robots talking to each other and to the learner. By defa
 - Control step: 0.92 ms (both inferences 0.27 ms, physics 0.48 ms, contact audit 0.11 ms) within each 20 ms tick.
 - REA 6.7.0 `inspect-web-page` reported **no workers**: physics and inference run on the main thread, so a Web Worker isn't needed at this load.
 
+**Tilt prediction (Oct 25):** the predicted tilt comes from net moment ÷ the balance's MuJoCo-measured stiffness (0.226 N·m/rad). It matches the measurement within about 0.1° near balance. Above about 4° it under-predicts by up to about 1° (linear model). The rails have 5 mm of travel past their 5 and 30 cm marks, so a push that overshoots never presses an end stop.
+
 **Idealisations, stated in the UI and README:**
 
 - The lock pin is a kinematic hold that levels the plank at a fixed rate.

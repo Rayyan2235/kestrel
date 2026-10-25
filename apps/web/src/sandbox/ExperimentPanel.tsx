@@ -80,7 +80,7 @@ export function ExperimentPanel({
             Measured positions: {result.left.grams} g at {result.left.cm} cm ({result.left.moment} N·cm), {result.right.grams} g at {result.right.cm} cm ({result.right.moment} N·cm).
           </p>
           <p>
-            <strong>Moments say:</strong> {SIDE_TEXT[result.predicted]}. <strong>Measured:</strong>{" "}
+            <strong>Moments say:</strong> {SIDE_TEXT[result.predicted]} (about {Math.abs(result.predictedTiltDeg)}°). <strong>Measured:</strong>{" "}
             {result.measured.lowSide === "level" ? `level (${result.measured.tiltDeg}°)` : `${result.measured.lowSide} side down ${result.measured.tiltDeg}°`}.
           </p>
           {asked && (
