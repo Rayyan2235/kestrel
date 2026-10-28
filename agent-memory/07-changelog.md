@@ -436,3 +436,11 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
   - The ledger turns on only when `xp_events` exists, so legacy Tiger has none. Learners are upserted for the foreign keys. `retrying` moved to `db/retry.ts`.
 - Web: the board shows ledger XP and level, or local XP with "· offline". The level-up toast follows the server (`awarded` and a level above the pre-award level), with the local fallback offline. On load, earned objectives are re-claimed (idempotent backfill). ExperimentPanel locks, claims and starts a trial for prompt setups, then claims matched and comeback when the measured result equals the prediction. README says "client-trusted until P4".
 - Tests: curve L2/L3/L4, prompt answers, schema refusals, eligibility, route 400/503; a DB test (CI only, own schema) for same-event-twice giving 1 row, Reset-farm capping at 35, and objective once. pnpm check 237 passed, 2 skipped (DB). Desktop Playwright `--workers=1`: beam-xp-levels plus sandbox, 7/7.
+
+## 2026-10-28 · Claude Code · P2 live level-up on Vultr (owner repo, branch `feat/p2-live-levelup`, stacked on P1)
+
+- Migration runner: `adoptLegacy` renames a legacy-shaped `attempts` (no `id`) to `attempts_legacy` before migrating; `copyLegacy` copies its UUID-learner rows into the new `attempts` (unverified, once each) after. These are runner code, not SQL files, because they are conditional and DSQL has no PL/pgSQL. `db:migrate` falls back to `TIGER_DATABASE_URL`.
+- `deploy.sh` still migrates after the build and before the pm2 restart; with `set -e`, a failed migration stops the deploy.
+- `scripts/smoke-live.mjs` (`pnpm smoke:live`): a fresh learner wins Balance the beam at 10/20 and the script asserts the server-backed "Level 2!" (fails on "offline"). Login comes from `KESTREL_SMOKE_USER`/`PASS` and is never printed; paid routes are aborted. Documented as the last step of DEPLOY.md.
+- Level math without the triangle: beam 100 + 4 Moments prompts × 35 = 240, so L2 is reachable but L3 (250) is not from beam and Moments alone; adding Rescue Pip (+100) gives 340, which is L3. Curve unchanged.
+- Checks: the DB test for the legacy rename runs in CI only (no local DB). The smoke ran locally against a dev server with no API: the full flow played and it failed, as designed, on "offline".

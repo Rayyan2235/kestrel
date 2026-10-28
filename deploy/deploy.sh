@@ -26,7 +26,9 @@ export KESTREL_ROOT="$ROOT"
 git pull --ff-only
 pnpm install --frozen-lockfile
 pnpm build
-# Apply pending schema changes before the API restarts; a no-op without DATABASE_URL.
+# Apply pending schema changes before the API restarts (a no-op without a database URL).
+# A failed migration stops here (set -e), so the running API is never restarted onto a
+# schema it does not match.
 pnpm db:migrate
 
 if pm2 describe kestrel-api > /dev/null 2>&1; then

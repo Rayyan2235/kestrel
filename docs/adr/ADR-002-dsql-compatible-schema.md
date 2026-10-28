@@ -24,4 +24,4 @@ Migrations are numbered SQL files in `apps/api/migrations`, `NNNN_name.up.sql` w
 
 - The same files run on Postgres in CI and in `docker compose`, and should run on DSQL. They have not run on DSQL yet; the first DSQL deploy must check them.
 - With no secondary index on `attempts`, reads by learner are a scan. That is fine at today's size; revisit with `CREATE INDEX ASYNC` on DSQL.
-- The legacy Tiger Data `attempts` hypertable (no `id` or `status`) is never migrated. The API keeps reading it through `TIGER_DATABASE_URL` until its rows are copied into a migrated database (`DATABASE_URL`). Copy the old columns only; new rows default to `status = 'unverified'`.
+- The legacy Tiger Data `attempts` hypertable (no `id` or `status`) is moved aside by the runner before migrating: renamed to `attempts_legacy`, with its rows (UUID learner IDs only) copied into the new `attempts` as `unverified`, once each. This is runner code, not a migration file, because it is conditional and DSQL has no PL/pgSQL.

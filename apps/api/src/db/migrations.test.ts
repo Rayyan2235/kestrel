@@ -64,3 +64,33 @@ it.runIf(Boolean(testUrl))("migrates up, all the way down, and up again on a cle
     await client.end();
   }
 });
+
+it.runIf(Boolean(testUrl))("moves a legacy Tiger attempts table aside and copies its rows across once", async () => {
+  const client = new pg.Client({ connectionString: testUrl });
+  await client.connect();
+  await client.query("DROP SCHEMA IF EXISTS test_legacy CASCADE");
+  await client.query("CREATE SCHEMA test_legacy");
+  await client.query("SET search_path TO test_legacy");
+  try {
+    // The shape the old app created at startup (without the Timescale hypertable call).
+    await client.query(`CREATE TABLE attempts (
+      learner_id text NOT NULL, objective text NOT NULL, at timestamptz NOT NULL DEFAULT now(),
+      ok boolean NOT NULL, tilt_deg double precision, left_cm double precision, right_cm double precision)`);
+    await client.query(
+      "INSERT INTO attempts (learner_id, objective, ok, tilt_deg, left_cm, right_cm) VALUES ($1, 'balance-beam', true, 0.2, 10, 20), ('not-a-uuid', 'rescue-pip', true, null, null, null)",
+      ["2f1c8f3e-6a4b-4c1d-9e2f-0a1b2c3d4e5f"],
+    );
+
+    expect(await up(client, migrations)).toHaveLength(migrations.length);
+    const copied = await client.query("SELECT objective, status, tilt_deg FROM attempts");
+    expect(copied.rows).toEqual([{ objective: "balance-beam", status: "unverified", tilt_deg: 0.2 }]);
+    expect((await client.query("SELECT count(*)::int AS n FROM attempts_legacy")).rows[0].n).toBe(2);
+
+    // Running again copies nothing twice.
+    expect(await up(client, migrations)).toEqual([]);
+    expect((await client.query("SELECT count(*)::int AS n FROM attempts")).rows[0].n).toBe(1);
+  } finally {
+    await client.query("DROP SCHEMA IF EXISTS test_legacy CASCADE").catch(() => {});
+    await client.end();
+  }
+});

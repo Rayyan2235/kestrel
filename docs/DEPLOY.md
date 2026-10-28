@@ -48,7 +48,7 @@ Edit `.env` (it stays on the server; never commit, print or copy it):
 | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `BEDROCK_MODEL_ID` | for live AI | Bedrock credentials for robot conversation |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | for voice | Speech in and out |
 | `DATABASE_URL` | optional | Postgres for learner progress; `deploy.sh` runs `pnpm db:migrate` to create the tables. Unset keeps progress in the browser |
-| `TIGER_DATABASE_URL` | legacy | The old Tiger Data hypertable, read only while `DATABASE_URL` is unset; never migrated (see `docs/adr/ADR-002-dsql-compatible-schema.md`) |
+| `TIGER_DATABASE_URL` | legacy | Tiger Data (plain Postgres), used when `DATABASE_URL` is unset. The first `db:migrate` renames the old `attempts` hypertable to `attempts_legacy` and copies its rows into the new schema |
 | `PORT` | no | API port; keep `5181` (the Caddyfile proxies to it) |
 
 Without AI or voice keys the site still runs; those features report that the server is not configured. Live requests incur provider usage.
@@ -60,9 +60,22 @@ cd /opt/kestrel
 bash deploy/deploy.sh
 ```
 
-`deploy/deploy.sh` is safe to run again for every update. It refuses to run without `.env`, sets it to mode 600, pulls with `--ff-only`, installs from the lockfile, builds, applies pending schema migrations (`pnpm db:migrate`, a no-op without `DATABASE_URL`), starts or restarts the `kestrel-api` pm2 process, saves the pm2 list and reloads Caddy with `deploy/Caddyfile`. It reads only the `KESTREL_*` lines of `.env` for Caddy.
+`deploy/deploy.sh` is safe to run again for every update. It refuses to run without `.env`, sets it to mode 600, pulls with `--ff-only`, installs from the lockfile, builds, applies pending schema migrations (`pnpm db:migrate`, a no-op without a database URL; a failed migration stops the deploy before the API restarts), starts or restarts the `kestrel-api` pm2 process, saves the pm2 list and reloads Caddy with `deploy/Caddyfile`. It reads only the `KESTREL_*` lines of `.env` for Caddy.
 
 Check: open `https://<your-host>`, sign in, and visit `/api/health`.
+
+### Last step: the live smoke test
+
+Prove level-up works on the live site, from your machine or the server:
+
+```bash
+pnpm exec playwright install chromium   # once
+export KESTREL_SMOKE_URL=https://<your-host> KESTREL_SMOKE_USER=<user>
+read -rs KESTREL_SMOKE_PASS && export KESTREL_SMOKE_PASS   # typed, not echoed or kept in history
+pnpm smoke:live
+```
+
+A fresh browser profile (a new anonymous learner) signs in and wins Balance the beam (200 g at 10 cm, 100 g at 20 cm), using the real physics. It then checks the server-backed "Level 2!" toast. The script fails if the level came from the browser's "offline" fallback, meaning the server's XP ledger did not answer. Paid routes (Claude, voice, two-bot) are aborted, so a run costs nothing. The login comes from the environment and is never printed. Each run leaves one test learner in the database. A deploy is done when this prints `PASS`.
 
 ## 4. Survive a reboot
 
