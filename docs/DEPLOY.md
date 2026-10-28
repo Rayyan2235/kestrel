@@ -47,7 +47,8 @@ Edit `.env` (it stays on the server; never commit, print or copy it):
 | `KESTREL_PASS_HASH` | yes | Output of `caddy hash-password` (quote it if your editor needs it) |
 | `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `BEDROCK_MODEL_ID` | for live AI | Bedrock credentials for robot conversation |
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` | for voice | Speech in and out |
-| `TIGER_DATABASE_URL` | optional | Tiger Data (TimescaleDB) for learner progress; unset keeps progress in the browser |
+| `DATABASE_URL` | optional | Postgres for learner progress; `deploy.sh` runs `pnpm db:migrate` to create the tables. Unset keeps progress in the browser |
+| `TIGER_DATABASE_URL` | legacy | The old Tiger Data hypertable, read only while `DATABASE_URL` is unset; never migrated (see `docs/adr/ADR-002-dsql-compatible-schema.md`) |
 | `PORT` | no | API port; keep `5181` (the Caddyfile proxies to it) |
 
 Without AI or voice keys the site still runs; those features report that the server is not configured. Live requests incur provider usage.
@@ -59,7 +60,7 @@ cd /opt/kestrel
 bash deploy/deploy.sh
 ```
 
-`deploy/deploy.sh` is safe to run again for every update. It refuses to run without `.env`, sets it to mode 600, pulls with `--ff-only`, installs from the lockfile, builds, starts or restarts the `kestrel-api` pm2 process, saves the pm2 list and reloads Caddy with `deploy/Caddyfile`. It reads only the `KESTREL_*` lines of `.env` for Caddy.
+`deploy/deploy.sh` is safe to run again for every update. It refuses to run without `.env`, sets it to mode 600, pulls with `--ff-only`, installs from the lockfile, builds, applies pending schema migrations (`pnpm db:migrate`, a no-op without `DATABASE_URL`), starts or restarts the `kestrel-api` pm2 process, saves the pm2 list and reloads Caddy with `deploy/Caddyfile`. It reads only the `KESTREL_*` lines of `.env` for Caddy.
 
 Check: open `https://<your-host>`, sign in, and visit `/api/health`.
 

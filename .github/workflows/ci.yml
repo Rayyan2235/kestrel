@@ -9,6 +9,23 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    # A throwaway Postgres for the migration up/down/up test.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kestrel
+          POSTGRES_PASSWORD: kestrel
+          POSTGRES_DB: kestrel_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kestrel -d kestrel_test"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      KESTREL_TEST_DATABASE_URL: postgres://kestrel:kestrel@127.0.0.1:5432/kestrel_test
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4

@@ -44,7 +44,7 @@ To rerun one, start `pnpm dev`, then run `CI=1 node scripts/bench/coop-bench.mjs
 | Moments      | Sets where each weight goes, predicts which way the plank tips, runs it                                             | Each robot pushes its own weight (Pip 200 g, Nova 100 g) and steps clear. The measured tilt is compared with the moments               |
 | Free play    | Drives Pip with the keyboard (WASD or arrows, Q/E kick, R sit/stand, F peck, T roll), or starts a Pip vs Nova fight | Walk, turn, kick and push blocks. In a fight: face off, charge, back off, repeat                                                       |
 
-The **Objectives** board has three goals: Balance the beam, Build the right triangle and Rescue Pip, each worth 100 XP. Earned XP adds up to levels (Level 2 at 100 XP, Level 3 at 250), shown on the Objectives card with a bar to the next level. A bar fills only when the simulator measures the goal met, and confetti fires (not under reduced motion). Won objectives survive a reload. The browser keeps an anonymous learner ID (no name, no account) and stores wins locally. With `TIGER_DATABASE_URL` set, the API also records each win in a Tiger Data (TimescaleDB) hypertable, with the measured beam tilt and weight positions, and restores the board from it. Only wins are logged so far.
+The **Objectives** board has three goals: Balance the beam, Build the right triangle and Rescue Pip, each worth 100 XP. Earned XP adds up to levels (Level 2 at 100 XP, Level 3 at 250), shown on the Objectives card with a bar to the next level. A bar fills only when the simulator measures the goal met, and confetti fires (not under reduced motion). Won objectives survive a reload. The browser keeps an anonymous learner ID (no name, no account) and stores wins locally. With `DATABASE_URL` set (Postgres, tables from `pnpm db:migrate`), the API also records each win, with the measured beam tilt and weight positions, and restores the board from it. The older Tiger Data hypertable (`TIGER_DATABASE_URL`) is still read while `DATABASE_URL` is unset. Only wins are logged so far.
 
 ## Pip vs Nova, just for fun
 
@@ -84,7 +84,7 @@ Browser: everything physical happens here
 Fastify API on 127.0.0.1:5181 (keys stay on the server)
   POST /api/agent/turn         Claude Sonnet 4.6 on AWS Bedrock
   POST /api/voice/transcribe   ElevenLabs Scribe v2 speech-to-text
-  /api/progress                optional: wins to Tiger Data (TimescaleDB)
+  /api/progress                optional: wins to Postgres (schema in apps/api/migrations)
 ```
 
 Physics and policies never call the model per frame. The API accepts only local origins, runs at most four provider requests at once, and does not log or store request bodies, audio or transcripts. The progress route stores only the anonymous learner ID and measured numbers.
@@ -102,7 +102,8 @@ pnpm dev
 
 - http://127.0.0.1:5180 is the landing page. **Open the playground** goes to the lab at `/console`; `/lab` and `/sandbox.html` open the same console. API health: http://127.0.0.1:5181/api/health. Both servers bind to loopback.
 - **Without keys**, physics, keyboard driving, the lesson buttons, the Moments experiment, typed Rescue routes and the objectives all work.
-- **For Claude and voice**, copy `.env.example` to `.env` in the repository root and fill in your AWS credentials (or `AWS_PROFILE`), `AWS_REGION` and `ELEVENLABS_API_KEY`. `TIGER_DATABASE_URL` is optional; without it, progress stays in the browser. Keys stay on the server; never give them a `VITE_` prefix. Each request uses paid provider quota.
+- **For Claude and voice**, copy `.env.example` to `.env` in the repository root and fill in your AWS credentials (or `AWS_PROFILE`), `AWS_REGION` and `ELEVENLABS_API_KEY`. `DATABASE_URL` is optional; without it, progress stays in the browser.
+- **For a local database**, `pnpm db:up` starts Postgres 16 and ElasticMQ (a local SQS) with Docker Compose. Set `DATABASE_URL=postgres://kestrel:kestrel@127.0.0.1:5432/kestrel`, then `pnpm db:migrate` creates the tables. `pnpm --filter @kestrel/api db:migrate down all --yes` reverts them all, data included. Schema decisions are in [`docs/adr/`](docs/adr/). Keys stay on the server; never give them a `VITE_` prefix. Each request uses paid provider quota.
 - To run it on one Ubuntu server behind Caddy, with the whole site behind a basic-auth login, follow [`docs/DEPLOY.md`](docs/DEPLOY.md).
 - On a software WebGL renderer (SwiftShader, llvmpipe) the scene drops shadows and grass and renders at half resolution. Add `?hq` to the URL for full quality.
 
