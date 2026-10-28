@@ -416,3 +416,12 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 
 - Merged `main` `0c84d01` into `feat/beam-xp-levels`. The only conflict was this changelog (the README entry and the beam-XP entry both appended); both entries are kept.
 - README: the beam objective counts within 1.5° of level for 1 s, the fix-it hint, levels (Level 2 at 100 XP, Level 3 at 250), and the 1.5° tolerance named as an idealisation.
+
+## 2026-10-28 · Claude Code · P0 schema, migrations and local stack (owner repo, branch `feat/p0-schema`)
+
+- Migrations: numbered `apps/api/migrations/NNNN_name.{up,down}.sql`, one DDL statement each, run by `apps/api/src/db/migrations.ts` (CLI `pnpm db:migrate [up | down <n|all> --yes | status]`). Each DDL commits in its own transaction; the `schema_migrations` row is written in a second one (DSQL rule). Statements use IF [NOT] EXISTS.
+- Tables: `learners`, `prediction_locks`, `attempts` (status pending|verified|rejected|unverified, `lock_id`, `trial_started_at`), `xp_events` (inline UNIQUE `(learner_id, rule_id, challenge_id, prompt_id)`), `concept_mastery`, `prompt_stats`. uuid PKs, foreign keys where the write order allows (none on `attempts.learner_id` until P1 registers learners), no separate CREATE INDEX (DSQL needs ASYNC).
+- `progress.ts`: no CREATE TABLE at startup; `DATABASE_URL` first, then legacy `TIGER_DATABASE_URL`; `retrying` on SQLSTATE 40001. `deploy.sh` runs `pnpm db:migrate`.
+- `docker-compose.yml` (Postgres 16, ElasticMQ 1.6.11); `pnpm db:up` / `db:down`. CI has a Postgres service; `migrations.test.ts` runs up/down/up when `KESTREL_TEST_DATABASE_URL` is set, plus a DSQL lint of the SQL files and the retry.
+- ADRs: `docs/adr/ADR-001-serverless-free-tier.md`, `ADR-002-dsql-compatible-schema.md`.
+- Checks: pnpm check green locally; the up/down/up test was skipped locally (Docker Desktop not running) and runs in CI.

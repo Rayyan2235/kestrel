@@ -9,34 +9,33 @@ export type ProgressStore = {
 };
 type Queryable = Pick<pg.Pool, "query">;
 
-// A hypertable partitioned on time, so attempts are Tiger Data (TimescaleDB) time series.
-export const SCHEMA = [
-  `CREATE TABLE IF NOT EXISTS attempts (
-    learner_id text NOT NULL,
-    objective text NOT NULL,
-    at timestamptz NOT NULL DEFAULT now(),
-    ok boolean NOT NULL,
-    tilt_deg double precision,
-    left_cm double precision,
-    right_cm double precision
-  )`,
-  `SELECT create_hypertable('attempts', by_range('at'), if_not_exists => TRUE)`,
-  `CREATE INDEX IF NOT EXISTS attempts_learner_at ON attempts (learner_id, at DESC)`,
-];
+// The schema lives in apps/api/migrations (run `pnpm db:migrate`); startup no longer creates tables.
+// Inserts name only the columns the legacy Tiger hypertable also has, so it keeps working until moved.
+
+/** Aurora DSQL commits optimistically: a conflicting transaction fails with 40001 and is safe to retry. */
+export async function retrying<T>(run: () => Promise<T>, tries = 3): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await run();
+    } catch (error) {
+      if ((error as { code?: string }).code !== "40001" || i >= tries) throw error;
+    }
+  }
+}
 
 export function pgStore(db: Queryable): ProgressStore {
   return {
     async record(a) {
-      await db.query(
+      await retrying(() => db.query(
         "INSERT INTO attempts (learner_id, objective, ok, tilt_deg, left_cm, right_cm) VALUES ($1, $2, $3, $4, $5, $6)",
         [a.learnerId, a.objective, a.ok, a.tiltDeg, a.leftCm, a.rightCm],
-      );
+      ));
     },
     async progress(learnerId) {
-      const { rows } = await db.query<{ objective: Attempt["objective"]; attempts: number; earned: boolean }>(
+      const { rows } = await retrying(() => db.query<{ objective: Attempt["objective"]; attempts: number; earned: boolean }>(
         "SELECT objective, count(*)::int AS attempts, bool_or(ok) AS earned FROM attempts WHERE learner_id = $1 GROUP BY objective",
         [learnerId],
-      );
+      ));
       return {
         earned: rows.filter((r) => r.earned).map((r) => r.objective),
         attempts: Object.fromEntries(rows.map((r) => [r.objective, r.attempts])),
@@ -45,23 +44,31 @@ export function pgStore(db: Queryable): ProgressStore {
   };
 }
 
-/** Connect and create the hypertable. Without a URL, or if the database is unreachable, progress stays off. */
-export async function connectProgress(url = process.env.TIGER_DATABASE_URL): Promise<{ store: ProgressStore; close(): Promise<void> } | null> {
+/**
+ * Connect and check the `attempts` table is there. Without a URL, if the database is
+ * unreachable, or if it was never migrated, progress stays off.
+ * DATABASE_URL is the migrated schema; TIGER_DATABASE_URL is the legacy hypertable, still read until moved.
+ */
+export async function connectProgress(
+  url = process.env.DATABASE_URL || process.env.TIGER_DATABASE_URL,
+): Promise<{ store: ProgressStore; close(): Promise<void> } | null> {
   if (!url) return null;
   const pool = new pg.Pool({ connectionString: url, max: 4, connectionTimeoutMillis: 5000 });
   try {
-    for (const sql of SCHEMA) await pool.query(sql);
+    await pool.query("SELECT 1 FROM attempts LIMIT 0");
     return { store: pgStore(pool), close: () => pool.end() };
   } catch (error) {
     // The code only: a driver message can echo the host or user.
-    console.error(`Tiger Data unavailable (${(error as { code?: string }).code ?? "error"}); progress is not stored.`);
+    const code = (error as { code?: string }).code ?? "error";
+    const hint = code === "42P01" ? " Run `pnpm db:migrate`." : "";
+    console.error(`Progress database unavailable (${code}); progress is not stored.${hint}`);
     await pool.end().catch(() => {});
     return null;
   }
 }
 
 export function registerProgress(app: FastifyInstance, store: ProgressStore | null) {
-  const off = { message: "Progress storage is not connected. Set TIGER_DATABASE_URL in the server .env." };
+  const off = { message: "Progress storage is not connected. Set DATABASE_URL in the server .env and run pnpm db:migrate." };
   app.post("/api/progress", async (request, reply) => {
     const parsed = AttemptSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ message: "Invalid attempt." });

@@ -83,7 +83,7 @@ TRANSCRIPTION_MODEL=gpt-transcribe
 PORT=5181
 ```
 
-`TIGER_DATABASE_URL` (optional, server only): a Tiger Data/Postgres connection string. On startup the API creates the `attempts` hypertable; if the URL is unset or the database is unreachable it logs one line and `/api/progress*` returns 503. `/api/health` reports `capabilities.progress`.
+`DATABASE_URL` (optional, server only): Postgres for progress. The schema is versioned SQL in `apps/api/migrations` (`pnpm db:up` starts Postgres 16 and ElasticMQ locally; `pnpm db:migrate` applies; `pnpm --filter @kestrel/api db:migrate down all --yes` reverts). The API no longer creates tables: it checks `attempts` exists, else logs one line and `/api/progress*` returns 503. `TIGER_DATABASE_URL` is the legacy hypertable, read only while `DATABASE_URL` is unset and never migrated. `/api/health` reports `capabilities.progress`. Rules: `docs/adr/ADR-002-dsql-compatible-schema.md`.
 
 Never prefix secrets with `VITE_`. Keys must stay server-side in `apps/api`.
 
