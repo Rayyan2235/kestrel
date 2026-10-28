@@ -44,7 +44,9 @@ To rerun one, start `pnpm dev`, then run `CI=1 node scripts/bench/coop-bench.mjs
 | Moments      | Sets where each weight goes, predicts which way the plank tips, runs it                                             | Each robot pushes its own weight (Pip 200 g, Nova 100 g) and steps clear. The measured tilt is compared with the moments               |
 | Free play    | Drives Pip with the keyboard (WASD or arrows, Q/E kick, R sit/stand, F peck, T roll), or starts a Pip vs Nova fight | Walk, turn, kick and push blocks. In a fight: face off, charge, back off, repeat                                                       |
 
-The **Objectives** board has three goals: Balance the beam, Build the right triangle and Rescue Pip, each worth 100 XP. Earned XP adds up to levels (Level 2 at 100 XP, Level 3 at 250), shown on the Objectives card with a bar to the next level. A bar fills only when the simulator measures the goal met, and confetti fires (not under reduced motion). Won objectives survive a reload. The browser keeps an anonymous learner ID (no name, no account) and stores wins locally. With `DATABASE_URL` set (Postgres, tables from `pnpm db:migrate`), the API also records each win, with the measured beam tilt and weight positions, and restores the board from it. The older Tiger Data hypertable (`TIGER_DATABASE_URL`) is still read while `DATABASE_URL` is unset. Only wins are logged so far.
+The **Objectives** board has three goals: Balance the beam, Build the right triangle and Rescue Pip, each worth 100 XP. Earned XP adds up to levels (Level 2 at 100 XP, Level 3 at 250), shown on the Objectives card with a bar to the next level. A bar fills only when the simulator measures the goal met, and confetti fires (not under reduced motion). Won objectives survive a reload. The browser keeps an anonymous learner ID (no name, no account) and stores wins locally. With `DATABASE_URL` set (Postgres, tables from `pnpm db:migrate`), the API also records each win, with the measured beam tilt and weight positions, and restores the board from it. The older Tiger Data hypertable (`TIGER_DATABASE_URL`) is still read while `DATABASE_URL` is unset.
+
+With a migrated database, XP lives in a server-side **ledger**, an append-only log of awards. Level is worked out from the total when it is read, never stored. A Moments prediction on one of four XP setups (10/20, 15/20, 10/30, 15/30 cm) is locked with a server timestamp before the run, and the trial start is stamped too. Locking earns 10 XP, a right prediction 15, and a right prediction after an earlier wrong one 10. Each award comes once per learner and prompt, so retrying after Reset earns nothing more, and a prompt is worth at most 35. Each objective won adds 100. **XP is client-trusted until P4:** the browser reports what its simulator measured, and server-side replay verification comes later. Without a ledger, the board counts this browser's wins and says "offline". Only wins are logged so far.
 
 ## Pip vs Nova, just for fun
 
@@ -85,6 +87,7 @@ Fastify API on 127.0.0.1:5181 (keys stay on the server)
   POST /api/agent/turn         Claude Sonnet 4.6 on AWS Bedrock
   POST /api/voice/transcribe   ElevenLabs Scribe v2 speech-to-text
   /api/progress                optional: wins to Postgres (schema in apps/api/migrations)
+  /api/locks, /api/attempts/start, /api/xp-events   XP ledger (client-trusted until P4)
 ```
 
 Physics and policies never call the model per frame. The API accepts only local origins, runs at most four provider requests at once, and does not log or store request bodies, audio or transcripts. The progress route stores only the anonymous learner ID and measured numbers.

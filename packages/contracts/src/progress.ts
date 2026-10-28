@@ -23,5 +23,8 @@ export type Attempt = z.infer<typeof AttemptSchema>;
 export const ProgressSchema = z.object({
   earned: z.array(ObjectiveIdSchema),
   attempts: z.partialRecord(ObjectiveIdSchema, z.number().int().min(0)),
+  /** From the XP ledger, derived on read; absent when the server has no ledger. */
+  xp: z.number().int().min(0).optional(),
+  level: z.number().int().min(1).optional(),
 });
 export type Progress = z.infer<typeof ProgressSchema>;
