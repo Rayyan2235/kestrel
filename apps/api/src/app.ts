@@ -1,11 +1,13 @@
 import Fastify from "fastify";
 import { CommandSchema } from "../../../packages/contracts/src/index.js";
 import { registerLive, liveProviders, type LiveProviders } from "./live.js";
+import { registerLedger, type LedgerStore } from "./ledger.js";
 import { registerProgress, type ProgressStore } from "./progress.js";
-export function buildApp(providers: LiveProviders = liveProviders, progress: ProgressStore | null = null) {
+export function buildApp(providers: LiveProviders = liveProviders, progress: ProgressStore | null = null, ledger: LedgerStore | null = null) {
   const app = Fastify({ bodyLimit: 16_384, logger: false });
   registerLive(app, providers);
-  registerProgress(app, progress);
+  registerProgress(app, progress, ledger);
+  registerLedger(app, ledger);
   app.get("/api/health", async () => ({
     name: "Kestrel",
     mode: "sandbox",

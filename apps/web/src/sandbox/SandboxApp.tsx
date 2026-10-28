@@ -18,7 +18,8 @@ import { CREW_TASKS, handoffLine, type CrewLine } from "./crewChannel";
 import { LEVEL_HOLD_MS, OBJECTIVES, OBJECTIVE_LEVEL_DEG, balanceHint, beamBalanced, xpOf, type ObjectiveId } from "./objectives";
 import { leveledUp } from "../progress/levels";
 import { LevelUpToast } from "./LevelUpToast";
-import { beamReading, loadEarned, logAttempt } from "./progress";
+import { awardXp, beamReading, loadProgress, lockPrediction, logAttempt, startTrial } from "./progress";
+import { XP_RULES, levelOf, type Prediction, type XpAward, type XpEvent, type XpTotals } from "@kestrel/contracts";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 import { ArrowPill, Button } from "./gic";
@@ -128,6 +129,10 @@ export function SandboxApp() {
   const [confetti, setConfetti] = useState(0);
   // Set only when earning XP crosses a level, never when saved progress loads.
   const [levelUp, setLevelUp] = useState<number | null>(null);
+  // XP and level from the server's ledger; null while it is offline, when the board counts locally.
+  const [ledger, setLedger] = useState<XpTotals | null>(null);
+  // Each XP prompt's lock and trial, so its result can claim the award.
+  const promptTrials = useRef(new Map<string, Promise<string | null>>());
   const endLevelUp = useCallback(() => setLevelUp(null), []);
   const [fighting, setFighting] = useState(false);
   const [score, setScore] = useState({ pip: 0, nova: 0 });
@@ -167,14 +172,55 @@ export function SandboxApp() {
     if (who === "duck") setBubble({ id, text: line });
   }, []);
 
-  // Earned objectives survive a refresh: this browser's copy plus Tiger Data, if connected.
+  // Earned objectives survive a refresh: this browser's copy plus the server's, if connected.
+  // With a ledger, wins from before it existed are claimed again: the ledger keeps one of each.
   useEffect(() => {
     let live = true;
-    void loadEarned().then((ids) => live && ids.length > 0 && setEarned((e) => new Set([...e, ...ids])));
+    void loadProgress().then(async ({ earned: ids, totals }) => {
+      if (!live) return;
+      if (ids.length > 0) setEarned((e) => new Set([...e, ...ids]));
+      if (!totals) return;
+      let latest = totals;
+      for (const id of ids) latest = (await awardXp({ ruleId: "objective", challengeId: id, promptId: "" })) ?? latest;
+      if (live) setLedger(latest);
+    });
     return () => {
       live = false;
     };
   }, []);
+
+  /** Ask the ledger for an award; celebrate when the server says the level went up. */
+  const claim = useCallback(async (event: Omit<XpEvent, "learnerId">): Promise<XpAward | null> => {
+    const r = await awardXp(event);
+    if (!r) return null;
+    setLedger(r);
+    if (r.awarded && r.level > levelOf(r.xp - XP_RULES[event.ruleId])) setLevelUp(r.level);
+    return r;
+  }, []);
+
+  /** A Moments XP prompt was run: lock the prediction, claim the lock, start the trial. */
+  const promptRun = useCallback(
+    (promptId: string, value: Prediction) => {
+      const trial = lockPrediction(promptId, value).then(async (lockId) => {
+        if (!lockId) return null;
+        await claim({ ruleId: "locked", challengeId: "moments", promptId });
+        return startTrial(lockId);
+      });
+      promptTrials.current.set(promptId, trial);
+    },
+    [claim],
+  );
+  /** Its measured result: a right prediction claims matched, then comeback (the server decides). */
+  const promptResult = useCallback(
+    async (promptId: string, value: Prediction, measured: Prediction) => {
+      const attemptId = await promptTrials.current.get(promptId);
+      if (!attemptId || value !== measured) return;
+      const event = { challengeId: "moments", promptId, attemptId } as const;
+      await claim({ ruleId: "matched", ...event });
+      await claim({ ruleId: "comeback", ...event });
+    },
+    [claim],
+  );
 
   const crewSay = useCallback((from: CrewLine["from"], text: string, ok?: boolean) => {
     const id = nextId.current++;
@@ -542,15 +588,16 @@ export function SandboxApp() {
     const o = OBJECTIVES.find((x) => x.id === objective)!;
     setWon(true);
     setConfetti((c) => c + 1);
-    if (!earned.has(objective)) {
-      const up = leveledUp(xpOf(earned), xpOf(new Set(earned).add(objective))).at(-1);
-      if (up) setLevelUp(up.to);
-    }
+    // The ledger decides the level; offline, the board counts this browser's wins.
+    const localUp = earned.has(objective) ? undefined : leveledUp(xpOf(earned), xpOf(new Set(earned).add(objective))).at(-1);
+    void claim({ ruleId: "objective", challengeId: objective, promptId: "" }).then((r) => {
+      if (!r && localUp) setLevelUp(localUp.to);
+    });
     setEarned((e) => new Set(e).add(objective));
     add("duck", `${o.win} +${o.xp} XP!`, true);
     const none = { tiltDeg: null, leftCm: null, rightCm: null };
     void logAttempt({ objective, ok: true, ...(objective === "balance-beam" ? beamReading(status) : none) });
-  }, [objective, won, status, kitId, solved, rescueOutcome, add, earned]);
+  }, [objective, won, status, kitId, solved, rescueOutcome, add, earned, claim]);
   const hint = kitId === "moments" && status ? balanceHint(status) : null;
 
   return (
@@ -647,7 +694,7 @@ export function SandboxApp() {
                   {hint}
                 </p>
               )}
-              {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} />}
+              {balance && status && <ExperimentPanel status={status} run={(l, r) => crew({ kind: "set_balance", left_cm: l, right_cm: r })} onPromptRun={promptRun} onPromptResult={promptResult} />}
               {kit.id === "free" && (
                 <div className={styles.fightRow}>
                   <Button variant="solid" className={styles.runButton} onClick={fighting ? endFight : startFight} disabled={!sim}>
@@ -693,7 +740,7 @@ export function SandboxApp() {
 
 
         <div className={styles.rail}>
-        <ObjectivesBoard active={objective} won={won} earned={earned} open={boardOpen} onToggle={() => setBoardOpen((o) => !o)} onStart={startObjective} />
+        <ObjectivesBoard active={objective} won={won} earned={earned} totals={ledger} open={boardOpen} onToggle={() => setBoardOpen((o) => !o)} onStart={startObjective} />
         {kitId === "rescue" ? <aside className={`gic-toast ${styles.console} ${styles.missionConsole}`} aria-label="Mission console">
           {sim && <RescuePanel sim={sim} outcome={rescueOutcome} onReset={() => {sim.stopAll();sim.reset();setBubble(null);}} onRun={(route) => {
             session.current?.cancel(); setRescueOutcome(null); setBubble(null); setRescueRoute(route);

@@ -1,4 +1,15 @@
-import { LearnerIdSchema, ObjectiveIdSchema, ProgressSchema, type Attempt, type ObjectiveId } from "@kestrel/contracts";
+import {
+  LearnerIdSchema,
+  ObjectiveIdSchema,
+  ProgressSchema,
+  XpAwardSchema,
+  type Attempt,
+  type ObjectiveId,
+  type Prediction,
+  type XpAward,
+  type XpEvent,
+  type XpTotals,
+} from "@kestrel/contracts";
 import type { SimStatus } from "../simulation/duckSim";
 import { balanceSnapshot } from "./agentSession";
 
@@ -37,18 +48,66 @@ function saveEarned(ids: Iterable<ObjectiveId>) {
   }
 }
 
-/** Objectives earned in this browser and on the server (Tiger Data), merged. */
-export async function loadEarned(): Promise<ObjectiveId[]> {
+/**
+ * Objectives earned in this browser and on the server, merged, plus XP and level from the
+ * server's ledger. `totals` is null when the server has no ledger: the board then counts
+ * XP locally and says "offline".
+ */
+export async function loadProgress(): Promise<{ earned: ObjectiveId[]; totals: XpTotals | null }> {
   const local = localEarned();
   try {
     const response = await fetch(`/api/progress/${learnerId()}`, { signal: AbortSignal.timeout(5000) });
-    if (!response.ok) return local;
-    const merged = [...new Set([...local, ...ProgressSchema.parse(await response.json()).earned])];
+    if (!response.ok) return { earned: local, totals: null };
+    const server = ProgressSchema.parse(await response.json());
+    const merged = [...new Set([...local, ...server.earned])];
     saveEarned(merged);
-    return merged;
+    return { earned: merged, totals: server.xp === undefined || server.level === undefined ? null : { xp: server.xp, level: server.level } };
   } catch {
-    return local;
+    return { earned: local, totals: null };
   }
+}
+
+/** Objectives earned in this browser and on the server, merged. */
+export async function loadEarned(): Promise<ObjectiveId[]> {
+  return (await loadProgress()).earned;
+}
+
+async function post(url: string, body: object): Promise<unknown> {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ learnerId: learnerId(), ...body }),
+      signal: AbortSignal.timeout(5000),
+    });
+    return response.ok ? await response.json() : null;
+  } catch {
+    return null;
+  }
+}
+
+/*
+ * The XP ledger (client-trusted until P4): the browser reports what the simulator
+ * measured, and the server stamps the times, sets the XP and refuses repeats.
+ * Every call resolves to null when the ledger is offline or refuses.
+ */
+
+/** Lock a prediction before the trial; the server stamps the time. */
+export async function lockPrediction(promptId: string, value: Prediction): Promise<string | null> {
+  const r = (await post("/api/locks", { challengeId: "moments", promptId, value })) as { lockId?: string } | null;
+  return r?.lockId ?? null;
+}
+
+/** Start a trial under a lock; the server stamps the time. */
+export async function startTrial(lockId: string): Promise<string | null> {
+  const r = (await post("/api/attempts/start", { lockId })) as { attemptId?: string } | null;
+  return r?.attemptId ?? null;
+}
+
+/** Ask for an award. Repeats come back with awarded: false. */
+export async function awardXp(event: Omit<XpEvent, "learnerId">): Promise<XpAward | null> {
+  const parsed = XpAwardSchema.safeParse(await post("/api/xp-events", event));
+  return parsed.success ? parsed.data : null;
 }
 
 /** Record an attempt locally and on the server, without waiting or failing. */

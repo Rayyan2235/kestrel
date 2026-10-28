@@ -36,8 +36,11 @@ const testUrl = process.env.KESTREL_TEST_DATABASE_URL;
 it.runIf(Boolean(testUrl))("migrates up, all the way down, and up again on a clean database", async () => {
   const client = new pg.Client({ connectionString: testUrl });
   await client.connect();
+  // Its own schema, so other database tests in parallel never see these tables.
+  await client.query("CREATE SCHEMA IF NOT EXISTS test_migrations");
+  await client.query("SET search_path TO test_migrations");
   const tables = async () =>
-    (await client.query<{ t: string }>("SELECT table_name AS t FROM information_schema.tables WHERE table_schema = 'public'"))
+    (await client.query<{ t: string }>("SELECT table_name AS t FROM information_schema.tables WHERE table_schema = current_schema()"))
       .rows.map((r) => r.t).filter((t) => TABLES.includes(t)).sort();
   try {
     await down(client, migrations, Infinity);
