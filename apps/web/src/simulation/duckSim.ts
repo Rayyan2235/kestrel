@@ -302,10 +302,11 @@ export class DuckSim {
       if (this.kit.id !== "pythagoras") return "Open the Pythagoras lesson first.";
       for (const r of this.robots) r.tasks.cancel();
       this.results.clear();
-      // Largest first, each from its own open side. Pip takes the 5×5 while
-      // Nova takes the 4×4 at the opposite corner; then Pip brings the 3×3.
+      // Largest first, each from its own open side, one at a time: the slots
+      // share corners, so two robots pushing at once can meet on a re-plan.
+      // Pip takes the 5×5, Nova the 4×4, then Pip brings the 3×3.
       const push = (target: string): DuckTask => ({ kind: "push", target, toward: "slot" });
-      this.crew = new CrewPlan(task, [[{ id: "pip", task: push("square-5") }, { id: "nova", task: push("square-4") }], [{ id: "pip", task: push("square-3") }]], () => {
+      this.crew = new CrewPlan(task, [[{ id: "pip", task: push("square-5") }], [{ id: "nova", task: push("square-4") }], [{ id: "pip", task: push("square-3") }]], () => {
         const props = this.propPositions();
         const filled = this.kit.slots.filter((s) => slotFilled(props.get(s.forProp) ?? [99, 99], s));
         const all = filled.length === this.kit.slots.length;
