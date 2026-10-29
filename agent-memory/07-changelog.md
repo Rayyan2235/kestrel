@@ -459,3 +459,19 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - Policy, MJCF and `pythagorasKit` tile mass and friction are unchanged.
 - New `tests/triangle-build.spec.ts` (desktop, real MuJoCo, fast-stepped): expects "All three squares are on the triangle".
 - Checks: trace 3/3 with no falls (2, 3 and 3 cm; 82 s sim time). Spec run 1 finished with no failure reported; a back-to-back run 2 was killed by Claude Code's low-memory reaper. The gates are the tester's single run and CI. `pnpm check` 237 passed, 3 skipped (DB). Sim unit tests 51/51.
+
+## 2026-10-28 · Claude Code · P5 serverless infra in Python CDK, synth only (owner repo, branch `feat/p5-cdk-infra` off `e39c395`)
+
+- `infra/`: `app.py`, `kestrel_infra/stack.py`, `tests/test_stack.py`, `requirements.txt` (aws-cdk-lib 2.270.0, constructs 10.8.1, pytest 9.1.1), `cdk.json`, README.
+- Stack:
+  - CloudFront with S3 web (OAC) and `/api/*` to an HTTP API, plus a secret origin header from SSM String `/kestrel/origin-header`;
+  - API Lambda (Node 22, arm64, 28 s, outside any VPC);
+  - Aurora DSQL cluster (deletion protection off);
+  - SQS verify queue (360 s visibility) and a DLQ after 3 receives;
+  - S3 data bucket with lifecycle `voice/` 1 d, `replays/` 30 d, and POST CORS for the site's origin only;
+  - 30-day logs;
+  - least-privilege grants (dsql:DbConnect on the cluster, the queue, prefixes, two named SSM parameters, Anthropic models only).
+- Throttling: HTTP API default 20 req/s (burst 40). Bedrock routes 2/5, voice routes 1/3, as their own route keys.
+- `app.py` uses `apps/api/dist-lambda` when it exists, otherwise a 503 placeholder (the bundle and `@fastify/aws-lambda` come with P6). The presigned voice upload route and the 9 MB end-to-end check need a deployed stack; not done.
+- CI: setup-python 3.12, `pip install -r infra/requirements.txt`, `pytest -q infra/tests`. Runbook has the exact local commands.
+- Checks: 5/5 pytest (no VPC/NAT/endpoints, both buckets block public access, voice 1 d and replays 30 d, costly routes throttled below the default, no `*` action or resource in IAM policies). A mutation (voice 2 d, route settings removed) failed 2 tests as expected. `python app.py` synthesizes 32 resources. No deploy, no AWS credentials.
