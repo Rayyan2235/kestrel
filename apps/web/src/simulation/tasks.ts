@@ -54,11 +54,13 @@ const HOLD = { vx: 0, wz: 0 };
 /**
  * Insert detour points so each straight leg of a route keeps clear of the
  * movable props (other than the one being pushed) and the other robots,
- * so a push never bulldozes something already in place.
+ * so a push never bulldozes something already in place. `keep` is extra
+ * clearance around the pushed prop itself, so getting back behind it never
+ * walks over it (a duck that steps on a tile trips).
  */
-export function routeAround(world: WorldView, start: Vec2, waypoints: Vec2[], except: string): Vec2[] {
+export function routeAround(world: WorldView, start: Vec2, waypoints: Vec2[], except: string, keep?: { c: Vec2; r: number }): Vec2[] {
   const body = 0.075;
-  const circles: { c: Vec2; r: number }[] = [];
+  const circles: { c: Vec2; r: number }[] = keep ? [keep] : [];
   for (const p of world.kit.props) {
     if (p.joint !== "free" || p.id === except) continue;
     const at = world.props.get(p.id);
@@ -132,13 +134,15 @@ type Run = {
   t: number;
   start: DuckPose;
   nav: Navigator;
-  phase: "approach" | "align" | "push" | "withdraw" | "settle";
+  phase: "backoff" | "approach" | "align" | "push" | "withdraw" | "settle";
   goal?: Vec2;
   waypoints?: Vec2[];
   startProp?: Vec2;
   lastProp?: Vec2;
   stillFor?: number;
   replans?: number;
+  /** Push: reversing to brake a gait that has run away. */
+  braking?: boolean;
   place?: PlaceWeight;
   /** Release: the pin has been pulled; the plank's last angle and how long it has been still. */
   pulled?: boolean;
@@ -377,8 +381,18 @@ export class TaskRunner {
 
     // Fell off the push line (the gait sways, the prop slides): re-plan.
     if (run.phase === "push" && (lateral > 0.08 || ahead > -footprint(spec) * 0.3)) {
+      run.phase = "backoff";
+      run.stillFor = 0;
+    }
+    // Back straight off the prop before turning: pivoting with a foot against
+    // a 3 cm tile kicks it away and trips the duck (fast-stepped trace, 2026-10-28).
+    if (run.phase === "backoff") {
+      const gap = dist([duck.x, duck.y], prop) - footprint(spec);
+      if (gap < 0.12 && (run.stillFor = (run.stillFor ?? 0) + 1 / 50) < 2) return { vx: NAV.back, wz: 0, phase: "approach" };
+      if (world.speed > NAV.settleSpeed) return { ...HOLD, phase: "approach" };
       run.phase = "approach";
       run.waypoints = undefined;
+      run.stillFor = 0;
     }
     if (run.phase === "approach") {
       if (!run.waypoints) {
@@ -395,7 +409,9 @@ export class TaskRunner {
           ]);
         }
         run.waypoints.push(behind);
-        run.waypoints = routeAround(world, [duck.x, duck.y], run.waypoints, task.target);
+        // Clear of the prop's corners, but never past `behind`, which must stay reachable.
+        const keep = { c: prop, r: Math.min(footprint(spec) * Math.SQRT2 + 0.095, back - 0.02) };
+        run.waypoints = routeAround(world, [duck.x, duck.y], run.waypoints, task.target, keep);
       }
       const wp = run.waypoints[0]!;
       const twist = run.nav.to(duck, world.speed, wp, { radius: 0.05 });
@@ -411,6 +427,7 @@ export class TaskRunner {
       if (run.nav.status !== "arrived") return { ...twist, phase: "align" };
       run.nav.next();
       run.phase = "push";
+      run.braking = false;
       run.lastProp = prop;
       run.stillFor = 0;
     }
@@ -421,14 +438,19 @@ export class TaskRunner {
     } else if ((run.stillFor = (run.stillFor ?? 0) + 1 / 50) > 3) {
       if ((run.replans = (run.replans ?? 0) + 1) > 4)
         return { ...HOLD, done: { ok: false, summary: `${spec.label} stopped moving and I couldn't get it going again. It moved ${cm(run.startProp ? dist(run.startProp, prop) : 0)} and is ${cm(remaining)} from its target.` } };
-      run.phase = "approach";
-      run.waypoints = routeAround(world, [duck.x, duck.y], [[prop[0] - dir[0] * (back + 0.08), prop[1] - dir[1] * (back + 0.08)], behind], task.target);
+      run.phase = "backoff";
       run.stillFor = 0;
       return HOLD;
     }
+    // Governor: after 1.5-2 s against a tile the gait runs away (0.15 to
+    // 0.31-0.38 m/s) and overshoots the slot by 9-20 cm. Holding still doesn't
+    // stop it; reversing does, so brake until it has slowed.
+    if (world.speed > 0.2) run.braking = true;
+    else if (world.speed < 0.12) run.braking = false;
+    if (run.braking) return { vx: NAV.back, wz: 0, phase: "push" };
     // Push: steer for a point just past the prop on the push line, at the
-    // approach command (0.3, above the gait's dead zone).
+    // approach command (above the gait's dead zone), slowest over the last 12 cm.
     const aim: Vec2 = [prop[0] + dir[0] * 0.05, prop[1] + dir[1] * 0.05];
-    return { ...run.nav.forward(duck, Math.atan2(aim[1] - duck.y, aim[0] - duck.x), NAV.approach), phase: "push" };
+    return { ...run.nav.forward(duck, Math.atan2(aim[1] - duck.y, aim[0] - duck.x), remaining < 0.12 ? NAV.gaitMin : NAV.approach), phase: "push" };
   }
 }
