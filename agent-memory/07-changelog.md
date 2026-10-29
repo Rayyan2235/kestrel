@@ -444,3 +444,18 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - `scripts/smoke-live.mjs` (`pnpm smoke:live`): a fresh learner wins Balance the beam at 10/20 and the script asserts the server-backed "Level 2!" (fails on "offline"). Login comes from `KESTREL_SMOKE_USER`/`PASS` and is never printed; paid routes are aborted. Documented as the last step of DEPLOY.md.
 - Level math without the triangle: beam 100 + 4 Moments prompts × 35 = 240, so L2 is reachable but L3 (250) is not from beam and Moments alone; adding Rescue Pip (+100) gives 340, which is L3. Curve unchanged.
 - Checks: the DB test for the legacy rename runs in CI only (no local DB). The smoke ran locally against a dev server with no API: the full flow played and it failed, as designed, on "offline".
+
+## 2026-10-28 · Claude Code · Vultr redeploy, and the triangle build fixed (owner repo, branch `fix/triangle-build` off `e39c395`)
+
+- Vultr redeployed with P1 + P2 (main `e39c395`, by the orchestrator and owner). `pnpm smoke:live` PASS: server-backed Level 2 (125 / 250 XP).
+- Triangle root cause, from fast-stepped real-MuJoCo traces (deterministic: same code gives the same run):
+  1. On a re-plan the duck pivoted with a foot against the 3 cm tile it was pushing; the tile shot about 15 cm away and the duck fell. The other robot was over 1 m away. The re-approach route also ignored the pushed tile.
+  2. After 1.5-2 s of continuous pushing the gait runs away: 0.15 to 0.31-0.38 m/s at the NAV.approach command, overshooting the slot by 9-20 cm, and the duck ends on or against the tile and falls. Holding still does not stop it (tried; 0/3, reverted). Reversing does.
+- Fix, task layer only (`simulation/tasks.ts`, `duckSim.ts`):
+  - push(): a `backoff` phase reverses straight off the tile (max 2 s) before any re-plan or stall re-approach;
+  - `routeAround` takes an optional `keep` circle, so the approach keeps clear of the pushed tile's corners (capped so the spot behind it stays reachable);
+  - a speed governor: above 0.2 m/s it reverses (NAV.back) until below 0.12 m/s, and it pushes at NAV.gaitMin over the last 12 cm;
+  - `build_squares` runs 3 sequential stages (Pip 5×5, Nova 4×4, Pip 3×3) instead of 5×5 + 4×4 together.
+- Policy, MJCF and `pythagorasKit` tile mass and friction are unchanged.
+- New `tests/triangle-build.spec.ts` (desktop, real MuJoCo, fast-stepped): expects "All three squares are on the triangle".
+- Checks: trace 3/3 with no falls (2, 3 and 3 cm; 82 s sim time). Spec run 1 finished with no failure reported; a back-to-back run 2 was killed by Claude Code's low-memory reaper. The gates are the tester's single run and CI. `pnpm check` 237 passed, 3 skipped (DB). Sim unit tests 51/51.

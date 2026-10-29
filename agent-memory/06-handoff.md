@@ -1,4 +1,16 @@
-# Current handoff — judges-deck
+# Current handoff — fix/triangle-build
+
+Owner repo `Rayyan2235/kestrel`, branch `fix/triangle-build` off main `e39c395`. Pushed to `rayyan`; the orchestrator or owner opens the PR (body draft from the implementer). Flag: it changes `apps/web/src/simulation/` (task layer only).
+
+Done: "Build it together" fills 3/3 slots on the real sim (see `07-changelog.md`, 2026-10-28). Vultr runs `e39c395` and `pnpm smoke:live` passed.
+
+Next:
+1. Tester (executor-c9): run `tests/triangle-build.spec.ts` alone, once, desktop, with nothing else heavy running; then CI.
+2. Implementer: P5 on a new branch off `rayyan/main`: a Python CDK app in `infra/` with pytest assertions; `cdk synth` only, no deploy (no AWS account yet).
+
+---
+
+# Previous handoff — judges-deck
 
 Branch `judges-deck`, PR #24 to `main`. PRs #21–#23 are merged into `main`.
 

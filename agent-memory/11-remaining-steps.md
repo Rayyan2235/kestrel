@@ -13,7 +13,7 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
    - Acceptance: say "balance the plank" and the duck places 100 g at 40 cm opposite 200 g at 20 cm; the plank ends within ±2° of level, measured.
 2. **[done on `moments-floor-push`; live Claude verified by typing, spoken check pending] Moments guidance for Claude.** Add a Moments section to the system prompt in `apps/api/src/agent.ts`: moment = mass × distance, ask for a prediction first, place, observe the tilt, explain (200 g × 20 cm = 100 g × 40 cm). It should also offer "what happens if…" variations.
    - Acceptance: "What are moments?" gives a 1–3 sentence spoken explanation plus a placement demo in the same turn.
-3. **[next] Make the 3-square Pythagoras demo reliable.**
+3. **[done on `fix/triangle-build`, 2026-10-28; tester and CI pending] Make the 3-square Pythagoras demo reliable.** Fixed in the push task: back off before re-planning, route around the pushed tile, a push speed governor, and 3 sequential stages; `tests/triangle-build.spec.ts` replaces the probe as the acceptance check. Original plan:
    - Apply the largest-first order (5 → 4 → 3) in the prompt, and raise the push budget from 120 to 150 s (update `tasks.test.ts` to match).
    - Investigate the duck falling after pushes, which happens near tile edges. Likely fixes: a back-off step after a push completes, and stopping the turn-creep while standing close to tiles.
    - If a placed tile is knocked out, let Claude re-push it once.
