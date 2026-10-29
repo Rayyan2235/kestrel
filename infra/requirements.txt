@@ -1,0 +1,5 @@
+# Python CDK app for the serverless stack (P5). Install into a venv:
+#   python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
+aws-cdk-lib==2.270.0
+constructs==10.8.1
+pytest==9.1.1

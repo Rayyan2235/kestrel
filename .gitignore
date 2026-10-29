@@ -20,3 +20,9 @@ context/
 debug.log
 # Scratch probes from agent sessions
 tests/.probe-*
+
+# Python CDK app (infra/): local venv and synth output
+infra/.venv/
+infra/cdk.out/
+__pycache__/
+.pytest_cache/

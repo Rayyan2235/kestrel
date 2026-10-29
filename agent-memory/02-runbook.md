@@ -97,9 +97,23 @@ pnpm --filter @kestrel/api start               # node dist/apps/api/src/index.js
 
 No hosting or deployment is configured.
 
+## Infra (Python CDK, `infra/`, P5)
+
+Synth only: no AWS account yet, so no credentials, no `cdk deploy`. The CDK CLI is not needed; the tests and `python app.py` synthesize in-process (Node must be on PATH for jsii). From the repo root, in Git Bash (on Windows the venv's Python is `.venv/Scripts/python`; elsewhere it is `.venv/bin/python`):
+
+```sh
+cd infra
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt   # aws-cdk-lib 2.270.0, constructs 10.8.1, pytest 9.1.1
+.venv/Scripts/python -m pytest -q tests                    # 5 infra policy checks, ~35 s
+.venv/Scripts/python app.py                                # synth to infra/cdk.out/Kestrel.template.json
+```
+
+On Windows each run may end by printing a jsii `ENOTEMPTY ... jsii-kernel-*` error while Node cleans its temp folder. It is harmless; the pytest result and exit code are what count. `infra/.venv/` and `infra/cdk.out/` are gitignored.
+
 ## CI
 
-`.github/workflows/ci.yml` runs on push to main and on PRs: Node 24, `pnpm install --frozen-lockfile`, `pnpm check`, Playwright install with deps, `pnpm test:e2e`. It uploads `test-results/` and `playwright-report/` on failure.
+`.github/workflows/ci.yml` runs on push to main and on PRs: Node 24, `pnpm install --frozen-lockfile`, `pnpm check`, the infra pytest (Python 3.12), Playwright install with deps, `pnpm test:e2e`. It uploads `test-results/` and `playwright-report/` on failure.
 
 ## Shell notes
 

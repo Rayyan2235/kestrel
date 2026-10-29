@@ -1,4 +1,17 @@
-# Current handoff — judges-deck
+# Current handoff — feat/p5-cdk-infra
+
+Owner repo, branch `feat/p5-cdk-infra` off main `e39c395`. Synth only: no AWS account yet.
+
+Done: the Python CDK stack in `infra/` with 5 pytest infra-policy checks (see `07-changelog.md`, 2026-10-28, and `02-runbook.md`, Infra).
+
+Next:
+1. Tester: run the commands in `02-runbook.md` → Infra exactly.
+2. Not in this branch: the `@fastify/aws-lambda` bundle and origin-header check, the presigned voice upload route and the 9 MB end-to-end check, and `cdk destroy` verification. All need P6 or an AWS account.
+3. Owner: create SSM `/kestrel/elevenlabs-api-key` (SecureString) and `/kestrel/origin-header` (String) before the first deploy.
+
+---
+
+# Previous handoff — judges-deck
 
 Branch `judges-deck`, PR #24 to `main`. PRs #21–#23 are merged into `main`.
 

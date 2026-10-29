@@ -444,3 +444,19 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - `scripts/smoke-live.mjs` (`pnpm smoke:live`): a fresh learner wins Balance the beam at 10/20 and the script asserts the server-backed "Level 2!" (fails on "offline"). Login comes from `KESTREL_SMOKE_USER`/`PASS` and is never printed; paid routes are aborted. Documented as the last step of DEPLOY.md.
 - Level math without the triangle: beam 100 + 4 Moments prompts × 35 = 240, so L2 is reachable but L3 (250) is not from beam and Moments alone; adding Rescue Pip (+100) gives 340, which is L3. Curve unchanged.
 - Checks: the DB test for the legacy rename runs in CI only (no local DB). The smoke ran locally against a dev server with no API: the full flow played and it failed, as designed, on "offline".
+
+## 2026-10-28 · Claude Code · P5 serverless infra in Python CDK, synth only (owner repo, branch `feat/p5-cdk-infra` off `e39c395`)
+
+- `infra/`: `app.py`, `kestrel_infra/stack.py`, `tests/test_stack.py`, `requirements.txt` (aws-cdk-lib 2.270.0, constructs 10.8.1, pytest 9.1.1), `cdk.json`, README.
+- Stack:
+  - CloudFront with S3 web (OAC) and `/api/*` to an HTTP API, plus a secret origin header from SSM String `/kestrel/origin-header`;
+  - API Lambda (Node 22, arm64, 28 s, outside any VPC);
+  - Aurora DSQL cluster (deletion protection off);
+  - SQS verify queue (360 s visibility) and a DLQ after 3 receives;
+  - S3 data bucket with lifecycle `voice/` 1 d, `replays/` 30 d, and POST CORS for the site's origin only;
+  - 30-day logs;
+  - least-privilege grants (dsql:DbConnect on the cluster, the queue, prefixes, two named SSM parameters, Anthropic models only).
+- Throttling: HTTP API default 20 req/s (burst 40). Bedrock routes 2/5, voice routes 1/3, as their own route keys.
+- `app.py` uses `apps/api/dist-lambda` when it exists, otherwise a 503 placeholder (the bundle and `@fastify/aws-lambda` come with P6). The presigned voice upload route and the 9 MB end-to-end check need a deployed stack; not done.
+- CI: setup-python 3.12, `pip install -r infra/requirements.txt`, `pytest -q infra/tests`. Runbook has the exact local commands.
+- Checks: 5/5 pytest (no VPC/NAT/endpoints, both buckets block public access, voice 1 d and replays 30 d, costly routes throttled below the default, no `*` action or resource in IAM policies). A mutation (voice 2 d, route settings removed) failed 2 tests as expected. `python app.py` synthesizes 32 resources. No deploy, no AWS credentials.
