@@ -1,3 +1,4 @@
+import type { XpTotals } from "@kestrel/contracts";
 import { Check, ChevronDown, Target } from "lucide-react";
 import { levelOf, need } from "../progress/levels";
 import { OBJECTIVES, xpOf, type ObjectiveId } from "./objectives";
@@ -11,6 +12,7 @@ export function ObjectivesBoard({
   active,
   won,
   earned,
+  totals,
   open,
   onToggle,
   onStart,
@@ -20,13 +22,15 @@ export function ObjectivesBoard({
   won: boolean;
   /** Every objective completed at least once. */
   earned: ReadonlySet<ObjectiveId>;
+  /** XP and level from the server's ledger; null when offline, so XP is counted from local wins. */
+  totals: XpTotals | null;
   open: boolean;
   onToggle: () => void;
   onStart: (id: ObjectiveId) => void;
 }) {
   const current = OBJECTIVES.find((o) => o.id === active) ?? null;
-  const xp = xpOf(earned);
-  const level = levelOf(xp);
+  const xp = totals?.xp ?? xpOf(earned);
+  const level = totals?.level ?? levelOf(xp);
   const floor = need(level);
   const next = need(level + 1);
   return (
@@ -54,7 +58,7 @@ export function ObjectivesBoard({
           <i style={{ width: `${Math.round(((xp - floor) / (next - floor)) * 100)}%` }} />
         </div>
         <span className="caption">
-          {xp} / {next} XP
+          {xp} / {next} XP{totals ? "" : " · offline"}
         </span>
       </div>
 

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MOMENTS } from "@kestrel/contracts";
+import { useEffect, useRef, useState } from "react";
+import { MOMENTS, MOMENTS_PROMPTS, promptFor, type Prediction } from "@kestrel/contracts";
 import type { SimStatus } from "../simulation/duckSim";
 import styles from "./Sandbox.module.css";
 import { Button } from "./gic";
@@ -15,9 +15,15 @@ const SIDE_TEXT: Record<Side, string> = { left: "Left side down", level: "Stays 
 export function ExperimentPanel({
   status,
   run,
+  onPromptRun,
+  onPromptResult,
 }: {
   status: SimStatus;
   run: (left: number, right: number) => string | null;
+  /** A run of one of the XP prompts' setups, with a prediction locked in. */
+  onPromptRun?: (promptId: string, value: Prediction) => void;
+  /** That run's measured result. */
+  onPromptResult?: (promptId: string, value: Prediction, measured: Prediction) => void;
 }) {
   const rails = status.balance?.rails;
   const now = (side: "left" | "right") => {
@@ -33,6 +39,14 @@ export function ExperimentPanel({
   const step = (side: "left" | "right", d: number) =>
     setTarget((t) => ({ ...t, [side]: Math.min(MOMENTS.maxCm, Math.max(MOMENTS.minCm, t[side] + d)) }));
   const result = exp?.result;
+  // The XP prompt this run answers, and the result that was showing when it started.
+  const pending = useRef<{ id: string; value: Prediction; before: unknown } | null>(null);
+  useEffect(() => {
+    const p = pending.current;
+    if (!p || running || !result || result === p.before) return;
+    pending.current = null;
+    onPromptResult?.(p.id, p.value, result.measured.lowSide);
+  }, [running, result, onPromptResult]);
 
   return (
     <div className={styles.experiment} data-testid="experiment">
@@ -70,7 +84,13 @@ export function ExperimentPanel({
         disabled={running}
         onClick={() => {
           setAsked(prediction);
-          setRefusal(run(target.left, target.right));
+          const refused = run(target.left, target.right);
+          setRefusal(refused);
+          const prompt = promptFor(target.left, target.right);
+          if (!refused && prompt && prediction) {
+            pending.current = { id: prompt.id, value: prediction, before: result };
+            onPromptRun?.(prompt.id, prediction);
+          }
         }}
       >
         {running ? `Running · ${exp!.phase}` : "Run it with both robots"}
@@ -94,6 +114,9 @@ export function ExperimentPanel({
         </div>
       )}
       {!running && !result && <p className={styles.hint}>Moment = mass × distance from the pivot. Predict, then run it.</p>}
+      <p className={styles.hint} data-testid="xp-prompts">
+        XP setups (200 g / 100 g): {MOMENTS_PROMPTS.map((p) => `${p.left} / ${p.right} cm`).join(", ")}. Predict first.
+      </p>
     </div>
   );
 }

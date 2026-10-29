@@ -425,3 +425,22 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - `docker-compose.yml` (Postgres 16, ElasticMQ 1.6.11); `pnpm db:up` / `db:down`. CI has a Postgres service; `migrations.test.ts` runs up/down/up when `KESTREL_TEST_DATABASE_URL` is set, plus a DSQL lint of the SQL files and the retry.
 - ADRs: `docs/adr/ADR-001-serverless-free-tier.md`, `ADR-002-dsql-compatible-schema.md`.
 - Checks: pnpm check green locally; the up/down/up test was skipped locally (Docker Desktop not running) and runs in CI.
+
+## 2026-10-28 · Claude Code · P1 server-side XP ledger (owner repo, branch `feat/p1-xp-ledger`, stacked on P0)
+
+- Contracts `xp.ts`: the curve (`need`/`levelOf`, moved from web; web `progress/levels.ts` re-exports it), `XP_RULES` (locked 10, matched 15, comeback 10, objective 100; the server sets amounts), `MOMENTS_PROMPTS` (m-10-20 level, m-15-20 left, m-10-30 right, m-15-30 level), and request schemas that refuse unknown prompts and client-sent amounts. `ProgressSchema` gains optional `xp` and `level`.
+- API `ledger.ts`:
+  - `POST /api/locks` (server `locked_at`); `POST /api/attempts/start` (server `trial_started_at`; 409 without the learner's lock; the attempt row is `pending`, ok=false);
+  - `POST /api/xp-events` (ON CONFLICT DO NOTHING, and 23505 counts as already awarded; returns `{awarded, xp, level}`; 409 when the prediction-lock prerequisite fails: matched needs the newest lock right, comeback needs an earlier wrong one);
+  - `GET /api/xp/:learner`. `GET /api/progress/:learner` adds `xp` and `level` when a ledger exists.
+  - The ledger turns on only when `xp_events` exists, so legacy Tiger has none. Learners are upserted for the foreign keys. `retrying` moved to `db/retry.ts`.
+- Web: the board shows ledger XP and level, or local XP with "· offline". The level-up toast follows the server (`awarded` and a level above the pre-award level), with the local fallback offline. On load, earned objectives are re-claimed (idempotent backfill). ExperimentPanel locks, claims and starts a trial for prompt setups, then claims matched and comeback when the measured result equals the prediction. README says "client-trusted until P4".
+- Tests: curve L2/L3/L4, prompt answers, schema refusals, eligibility, route 400/503; a DB test (CI only, own schema) for same-event-twice giving 1 row, Reset-farm capping at 35, and objective once. pnpm check 237 passed, 2 skipped (DB). Desktop Playwright `--workers=1`: beam-xp-levels plus sandbox, 7/7.
+
+## 2026-10-28 · Claude Code · P2 live level-up on Vultr (owner repo, branch `feat/p2-live-levelup`, stacked on P1)
+
+- Migration runner: `adoptLegacy` renames a legacy-shaped `attempts` (no `id`) to `attempts_legacy` before migrating; `copyLegacy` copies its UUID-learner rows into the new `attempts` (unverified, once each) after. These are runner code, not SQL files, because they are conditional and DSQL has no PL/pgSQL. `db:migrate` falls back to `TIGER_DATABASE_URL`.
+- `deploy.sh` still migrates after the build and before the pm2 restart; with `set -e`, a failed migration stops the deploy.
+- `scripts/smoke-live.mjs` (`pnpm smoke:live`): a fresh learner wins Balance the beam at 10/20 and the script asserts the server-backed "Level 2!" (fails on "offline"). Login comes from `KESTREL_SMOKE_USER`/`PASS` and is never printed; paid routes are aborted. Documented as the last step of DEPLOY.md.
+- Level math without the triangle: beam 100 + 4 Moments prompts × 35 = 240, so L2 is reachable but L3 (250) is not from beam and Moments alone; adding Rescue Pip (+100) gives 340, which is L3. Curve unchanged.
+- Checks: the DB test for the legacy rename runs in CI only (no local DB). The smoke ran locally against a dev server with no API: the full flow played and it failed, as designed, on "offline".

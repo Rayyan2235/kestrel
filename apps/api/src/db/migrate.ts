@@ -7,8 +7,9 @@ import { down, loadMigrations, up } from "./migrations.js";
 const envFile = [resolve("../../.env"), resolve(".env")].find(existsSync);
 if (envFile) process.loadEnvFile(envFile);
 
-// DATABASE_URL only: the legacy Tiger `attempts` hypertable has another shape and is never migrated.
-const url = process.env.DATABASE_URL;
+// The same database the API uses. A legacy Tiger `attempts` hypertable is renamed to
+// attempts_legacy and its rows copied across (see adoptLegacy in migrations.ts).
+const url = process.env.DATABASE_URL || process.env.TIGER_DATABASE_URL;
 const [command = "up", arg, confirm] = process.argv.slice(2);
 
 if (!url) {

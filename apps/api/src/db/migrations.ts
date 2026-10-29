@@ -69,8 +69,53 @@ async function ddl(db: Db, sql: string) {
   }
 }
 
+/*
+ * The legacy Tiger Data `attempts` hypertable predates migrations: it has no id or status
+ * and would make 0003 a silent no-op. Before migrating, rename it out of the way; after,
+ * copy its rows across. This is code, not a migration file, because it is conditional and
+ * DSQL has no PL/pgSQL; on a database without the legacy table both steps do nothing.
+ */
+const LEGACY = "attempts_legacy";
+
+async function columns(db: Db, table: string): Promise<string[]> {
+  const { rows } = await db.query(
+    "SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1",
+    [table],
+  );
+  return (rows as { column_name: string }[]).map((r) => r.column_name);
+}
+
+/** Renames a legacy-shaped `attempts` (no id column) to attempts_legacy. True if it did. */
+export async function adoptLegacy(db: Db): Promise<boolean> {
+  const cols = await columns(db, "attempts");
+  if (cols.length === 0 || cols.includes("id")) return false;
+  if ((await columns(db, LEGACY)).length > 0) throw new Error(`Both attempts (legacy shape) and ${LEGACY} exist; resolve by hand.`);
+  await ddl(db, `ALTER TABLE attempts RENAME TO ${LEGACY}`);
+  return true;
+}
+
+/**
+ * Copies legacy rows into the migrated `attempts` once each (matched on learner, objective
+ * and time), as unverified. Rows whose learner ID is not a UUID stay behind. Returns rows copied.
+ */
+export async function copyLegacy(db: Db): Promise<number> {
+  if ((await columns(db, LEGACY)).length === 0 || !(await columns(db, "attempts")).includes("id")) return 0;
+  const r = await db.query(
+    `INSERT INTO attempts (learner_id, objective, at, ok, tilt_deg, left_cm, right_cm)
+     SELECT l.learner_id::uuid, l.objective, l.at, l.ok, l.tilt_deg, l.left_cm, l.right_cm
+     FROM ${LEGACY} l
+     WHERE l.learner_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+       AND NOT EXISTS (
+         SELECT 1 FROM attempts a
+         WHERE a.learner_id = l.learner_id::uuid AND a.objective = l.objective AND a.at = l.at
+       )`,
+  );
+  return (r as { rowCount?: number | null }).rowCount ?? 0;
+}
+
 /** Applies every pending migration in order. Returns the versions applied. */
 export async function up(db: Db, migrations: Migration[]): Promise<string[]> {
+  await adoptLegacy(db);
   const done = new Set(await applied(db));
   const ran: string[] = [];
   for (const m of migrations) {
@@ -79,6 +124,7 @@ export async function up(db: Db, migrations: Migration[]): Promise<string[]> {
     await db.query("INSERT INTO schema_migrations (version, name) VALUES ($1, $2) ON CONFLICT DO NOTHING", [m.version, m.name]);
     ran.push(m.version);
   }
+  await copyLegacy(db);
   return ran;
 }
 
