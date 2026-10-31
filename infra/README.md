@@ -22,7 +22,7 @@ The template never holds a secret. The owner creates two SSM parameters once, be
 | Parameter | Type | Used for |
 | --- | --- | --- |
 | `/kestrel/elevenlabs-api-key` | SecureString | The API Lambda reads it at run time. |
-| `/kestrel/origin-header` | String | CloudFront sends it as `x-kestrel-origin` on every `/api/*` request. Once the API checks it (with the Lambda bundle, P6), requests without it are rejected, which blocks direct calls to the API endpoint. It has to be a String because CloudFront can't resolve a SecureString. |
+| `/kestrel/origin-header` | String | CloudFront sends it as `x-kestrel-origin` on every `/api/*` request, and the API Lambda receives it as `ORIGIN_SECRET` through the same dynamic reference. `apps/api/src/edge.ts` rejects requests without it (compared in constant time), which blocks direct calls to the API endpoint. It has to be a String because CloudFront can't resolve a SecureString. |
 
 ## Check it
 
@@ -39,6 +39,7 @@ The CDK CLI is not needed: both commands synthesize in-process (Node must be on 
 
 ## Not yet
 
-- The API bundle (`apps/api/dist-lambda`, with a `lambda.handler` entry point via `@fastify/aws-lambda`) comes with the deploy pipeline (P6). Until then `app.py` synthesizes a placeholder that answers 503.
+- The API bundle is real: `pnpm build` writes `apps/api/dist-lambda/lambda.mjs` (`@fastify/aws-lambda`, esbuild), and `app.py` deploys it. Without a build it synthesizes a 503 placeholder.
+- On AWS the API still reads `ELEVENLABS_API_KEY` and `DATABASE_URL` from its environment. Reading the SecureString key from SSM, and connecting to DSQL with IAM tokens, come with the first deploy (P6). Until then `ELEVENLABS_KEY_PARAM` and `DSQL_ENDPOINT` are set but unread.
 - The presigned voice upload route is built (`apps/api/src/storage/s3.ts`; the API role may put only to `voice/*` and `replays/*`). The 9 MB end-to-end check needs a deployed stack.
 - The verifier Lambda that reads the queue comes in P3.

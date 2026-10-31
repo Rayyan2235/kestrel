@@ -9,11 +9,8 @@ export const liveProviders = { agentTurn, speak, transcribe };
 export type LiveProviders = typeof liveProviders;
 export function registerLive(app: FastifyInstance, providers: LiveProviders = liveProviders, voice: VoiceStore | null = null) {
   // No provider bodies, audio, history, or credentials are logged or persisted.
-  app.addHook("onRequest", async (request, reply) => {
+  app.addHook("onRequest", async (_request, reply) => {
     reply.header("Cache-Control", "no-store");
-    const origin = request.headers.origin;
-    if (origin && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))
-      return reply.code(403).send({ message: "Use the local Kestrel page." });
   });
   let active = 0;
   async function run(request: FastifyRequest, reply: FastifyReply, fn: (signal: AbortSignal) => Promise<unknown>) {

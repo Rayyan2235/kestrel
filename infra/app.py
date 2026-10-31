@@ -6,8 +6,8 @@ from aws_cdk import aws_lambda as lambda_
 
 from kestrel_infra.stack import KestrelStack
 
-# The API bundle lands with the deploy pipeline (P6). Until then, synth
-# uses a placeholder handler that answers 503, so the stack still renders.
+# The API bundle comes from `pnpm build` (apps/api/scripts/build-lambda.mjs).
+# Without it, synth uses a placeholder handler that answers 503.
 BUNDLE = os.path.join(os.path.dirname(__file__), "..", "apps", "api", "dist-lambda")
 if os.path.isdir(BUNDLE):
     code = lambda_.Code.from_asset(BUNDLE)

@@ -3,7 +3,7 @@ import pytest
 from aws_cdk import aws_lambda as lambda_
 from aws_cdk.assertions import Match, Template
 
-from kestrel_infra.stack import COSTLY_ROUTES, KestrelStack
+from kestrel_infra.stack import COSTLY_ROUTES, ORIGIN_SECRET_REF, KestrelStack
 
 # Infra policy checks on the synthesized template. In-process synth: no CDK
 # CLI, no AWS credentials, nothing deployed.
@@ -91,3 +91,22 @@ def test_api_role_grants_no_wildcard_actions(template: Template) -> None:
             actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
             assert "*" not in actions, name
             assert statement.get("Resource") != "*", name
+
+
+def test_resources_have_no_dependency_cycle(template: Template) -> None:
+    # Template.from_stack refuses an undeployable template ("dependency
+    # cycle"), so building the fixture is the check.
+    assert template.to_json()["Resources"]
+
+
+def test_origin_secret_is_an_ssm_reference_never_a_literal(template: Template) -> None:
+    (fn,) = [
+        f for f in template.find_resources("AWS::Lambda::Function").values()
+        if "ORIGIN_HEADER" in f["Properties"].get("Environment", {}).get("Variables", {})
+    ]
+    env = fn["Properties"]["Environment"]["Variables"]
+    assert env["ORIGIN_SECRET"] == ORIGIN_SECRET_REF == "{{resolve:ssm:/kestrel/origin-header}}"
+    assert "Fn::GetAtt" in env["SITE_ORIGIN"]["Fn::Join"][1][1]
+    (site,) = template.find_resources("AWS::CloudFront::Distribution").values()
+    headers = [h for o in site["Properties"]["DistributionConfig"]["Origins"] for h in o.get("OriginCustomHeaders", [])]
+    assert headers == [{"HeaderName": "x-kestrel-origin", "HeaderValue": ORIGIN_SECRET_REF}]
