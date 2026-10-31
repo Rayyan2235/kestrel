@@ -4,14 +4,14 @@
 //   KESTREL_SMOKE_URL=https://<your-host> KESTREL_SMOKE_USER=... KESTREL_SMOKE_PASS=... pnpm smoke:live
 //
 // The login comes from the environment and is never printed. Paid routes (Claude,
-// voice, two-bot) are aborted, so a run costs nothing. Needs a Playwright browser:
+// voice) are aborted, so a run costs nothing. Needs a Playwright browser:
 // `pnpm exec playwright install chromium`, or KESTREL_SMOKE_CHANNEL=chrome.
 import { chromium, expect } from "@playwright/test";
 
 const url = process.env.KESTREL_SMOKE_URL;
 const username = process.env.KESTREL_SMOKE_USER;
 const password = process.env.KESTREL_SMOKE_PASS;
-const PAID = /\/api\/(agent|voice|two-bot)\b/;
+const PAID = /\/api\/(agent|voice)\b/;
 
 function fail(message) {
   console.error(`smoke: FAIL: ${message}`);

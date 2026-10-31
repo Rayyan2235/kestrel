@@ -38,7 +38,6 @@ DEFAULT_THROTTLE = {"rate": 20, "burst": 40}
 COSTLY_ROUTES = {
     # Bedrock
     "POST /api/agent/turn": {"rate": 2, "burst": 5},
-    "POST /api/two-bot/respond": {"rate": 2, "burst": 5},
     # ElevenLabs
     "POST /api/voice/transcribe": {"rate": 1, "burst": 3},
     "POST /api/voice/speak": {"rate": 1, "burst": 3},

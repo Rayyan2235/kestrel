@@ -137,7 +137,7 @@ Not built:
 - No grasping, no jumping (the base Microduck has no jump skill) and no hardware.
 - The two robots share lanes by taking turns. They don't avoid each other.
 - In Rescue, Pip follows the marked links. It doesn't plan its own path, and the parser understands checkpoint letters, not freeform directions.
-- In the console, Claude speaks only as Pip, and the Pip-to-Nova handoffs are templates, not a conversation. A separate, experimental bot-to-bot conversation demo lives at `/?demo=two-bot`. It runs a scripted mock by default; `&sim=mujoco` drives the real robots and `&provider=live` uses Claude.
+- In the console, Claude speaks only as Pip, and the Pip-to-Nova handoffs are templates, not a conversation.
 - No accounts: progress belongs to an anonymous browser ID. Kestrel isn't ready for unsupervised use by children.
 - The landing page's hero image is concept art the owner made with Midjourney, not footage. Its three objective cards are real console screenshots.
 

@@ -9,16 +9,9 @@ const Console = lazy(() =>
     default: SandboxApp,
   })),
 );
-const TwoBotDemo = lazy(() =>
-  import("./demo/TwoBotDemo").then(({ TwoBotDemo }) => ({
-    default: TwoBotDemo,
-  })),
-);
 const path = window.location.pathname.replace(/\/$/, "");
 const inConsole =
   path === "/console" || path === "/lab" || path.startsWith("/lab/");
-const demo =
-  new URLSearchParams(window.location.search).get("demo") === "two-bot";
 if (inConsole) document.title = "Kestrel — Console";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -34,7 +27,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <Console />
     ) : (
       <React.StrictMode>
-        {demo ? <TwoBotDemo /> : <WelcomePage />}
+        <WelcomePage />
       </React.StrictMode>
     )}
   </Suspense>,

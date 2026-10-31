@@ -2,12 +2,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { AgentRequestSchema, validConversation } from "../../../packages/contracts/src/index.js";
 import { agentTurn } from "./agent.js";
-import { TwoBotRequestSchema, twoBotTurn } from "./twoBot.js";
 import { VOICE_KEY, type VoiceStore } from "./storage/s3.js";
 import { AUDIO_MAX_BYTES, AUDIO_TYPE, ProviderError, speak, transcribe } from "./voice.js";
 
-export const liveProviders = { agentTurn, speak, transcribe, twoBotTurn };
-export type LiveProviders = Omit<typeof liveProviders, "twoBotTurn"> & Partial<Pick<typeof liveProviders, "twoBotTurn">>;
+export const liveProviders = { agentTurn, speak, transcribe };
+export type LiveProviders = typeof liveProviders;
 export function registerLive(app: FastifyInstance, providers: LiveProviders = liveProviders, voice: VoiceStore | null = null) {
   // No provider bodies, audio, history, or credentials are logged or persisted.
   app.addHook("onRequest", async (request, reply) => {
@@ -34,13 +33,6 @@ export function registerLive(app: FastifyInstance, providers: LiveProviders = li
     if (!parsed.success || !validConversation(parsed.data.messages)) return reply.code(400).send({ message: "Invalid agent request or unpaired action results." });
     if (!process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_PROFILE) return reply.code(503).send({ message: "Set Bedrock credentials in the server .env." });
     return run(request, reply, signal => providers.agentTurn(parsed.data, signal));
-  });
-  app.post("/api/two-bot/respond", async (request, reply) => {
-    const parsed = TwoBotRequestSchema.safeParse(request.body);
-    if (!parsed.success) return reply.code(400).send({ message: "Invalid two-bot request." });
-    if (!process.env.AWS_ACCESS_KEY_ID && !process.env.AWS_PROFILE) return reply.code(503).send({ message: "Set Bedrock credentials in the server .env." });
-    const turn = providers.twoBotTurn ?? twoBotTurn;
-    return run(request, reply, signal => turn(parsed.data, signal));
   });
   app.addContentTypeParser(AUDIO_TYPE, { parseAs: "buffer", bodyLimit: AUDIO_MAX_BYTES }, (_request, body, done) => done(null, body));
   // On AWS the clip is uploaded to S3 first (see storage/s3.ts); elsewhere it comes in the body.

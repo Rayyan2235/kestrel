@@ -11,7 +11,7 @@ API Lambda -> Aurora DSQL (IAM auth) ; SQS verify queue (+ DLQ after 3 receives)
 
 - **No VPC, so no NAT and no interface endpoints.** Every Lambda reaches AWS services over their public endpoints with IAM.
 - **Both buckets block all public access**, enforce TLS and are reachable from CloudFront only through Origin Access Control.
-- **HTTP API throttling:** 20 req/s (burst 40) by default. The Bedrock routes (`/api/agent/turn`, `/api/two-bot/respond`) allow 2 req/s (burst 5), and the voice routes (`/api/voice/transcribe`, `/api/voice/speak`, and `/api/voice/upload-url`, whose grants each allow a 10 MB upload) 1 req/s (burst 3). These limits are per route across all users.
+- **HTTP API throttling:** 20 req/s (burst 40) by default. The Bedrock route (`/api/agent/turn`) allows 2 req/s (burst 5), and the voice routes (`/api/voice/transcribe`, `/api/voice/speak`, and `/api/voice/upload-url`, whose grants each allow a 10 MB upload) 1 req/s (burst 3). These limits are per route across all users.
 - **Least privilege:** the API role connects to this one DSQL cluster as a non-admin user, sends only to the verify queue, reads and deletes `voice/*`, writes `replays/*`, reads two named SSM parameters, and invokes Anthropic models only.
 - **`cdk destroy` leaves nothing behind:** buckets empty themselves, logs and the DSQL cluster are deleted (deletion protection is off), and logs are kept for 30 days.
 
