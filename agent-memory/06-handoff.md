@@ -1,4 +1,17 @@
-# Current handoff — chore/cleanup
+# Current handoff — feat/p5c-lambda-entry
+
+Owner repo `Rayyan2235/kestrel`, branch `feat/p5c-lambda-entry` off main `0d02914` (cleanup merged as #7). Pushed to `rayyan`; the orchestrator opens the PR.
+
+Done: the Lambda entry and bundle, plus the edge gate in `apps/api/src/edge.ts` (see `07-changelog.md`, 2026-10-31).
+
+Next:
+1. Tester (executor-c2): `pnpm install --frozen-lockfile`, `pnpm check` (includes the bundle check), and the infra pytest.
+2. Implementer: P3 determinism spike on its own branch (`verifier/`, Python 3.12, mujoco 3.11.0 and onnxruntime 1.27.0; scene built from the verifier's own assets; ADR with the threat model).
+3. P6 (needs an AWS account): SSM SecureString read for ElevenLabs, DSQL IAM auth, OIDC deploys, `cdk destroy` verification, and the 9 MB end-to-end check.
+
+---
+
+# Previous handoff — chore/cleanup (PR #7, merged)
 
 Owner repo `Rayyan2235/kestrel`, branch `chore/cleanup` off main `113c348` (P5b merged as #6; Vultr redeployed). Pushed to `rayyan`; the orchestrator opens the PR.
 

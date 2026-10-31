@@ -513,3 +513,23 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - **Flagged for Usman (orphaned, left in place):** `simulation/types.ts`, `simulation/fake/`, `simulation/real/`. Their purity tests still pass, but their bans on importing `provider/` or `coordinator/` now guard folders that no longer exist.
 - **Kept:** #16-19 paid and live scripts (except two-bot-live-check), #27 simulation exports, and #12-13 Tiger legacy until the owner confirms the data move.
 - Checks: pnpm check 122 passed, 3 skipped. The drop from 240 is the 12 deleted test files, including `it.each` rows. Infra pytest 6 passed. E2e runs in CI.
+
+## 2026-10-31 · Claude Code · P5c Lambda entry and edge check (owner repo, branch `feat/p5c-lambda-entry` off `0d02914`)
+
+- `apps/api/src/lambda.ts` wraps the same `buildApp` with `@fastify/aws-lambda` 6.4.2 (pinned). `scripts/build-lambda.mjs` (esbuild 0.28.2, pinned devDep) bundles it to `apps/api/dist-lambda/lambda.mjs` (ESM, node22, about 6.1 MB). The API `build` now runs it, and `dist-lambda/` is gitignored.
+- `apps/api/src/edge.ts` is the request gate, moved out of `live.ts`:
+  - locally and on Vultr, unchanged: only localhost origins pass;
+  - on AWS (`ORIGIN_HEADER` and `ORIGIN_SECRET` set), the CloudFront secret header is required, compared in constant time via SHA-256 and `timingSafeEqual`;
+  - `SITE_ORIGIN` (the distribution's origin) is allowed besides localhost.
+  This fixes every browser POST getting 403 behind CloudFront.
+- Infra:
+  - Lambda env `ORIGIN_SECRET` = `{{resolve:ssm:/kestrel/origin-header}}`, the same dynamic reference CloudFront uses, so it is never a literal;
+  - `SITE_ORIGIN` from the distribution;
+  - dropped the unread `ORIGIN_HEADER_PARAM` env and its ssm:GetParameter grant;
+  - `app.py` synthesizes the real bundle.
+- Tests:
+  - `edge.test.ts`: AWS (secret required; wrong, short and long secrets fail; foreign origin fails) and local behaviour;
+  - `scripts/check-api.mjs` invokes the built bundle with an HTTP API v2 event (200 with the secret, 403 without);
+  - pytest: synth has no dependency cycle (CDK's `Template.from_stack` refuses cycles; a mutation proved it), and the origin secret is the SSM reference in both the Lambda env and CloudFront.
+- Gaps for P6: on AWS the API reads `ELEVENLABS_API_KEY` and `DATABASE_URL` from its env. Reading the SSM SecureString and DSQL IAM auth need the first deploy.
+- Checks: pnpm check 124 passed, 3 skipped, plus the bundle check. Infra pytest 8 passed. `python app.py` uses the real bundle (S3 asset, nodejs22.x, arm64).

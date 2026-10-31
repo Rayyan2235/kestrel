@@ -50,6 +50,9 @@ importers:
       '@aws-sdk/s3-presigned-post':
         specifier: 3.1156.0
         version: 3.1156.0
+      '@fastify/aws-lambda':
+        specifier: 6.4.2
+        version: 6.4.2
       fastify:
         specifier: 5.12.7
         version: 5.12.7
@@ -63,6 +66,9 @@ importers:
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
 
   apps/web:
     dependencies:
@@ -423,6 +429,9 @@ packages:
 
   '@fastify/ajv-compiler@4.0.7':
     resolution: {integrity: sha512-VP0yIfwlc1ohj733keYDqyHm1VWeP9VQxYomunhr90jkC4aNNibbkrRiaNgPgqj1ORxUenILR4qzA/ppYBNAtQ==}
+
+  '@fastify/aws-lambda@6.4.2':
+    resolution: {integrity: sha512-1GqygENq4dqRcAYumdNaiUMBX6hVqJEsCtmJ0Rvh1p5fm6NGqTQl0wSR9ojsRrn72weDASqd4WhG6iGcIjbncg==}
 
   '@fastify/deepmerge@3.2.4':
     resolution: {integrity: sha512-kc8GQq5gX9RRhw0rov3DMrN8wS8yRlxJRdDzsYwwdBV/wazuVgc/1K7CKL90tlvu3RlHan6Y0R0aE3nJtBz2eQ==}
@@ -2101,6 +2110,8 @@ snapshots:
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       fast-uri: 4.2.3
+
+  '@fastify/aws-lambda@6.4.2': {}
 
   '@fastify/deepmerge@3.2.4': {}
 
