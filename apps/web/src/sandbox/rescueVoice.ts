@@ -1,3 +1,5 @@
+import { transcribeRecording } from "./voiceUpload";
+
 /** Capture only on an explicit learner action. Transcribe through the existing server. */
 export class RescueVoice {
   private controller = new AbortController();
@@ -97,12 +99,10 @@ export class RescueVoice {
         throw new Error(
           "No speech captured. Try again or type your directions.",
         );
-      const response = await fetch("/api/voice/transcribe", {
-        method: "POST",
-        headers: { "Content-Type": blob.type || "audio/webm" },
-        body: blob,
-        signal: AbortSignal.any([signal, AbortSignal.timeout(30000)]),
-      });
+      const response = await transcribeRecording(
+        blob,
+        AbortSignal.any([signal, AbortSignal.timeout(30000)]),
+      );
       const data = await response.json();
       if (signal.aborted) return;
       if (!response.ok)

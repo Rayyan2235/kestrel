@@ -42,6 +42,8 @@ COSTLY_ROUTES = {
     # ElevenLabs
     "POST /api/voice/transcribe": {"rate": 1, "burst": 3},
     "POST /api/voice/speak": {"rate": 1, "burst": 3},
+    # Each grant allows a 10 MB S3 upload
+    "POST /api/voice/upload-url": {"rate": 1, "burst": 3},
 }
 
 VOICE_PREFIX = "voice/"
@@ -128,6 +130,8 @@ class KestrelStack(Stack):
         api_fn.add_to_role_policy(iam.PolicyStatement(actions=["dsql:DbConnect"], resources=[cluster.attr_resource_arn]))
         queue.grant_send_messages(api_fn)
         data.grant_put(api_fn, f"{REPLAYS_PREFIX}*")
+        # Presigned voice POSTs are signed with this role, so it needs put on voice/* too.
+        data.grant_put(api_fn, f"{VOICE_PREFIX}*")
         data.grant_read(api_fn, f"{VOICE_PREFIX}*")
         data.grant_delete(api_fn, f"{VOICE_PREFIX}*")
         api_fn.add_to_role_policy(

@@ -62,11 +62,28 @@ def test_http_api_throttles_bedrock_and_voice_routes(template: Template) -> None
     props = next(iter(stages.values()))["Properties"]
     assert props["DefaultRouteSettings"]["ThrottlingRateLimit"] > 0
     keys = {r["Properties"]["RouteKey"] for r in template.find_resources("AWS::ApiGatewayV2::Route").values()}
-    for key in ("POST /api/agent/turn", "POST /api/two-bot/respond", "POST /api/voice/transcribe", "POST /api/voice/speak"):
+    for key in (
+        "POST /api/agent/turn",
+        "POST /api/two-bot/respond",
+        "POST /api/voice/transcribe",
+        "POST /api/voice/speak",
+        "POST /api/voice/upload-url",
+    ):
         assert key in COSTLY_ROUTES and key in keys, key
         limits = props["RouteSettings"][key]
         assert 0 < limits["ThrottlingRateLimit"] < props["DefaultRouteSettings"]["ThrottlingRateLimit"], key
         assert limits["ThrottlingBurstLimit"] > 0, key
+
+
+def test_api_role_can_sign_voice_uploads_only_under_voice(template: Template) -> None:
+    put = []
+    for policy in template.find_resources("AWS::IAM::Policy").values():
+        for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
+            actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
+            if "s3:PutObject" in actions:
+                resources = statement["Resource"] if isinstance(statement["Resource"], list) else [statement["Resource"]]
+                put += [r["Fn::Join"][1][-1] for r in resources]
+    assert sorted(put) == ["/replays/*", "/voice/*"]
 
 
 def test_api_role_grants_no_wildcard_actions(template: Template) -> None:

@@ -3,11 +3,12 @@ import { z } from "zod";
 import { AgentRequestSchema, validConversation } from "../../../packages/contracts/src/index.js";
 import { agentTurn } from "./agent.js";
 import { TwoBotRequestSchema, twoBotTurn } from "./twoBot.js";
-import { ProviderError, speak, transcribe } from "./voice.js";
+import { VOICE_KEY, type VoiceStore } from "./storage/s3.js";
+import { AUDIO_MAX_BYTES, AUDIO_TYPE, ProviderError, speak, transcribe } from "./voice.js";
 
 export const liveProviders = { agentTurn, speak, transcribe, twoBotTurn };
 export type LiveProviders = Omit<typeof liveProviders, "twoBotTurn"> & Partial<Pick<typeof liveProviders, "twoBotTurn">>;
-export function registerLive(app: FastifyInstance, providers: LiveProviders = liveProviders) {
+export function registerLive(app: FastifyInstance, providers: LiveProviders = liveProviders, voice: VoiceStore | null = null) {
   // No provider bodies, audio, history, or credentials are logged or persisted.
   app.addHook("onRequest", async (request, reply) => {
     reply.header("Cache-Control", "no-store");
@@ -41,10 +42,19 @@ export function registerLive(app: FastifyInstance, providers: LiveProviders = li
     const turn = providers.twoBotTurn ?? twoBotTurn;
     return run(request, reply, signal => turn(parsed.data, signal));
   });
-  app.addContentTypeParser(/^audio\/(webm|ogg|wav|mpeg|mp4)(;.*)?$/, { parseAs: "buffer", bodyLimit: 10 * 1024 * 1024 }, (_request, body, done) => done(null, body));
-  app.post("/api/voice/transcribe", { bodyLimit: 10 * 1024 * 1024 }, async (request, reply) => {
-    if (!Buffer.isBuffer(request.body) || request.body.length < 100) return reply.code(400).send({ message: "Record some audio first." });
+  app.addContentTypeParser(AUDIO_TYPE, { parseAs: "buffer", bodyLimit: AUDIO_MAX_BYTES }, (_request, body, done) => done(null, body));
+  // On AWS the clip is uploaded to S3 first (see storage/s3.ts); elsewhere it comes in the body.
+  app.post("/api/voice/upload-url", async (_request, reply) => {
+    if (!voice) return reply.code(404).send({ message: "This server takes recordings directly." });
     if (!process.env.ELEVENLABS_API_KEY) return reply.code(503).send({ message: "Set ELEVENLABS_API_KEY in the server .env." });
+    return voice.presign();
+  });
+  app.post("/api/voice/transcribe", { bodyLimit: AUDIO_MAX_BYTES }, async (request, reply) => {
+    const uploaded = z.object({ key: z.string().regex(VOICE_KEY) }).strict().safeParse(request.body);
+    if (!uploaded.success && (!Buffer.isBuffer(request.body) || request.body.length < 100)) return reply.code(400).send({ message: "Record some audio first." });
+    if (uploaded.success && !voice) return reply.code(404).send({ message: "This server takes recordings directly." });
+    if (!process.env.ELEVENLABS_API_KEY) return reply.code(503).send({ message: "Set ELEVENLABS_API_KEY in the server .env." });
+    if (uploaded.success) return run(request, reply, signal => voice!.consume(uploaded.data.key, (audio, mime) => providers.transcribe(audio, mime, signal)));
     return run(request, reply, signal => providers.transcribe(request.body as Buffer, request.headers["content-type"]!, signal));
   });
   app.post("/api/voice/speak", async (request, reply) => {
