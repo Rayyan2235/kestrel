@@ -64,7 +64,6 @@ def test_http_api_throttles_bedrock_and_voice_routes(template: Template) -> None
     keys = {r["Properties"]["RouteKey"] for r in template.find_resources("AWS::ApiGatewayV2::Route").values()}
     for key in (
         "POST /api/agent/turn",
-        "POST /api/two-bot/respond",
         "POST /api/voice/transcribe",
         "POST /api/voice/speak",
         "POST /api/voice/upload-url",

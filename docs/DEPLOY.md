@@ -75,7 +75,7 @@ read -rs KESTREL_SMOKE_PASS && export KESTREL_SMOKE_PASS   # typed, not echoed o
 pnpm smoke:live
 ```
 
-A fresh browser profile (a new anonymous learner) signs in and wins Balance the beam (200 g at 10 cm, 100 g at 20 cm), using the real physics. It then checks the server-backed "Level 2!" toast. The script fails if the level came from the browser's "offline" fallback, meaning the server's XP ledger did not answer. Paid routes (Claude, voice, two-bot) are aborted, so a run costs nothing. The login comes from the environment and is never printed. Each run leaves one test learner in the database. A deploy is done when this prints `PASS`.
+A fresh browser profile (a new anonymous learner) signs in and wins Balance the beam (200 g at 10 cm, 100 g at 20 cm), using the real physics. It then checks the server-backed "Level 2!" toast. The script fails if the level came from the browser's "offline" fallback, meaning the server's XP ledger did not answer. Paid routes (Claude, voice) are aborted, so a run costs nothing. The login comes from the environment and is never printed. Each run leaves one test learner in the database. A deploy is done when this prints `PASS`.
 
 ## 4. Survive a reboot
 

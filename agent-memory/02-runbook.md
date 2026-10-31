@@ -32,22 +32,11 @@ pnpm dev
 - Dev-only console handle: `window.kestrelSim`. For example, `kestrelSim.manual = {vx: 0.2, wz: 0}`, `kestrelSim.status()`, `kestrelSim.propPositions()`.
 - Headless probing works with SwiftShader: `chromium.launch({ args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"] })`.
 
-**Two-bot demo:** http://127.0.0.1:5180/?demo=two-bot runs on the stub. Add `&sim=mujoco` to drive the real Microducks (loads MuJoCo and the policies first, then "Real MuJoCo" shows in the banner; `window.kestrelSim` is the dev handle). Typed commands such as `move the left weight to 10 cm` make the owning robot push its weight (rails 5–30 cm). Add `&provider=live` for live Claude replies (needs Bedrock credentials in the server `.env`; `/api/health` must show `liveAi: true`). Paid check: `node scripts/two-bot-live-check.mjs` with `pnpm dev` running (Pip asks Nova to move the right weight; prints the transcript and measured push). Its e2e is `tests/two-bot-real-sim.spec.ts` (desktop only, ~35 s). If 5191 is taken by another worktree's server, copy `playwright.chrome.config.ts` to an untracked config with a free port and the bundled Chromium.
-
 Things to try in the preview UI: "right weight to 40 cm" (balances the beam), "left weight to 10 cm", "hint", **Ask the crew** (two-turn scripted exchange), Stop, Reset.
 
 ## Movement and experiment benchmarks
 
-With the dev server running, these drive the sandbox headlessly and fast-step the physics, so results are deterministic:
-
-```sh
-node scripts/bench/motion-bench.mjs   # commanded vs achieved velocity, dead zones, stopping
-node scripts/bench/nav-bench.mjs      # old vs new navigator over 20 start/goal pairs
-CASES='[[10,20],[15,30]]' node scripts/bench/coop-bench.mjs   # the two-robot balance experiment
-node scripts/bench/crew-bench.mjs     # the two-robot Pythagoras build
-```
-
-They default to `http://127.0.0.1:5180`; set `URL` to point elsewhere. On this Mac they need Playwright's Chromium.
+The `scripts/bench/*.mjs` scripts were retired on 2026-10-31 (cleanup PR; they are in git history). Real-physics behaviour is now checked by Playwright specs such as `tests/triangle-build.spec.ts` and `tests/beam-xp-levels.spec.ts`. On this Windows machine, run them with `-c playwright.chrome.config.ts --project=desktop --workers=1`.
 
 ## Checks
 
@@ -143,7 +132,7 @@ Paid checks: `node scripts/live-voice-check.mjs` (voice round trip plus demo). T
 
 ## Product routes — 2026-10-25
 
-Run `pnpm dev` and open port 5180: the landing page is `/`, and Open console leads to `/console`. Old `/lab` and `/sandbox.html` links also open the real console. The original scripted preview is removed. Live AI/voice need each teammate's root `.env` (see `.env.example`); never copy or commit credentials. The standalone mock teammate demo remains `/?demo=two-bot`.
+Run `pnpm dev` and open port 5180: the landing page is `/`, and Open console leads to `/console`. Old `/lab` and `/sandbox.html` links also open the real console. The original scripted preview is removed. Live AI/voice need each teammate's root `.env` (see `.env.example`); never copy or commit credentials.
 
 ## Camera controls
 

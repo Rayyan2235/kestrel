@@ -10,7 +10,7 @@ import styles from "./WelcomePage.module.css";
  * rendered from the plate mirror-padded 120/1920 top and bottom, laid over it
  * at 100% width, 112.5% height, top −6.25%.
  */
-export const LANDING = {
+const LANDING = {
   plate: "/landing/hero-wide.jpg",
   plateSmall: "/landing/hero.jpg",
   video: null as string | null,

@@ -1,4 +1,18 @@
-# Current handoff — feat/p5b-voice-upload
+# Current handoff — chore/cleanup
+
+Owner repo `Rayyan2235/kestrel`, branch `chore/cleanup` off main `113c348` (P5b merged as #6; Vultr redeployed). Pushed to `rayyan`; the orchestrator opens the PR.
+
+Done: the knip cleanup (see `07-changelog.md`, 2026-10-31), in three commits.
+
+Next:
+1. Tester (executor-c2): `pnpm check` and the infra pytest; CI runs e2e.
+2. Usman: decide on the orphaned `simulation/types.ts`, `simulation/fake/` and `simulation/real/`.
+3. Owner: confirm the Tiger data move, then remove the legacy path (#12-13).
+4. P6 next: the `@fastify/aws-lambda` bundle and origin check, OIDC deploys, `cdk destroy` verification, and the 9 MB end-to-end check.
+
+---
+
+# Previous handoff — feat/p5b-voice-upload (PR #6, merged)
 
 Owner repo `Rayyan2235/kestrel`, branch `feat/p5b-voice-upload` off main `346bb8d` (P5 merged as #5). Pushed to `rayyan`; the orchestrator opens the PR.
 

@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import styles from "./Sandbox.module.css";
 
 /** How long the level-up notice stays before it dismisses itself. */
-export const LEVEL_UP_MS = 4000;
+const LEVEL_UP_MS = 4000;
 
 /** Level-up celebration (ported from the gamification HUD). role=status, never takes focus. */
 export function LevelUpToast({ level, onDismiss }: { level: number; onDismiss: () => void }) {

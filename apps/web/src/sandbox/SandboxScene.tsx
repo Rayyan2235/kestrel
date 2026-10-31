@@ -321,7 +321,7 @@ function BubbleAnchor({
 }
 
 /** Pip in Nox Noir graphite, Nova in Royal Amethyst. */
-export const BOT_TINTS: Record<BotId, string> = { pip: "#454b54", nova: "#244267" };
+const BOT_TINTS: Record<BotId, string> = { pip: "#454b54", nova: "#244267" };
 
 function Slots({ kit, sim, onProgress }: { kit: LabKit; sim: DuckSim; onProgress: (filled: string[]) => void }) {
   const [filled, setFilled] = useState<string[]>([]);

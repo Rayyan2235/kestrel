@@ -1,7 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// After merging main (Microduck sandbox) with the two-bot demo: every page still
-// loads, and nothing on a plain load or a demo chain reaches a paid or external API.
+// Every page loads, and nothing on a plain load reaches a paid or external API.
 
 const watch = (page: Page) => {
   const external: string[] = [];
@@ -40,24 +39,6 @@ test("the landing page loads without paid or external requests", async ({
   expect(w.api).toEqual([]);
 });
 
-test("the two-bot demo loads, runs a chain, and makes no /api or external request", async ({
-  page,
-}) => {
-  const w = watch(page);
-  await page.goto("/?demo=two-bot");
-  await expect(page.getByTestId("demo-banner")).toBeVisible();
-  await page
-    .getByRole("textbox", { name: "Message your robot" })
-    .fill("why does it tilt?");
-  await page.getByRole("button", { name: "Send command" }).click();
-  await expect(page.getByTestId("handback-strip")).toBeVisible({
-    timeout: 10000,
-  });
-  expect(w.errors).toEqual([]);
-  expect(w.external).toEqual([]);
-  expect(w.api).toEqual([]);
-});
-
 test("the console boots real physics without paid /api or external requests until the learner acts", async ({
   page,
 }) => {
@@ -74,12 +55,4 @@ test("the console boots real physics without paid /api or external requests unti
   expect(
     w.api.filter((x) => !x.startsWith("GET /api/health") && !x.startsWith("GET /api/progress/")),
   ).toEqual([]);
-});
-
-test("the two pages do not leak into each other", async ({ page }) => {
-  await page.goto("/?demo=two-bot");
-  await expect(page.getByTestId("demo-banner")).toBeVisible();
-  await expect(page.getByTestId("duck-mode")).toHaveCount(0);
-  await page.goto("/sandbox.html");
-  await expect(page.getByTestId("demo-banner")).toHaveCount(0);
 });

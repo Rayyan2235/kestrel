@@ -91,14 +91,9 @@ Tests: `src/app.test.ts`. Compiled smoke test: `scripts/check-api.mjs`.
 - **Unsupported input** never mutates the world.
 - **Science comes from `balance()`**, never from message text.
 
-## Two-bot conversation demo (`apps/web/src/`, `?demo=two-bot`)
+## Orphaned simulation adapters (flagged for Usman)
 
-- `simulation/types.ts` is the only seam: `SimAdapter` (`snapshot`, `subscribe`, `propose`, `apply(task, version, signal?) → Promise`, `release`, `reset`). `apply` settles when the action finishes, fails (`reason: "failed"`) or the signal aborts it; the per-object lock is held until then. Results may carry a `summary` (the sim's measured words). No React or model imports under `simulation/`.
-- `simulation/fake/` is the TEMPORARY stub (analytic world, 5–45 cm, instant). `simulation/real/` is the adapter over the two-robot `DuckSim`: `left-weight`/`right-weight` map to `MOMENTS.weights` (`weight-200` pushed by Pip, `weight-100` by Nova), `apply` runs `place_weight` on the owner and settles on its `task-done`, snapshots are measured rail positions (0.1 cm, polled every 100 ms, version bumps on every measured change), rails are 5–30 cm. `real/load.ts` boots DuckSim on the Moments kit; it is imported lazily, only for `?sim=mujoco`.
-- `coordinator/` owns the ledger, per-bot state, abort/epoch, chain budget (2 calls, 1 hop; the cap counts talk time from call-1 dispatch and pauses while a bot acts), `actTimeoutMs` per action (default 60 s), and the world-version check on every action. A failed or measured action adds a `notice` with the sim's summary; a handback stays last.
-- Invariants: every ledger event has a required `to`; bubbles, chips, gaze and aria all derive from `to` only; a late or stale result is dropped; Stop and Reset abort the chain.
-- `presentation/` paces the room (one bubble, reading-time holds). It never changes the ledger or coordinator timing.
-- `provider/mock.ts` is deterministic and offline. `provider/live.ts` (`?provider=live`, only when `/api/health` reports `liveAi`) calls `POST /api/two-bot/respond` in `apps/api/src/twoBot.ts` (Bedrock, server-side) and returns the same `Respond` labelled `live`, falling back to the mock (labelled `mock`) on any failure.
+The `?demo=two-bot` page and its layers (coordinator, provider, presentation, bubbles, capsule, fastpath, handoff, contracts `ledger.ts`, `/api/two-bot/respond`) were deleted on 2026-10-31 (cleanup PR). `simulation/types.ts` (`SimAdapter`), `simulation/fake/` and `simulation/real/` are left in place, unused, for Usman to keep or remove.
 
 ## Planned runtime components (from docs/ARCHITECTURE.md and the planning notes; not built)
 
@@ -106,7 +101,7 @@ World/experiment state, per-bot session, crew coordinator (turn/time/token budge
 
 ## Product entry integration — 2026-10-25
 
-- `src/main.tsx`: `/` renders `welcome/WelcomePage` (a GIC hero; art paths in its `LANDING` config); `/console`, `/lab` and nested `/lab/` paths lazy-load `sandbox/SandboxApp` outside StrictMode to boot physics once. `?demo=two-bot` remains a separately lazy-loaded teammate demo.
+- `src/main.tsx`: `/` renders `welcome/WelcomePage` (a GIC hero; art paths in its `LANDING` config); `/console`, `/lab` and nested `/lab/` paths lazy-load `sandbox/SandboxApp` outside StrictMode to boot physics once.
 - `sandbox.html`: legacy console entry retained. Console Home links return to `/`.
 - `src/welcome/`: imported landing UI and Arc controls; public artwork/font assets under `public/welcome/`. Landing balance example uses shared deterministic contracts but does not load MuJoCo or ONNX.
 - Removed the old `App.tsx`, `App.module.css`, `world/LabScene.tsx`, and preview-only Zustand `state/lab.ts` plus its obsolete tests. The older map above is historical for those files. Shared contracts and teammate demo runtime remain.

@@ -491,3 +491,25 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - Web: `sandbox/voiceUpload.ts` `transcribeRecording()` replaces the two copies of the transcribe fetch in `agentSession.ts` and `rescueVoice.ts`; it reads the health flag once.
 - Infra: `grant_put` on `voice/*` (presigned POSTs are signed with the API role), plus a pytest assertion that PutObject covers only `voice/*` and `replays/*`. `POST /api/voice/upload-url` is throttled 1/3 like transcribe (tester's finding: each grant allows a 10 MB upload).
 - Checks: 3 new unit tests (presign policy with fake credentials, delete on success and on failure, route key rules and the health flag). pnpm check 240 passed, 3 skipped. Infra pytest 6 passed. The 9 MB end-to-end check waits for the AWS account ([owner] in `11-remaining-steps.md`).
+
+## 2026-10-31 · Claude Code · Cleanup PR (owner repo, branch `chore/cleanup` off `113c348`)
+
+From the tester's knip scan of `346bb8d` (owner-approved scope), in three commits so each reverts cleanly:
+1. **#1-11, #18, #20-24:**
+   - Removed deps: `openai` and `@kestrel/contracts` from `apps/api` (the API imports contracts by relative path; re-checked after P5b), and `@radix-ui/react-dialog` and `zustand` from `apps/web`.
+   - Deleted `notImplemented.ts`. `SpeakerSchema` (an alias) folded into `AddresseeSchema`.
+   - Dropped `export` from file-local constants and types.
+   - Retired `scripts/bench/*.mjs`; the README keeps its measured results without the script names.
+   - Fixed the stale default-model comment in `agent-bench-bedrock.mjs`.
+2. **#14, with #15 resolved:** deleted the `?demo=two-bot` page and everything reachable only from it, outside `simulation/`:
+   - web: coordinator, provider, presentation, bubbles, capsule, fastpath, handoff, `testing/fixtures.ts`;
+   - contracts `ledger.ts`;
+   - `/api/two-bot/respond` with `twoBot.ts`, and its infra throttle;
+   - e2e: two-bot-demo, two-bot-real-sim and pacing specs, plus 2 of the 4 tests in integration.spec;
+   - `scripts/two-bot-live-check.mjs`.
+   About 6,000 lines removed.
+3. This memory entry.
+
+- **Flagged for Usman (orphaned, left in place):** `simulation/types.ts`, `simulation/fake/`, `simulation/real/`. Their purity tests still pass, but their bans on importing `provider/` or `coordinator/` now guard folders that no longer exist.
+- **Kept:** #16-19 paid and live scripts (except two-bot-live-check), #27 simulation exports, and #12-13 Tiger legacy until the owner confirms the data move.
+- Checks: pnpm check 122 passed, 3 skipped. The drop from 240 is the 12 deleted test files, including `it.each` rows. Infra pytest 6 passed. E2e runs in CI.
