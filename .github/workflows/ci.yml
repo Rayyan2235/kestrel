@@ -51,14 +51,19 @@ jobs:
   e2e-rescue:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # One runner per project, so mobile coverage adds no wall time.
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop, mobile]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm exec playwright test tests/rescue-navigation.spec.ts --project=desktop --workers=1
+      - run: pnpm exec playwright test tests/rescue-navigation.spec.ts --project=${{ matrix.project }} --workers=1
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: rescue-results
+          name: rescue-results-${{ matrix.project }}
           path: |
             test-results/
             playwright-report/
