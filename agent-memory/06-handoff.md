@@ -1,18 +1,20 @@
-# Current handoff — feat/p5-cdk-infra (PR #5)
+# Current handoff — feat/p5b-voice-upload
 
-Owner repo `Rayyan2235/kestrel`. Main is `2537c38`: PR #4 (triangle build fix) is merged, and CI ran the triangle spec green on desktop. PR #5 (P5, Python CDK in `infra/`, synth only) is in review; the tester passed it (pytest 5/5, synth 32 resources), and this branch now includes main.
+Owner repo `Rayyan2235/kestrel`, branch `feat/p5b-voice-upload` off main `346bb8d` (P5 merged as #5). Pushed to `rayyan`; the orchestrator opens the PR.
+
+Done: presigned S3 voice upload (see `07-changelog.md`, 2026-10-31). The S3 code lives in `apps/api/src/storage/s3.ts`, and the web client switches on `/api/health` `voiceUpload`.
 
 Next:
-1. PR #5: CI, then the owner merges.
-2. P5b, after #5 merges, on a new branch off `rayyan/main`. Approved scope:
-   - `POST /api/voice/upload-url` returns a presigned POST (≤ 10 MB, key `voice/<uuid>`, 5 min expiry).
-   - `/api/voice/transcribe` also takes JSON `{key}`, accepting only `^voice/<uuid>$`. It reads the object and deletes it in a `finally`, even when transcription fails.
-   - The raw-body path stays for Vultr; the web client picks a path from a `/api/health` flag.
-   - Dependencies: `@aws-sdk/client-s3` and `@aws-sdk/s3-presigned-post`, pinned, in `apps/api`, and bundled.
-   - Infra: `grant_put` on `voice/*` only, with a pytest assertion.
-   - Unit tests use fake credentials (signing is local). The 9 MB end-to-end check is an [owner] item in `11-remaining-steps.md` (needs the AWS account).
-3. Still not built (need P6 or an AWS account): the `@fastify/aws-lambda` bundle and origin-header check, and `cdk destroy` verification.
+1. Tester (executor-c2): `pnpm check`, the infra pytest (`02-runbook.md`, Infra), and `tests/rescue-navigation.spec.ts` desktop, since `rescueVoice.ts` changed.
+2. After P5b merges: `chore/cleanup` off `rayyan/main` (owner-approved scope from the tester's redundant-code scan).
+3. Not built yet (need P6 or an AWS account): the `@fastify/aws-lambda` bundle and origin check (the API's Origin hook still accepts only local origins), `cdk destroy` verification, and the 9 MB end-to-end check.
 4. Owner: create SSM `/kestrel/elevenlabs-api-key` (SecureString) and `/kestrel/origin-header` (String) before the first deploy.
+
+---
+
+# Previous handoff — feat/p5-cdk-infra (PR #5, merged)
+
+Python CDK in `infra/`, synth only; merged as `346bb8d`.
 
 ---
 

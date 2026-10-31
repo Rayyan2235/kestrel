@@ -40,5 +40,5 @@ The CDK CLI is not needed: both commands synthesize in-process (Node must be on 
 ## Not yet
 
 - The API bundle (`apps/api/dist-lambda`, with a `lambda.handler` entry point via `@fastify/aws-lambda`) comes with the deploy pipeline (P6). Until then `app.py` synthesizes a placeholder that answers 503.
-- The presigned voice upload route and the 9 MB end-to-end transcription check need a deployed stack.
+- The presigned voice upload route is built (`apps/api/src/storage/s3.ts`; the API role may put only to `voice/*` and `replays/*`). The 9 MB end-to-end check needs a deployed stack.
 - The verifier Lambda that reads the queue comes in P3.

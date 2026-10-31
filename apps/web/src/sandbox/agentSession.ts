@@ -1,5 +1,6 @@
 import { AgentResponseSchema, DuckTaskSchema, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type DuckTask } from "@kestrel/contracts";
 import type { DuckSim, SimEvent } from "../simulation/duckSim";
+import { transcribeRecording } from "./voiceUpload";
 
 export type AgentPhase = "Ready" | "Listening" | "Microphone permission" | "Transcribing" | "Thinking" | "Acting" | "Speaking";
 type Outcome = { ok: boolean; summary: string };
@@ -230,7 +231,7 @@ export class AgentSession {
     try {
       if (blob.size < 100) throw new Error("No audio captured. Hold the button while speaking.");
       this.setPhase("Transcribing");
-      const response = await checked(await fetch("/api/voice/transcribe", { method: "POST", headers: { "Content-Type": blob.type || "audio/webm" }, body: blob, signal: AbortSignal.any([signal, AbortSignal.timeout(55000)]) }));
+      const response = await checked(await transcribeRecording(blob, AbortSignal.any([signal, AbortSignal.timeout(55000)])));
       const { text } = await response.json();
       this.alive(signal);
       if (!text?.trim()) throw new Error("I didn't hear speech. Please try again.");

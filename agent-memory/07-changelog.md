@@ -475,3 +475,19 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
 - `app.py` uses `apps/api/dist-lambda` when it exists, otherwise a 503 placeholder (the bundle and `@fastify/aws-lambda` come with P6). The presigned voice upload route and the 9 MB end-to-end check need a deployed stack; not done.
 - CI: setup-python 3.12, `pip install -r infra/requirements.txt`, `pytest -q infra/tests`. Runbook has the exact local commands.
 - Checks: 5/5 pytest (no VPC/NAT/endpoints, both buckets block public access, voice 1 d and replays 30 d, costly routes throttled below the default, no `*` action or resource in IAM policies). A mutation (voice 2 d, route settings removed) failed 2 tests as expected. `python app.py` synthesizes 32 resources. No deploy, no AWS credentials.
+
+## 2026-10-31 · Claude Code · P5b voice upload through S3 (owner repo, branch `feat/p5b-voice-upload` off `346bb8d`)
+
+- Why: Lambda accepts at most a 6 MB request, so on AWS a recording up to 10 MB goes browser → S3 by presigned POST.
+- `apps/api/src/storage/s3.ts` is the only module that calls the AWS SDK (`@aws-sdk/client-s3` and `@aws-sdk/s3-presigned-post` 3.1156.0, pinned in `apps/api`):
+  - `presign()`: key `voice/<uuid>`, 5-minute expiry, `content-length-range` 1..10485760, `Content-Type` must start `audio/`.
+  - `consume(key, use)`: reads the clip and deletes it in a `finally`, also when transcription fails; a failed delete is swallowed, and the 1-day rule is the backstop.
+  - `voiceStoreFromEnv()`: on when `DATA_BUCKET` is set (the CDK stack sets it); null on Vultr.
+- API:
+  - `POST /api/voice/upload-url` (404 without S3).
+  - `/api/voice/transcribe` also takes JSON `{key}` matching `^voice/<uuid>$` (400 otherwise, 404 without S3); the raw-body path is unchanged.
+  - `/api/health` gains top-level `voiceUpload: "s3" | "direct"`. It is not inside `capabilities`, which `app.test.ts` pins exactly.
+  - `AUDIO_TYPE` and `AUDIO_MAX_BYTES` now live in `voice.ts`, shared by the parser and the presign.
+- Web: `sandbox/voiceUpload.ts` `transcribeRecording()` replaces the two copies of the transcribe fetch in `agentSession.ts` and `rescueVoice.ts`; it reads the health flag once.
+- Infra: `grant_put` on `voice/*` (presigned POSTs are signed with the API role), plus a pytest assertion that PutObject covers only `voice/*` and `replays/*`.
+- Checks: 3 new unit tests (presign policy with fake credentials, delete on success and on failure, route key rules and the health flag). pnpm check 240 passed, 3 skipped. Infra pytest 6 passed. The 9 MB end-to-end check waits for the AWS account ([owner] in `11-remaining-steps.md`).

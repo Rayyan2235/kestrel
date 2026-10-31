@@ -128,6 +128,8 @@ class KestrelStack(Stack):
         api_fn.add_to_role_policy(iam.PolicyStatement(actions=["dsql:DbConnect"], resources=[cluster.attr_resource_arn]))
         queue.grant_send_messages(api_fn)
         data.grant_put(api_fn, f"{REPLAYS_PREFIX}*")
+        # Presigned voice POSTs are signed with this role, so it needs put on voice/* too.
+        data.grant_put(api_fn, f"{VOICE_PREFIX}*")
         data.grant_read(api_fn, f"{VOICE_PREFIX}*")
         data.grant_delete(api_fn, f"{VOICE_PREFIX}*")
         api_fn.add_to_role_policy(

@@ -72,6 +72,8 @@ Status key: **[next]** do soon · **[later]** after the slice works · **[owner]
 22. **[later] Bedrock model access.** Haiku 4.5 needs `aws-marketplace:Subscribe` and `aws-marketplace:ViewSubscriptions` on the IAM user. Haiku 5.5, Sonnet 5 and Sonnet 5.5 are unavailable to this account. Re-benchmark with `apps/api/scripts/agent-bench-bedrock.mjs` if access changes, because a faster model would cut latency.
 23. **[later][owner] Hosting.** The servers bind to loopback today, and the browser mic needs HTTPS off-localhost. Decide the hosting and auth before any shared demo.
 
+24. **[owner] 9 MB voice clip end to end on AWS.** Once the stack is deployed (needs the AWS account and P6), record or upload a 9 MB clip through the site. Check that it goes browser → S3 (`voice/<uuid>`) → `/api/voice/transcribe` → transcript, and that the object is gone afterwards. Code and unit tests: P5b, `apps/api/src/storage/s3.ts`.
+
 ## F. Longer term (product roadmap, owner-led)
 
 24. **[later] New trained skills.** A jump, a dedicated push or a gentle "place": train with Isaac Lab and RSL-RL keeping the same 61-input / 14-output policy interface, then export to ONNX. Needs Linux with an NVIDIA GPU (not this machine).

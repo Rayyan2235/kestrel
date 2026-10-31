@@ -1,3 +1,6 @@
+/** Recording formats the browser sends, and the largest clip either upload path takes. */
+export const AUDIO_TYPE = /^audio\/(webm|ogg|wav|mpeg|mp4)(;.*)?$/;
+export const AUDIO_MAX_BYTES = 10 * 1024 * 1024;
 export class ProviderError extends Error {
   constructor(public status: number, public provider: string) { super(`${provider} rejected the request (${status}). Check the server credentials, permissions and quota.`); }
 }
