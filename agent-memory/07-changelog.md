@@ -513,3 +513,10 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - **Flagged for Usman (orphaned, left in place):** `simulation/types.ts`, `simulation/fake/`, `simulation/real/`. Their purity tests still pass, but their bans on importing `provider/` or `coordinator/` now guard folders that no longer exist.
 - **Kept:** #16-19 paid and live scripts (except two-bot-live-check), #27 simulation exports, and #12-13 Tiger legacy until the owner confirms the data move.
 - Checks: pnpm check 122 passed, 3 skipped. The drop from 240 is the 12 deleted test files, including `it.each` rows. Infra pytest 6 passed. E2e runs in CI.
+
+## 2026-10-31 · Claude Code · CI: run rescue-navigation in its own job (owner repo, branch `fix/ci-split-rescue` off `0d02914`)
+
+- main CI went red after the cleanup. With the light specs gone, `rescue-navigation.spec.ts` shared the 2-vCPU runner with the MuJoCo specs and took about 20 min, against 9 (tester's trace; CPU contention, not a product bug).
+- `.github/workflows/ci.yml`: new job `e2e-rescue` runs `pnpm exec playwright test tests/rescue-navigation.spec.ts --project=desktop --workers=1`. The `verify` job sets `KESTREL_E2E_SKIP_RESCUE=1`, which `playwright.config.ts` turns into a path `testIgnore`. Both jobs use the composite `.github/actions/setup` (pnpm, Node 24, frozen install, Chromium).
+- Coverage change: rescue now runs on desktop only; the mobile project no longer runs it.
+- Checks: `playwright test --list` excludes the file with the env var and lists 1 desktop test in the rescue job's command. pnpm check 122 passed, 3 skipped. CI proves the split.
