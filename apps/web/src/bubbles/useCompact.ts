@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 /** True on phone widths, where the room shows one bubble and the rail uses tabs. */
-export const COMPACT_QUERY = "(max-width: 600px)";
+const COMPACT_QUERY = "(max-width: 600px)";
 
 export function useCompact(): boolean {
   const [compact, setCompact] = useState(

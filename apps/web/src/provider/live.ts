@@ -1,7 +1,7 @@
 import { RespondSchema, type World } from "@kestrel/contracts";
 import type { Provider } from "./types.js";
 
-export type LiveProviderOptions = {
+type LiveProviderOptions = {
   /** The measured world the bot sees when it answers. */
   world: () => World;
   /** Answers instead when the live call fails; its replies stay labelled `mock`. */

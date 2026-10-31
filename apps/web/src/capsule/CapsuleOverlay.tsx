@@ -6,7 +6,7 @@ import type { Beat, CapsuleState } from "../presentation/director.js";
 import styles from "./CapsuleOverlay.module.css";
 
 /** Where a handback lands: the command dock under the stage. */
-export const DOCK_POINT: Point = { x: 50, y: 108 };
+const DOCK_POINT: Point = { x: 50, y: 108 };
 
 const pointOf = (who: LedgerEvent["to"], anchors: Anchors): Point =>
   who === "you" ? DOCK_POINT : anchors[who];

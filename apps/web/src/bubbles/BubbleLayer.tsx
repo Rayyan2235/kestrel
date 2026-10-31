@@ -45,7 +45,7 @@ export function BotGlyph({ bot }: { bot: BotId }) {
 }
 
 /** Position is a pure function of the bubble's `to` and the bot anchors. */
-export function placeBubble(
+function placeBubble(
   bubble: Bubble,
   anchors: Anchors,
   slot: number,

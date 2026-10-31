@@ -15,7 +15,7 @@ export const TwoBotRequestSchema = z
     world: z.object({ leftCm: z.number(), rightCm: z.number(), leftGrams: z.number(), rightGrams: z.number() }).strict(),
   })
   .strict();
-export type TwoBotRequest = z.infer<typeof TwoBotRequestSchema>;
+type TwoBotRequest = z.infer<typeof TwoBotRequestSchema>;
 
 const PERSONA: Record<BotId, string> = {
   pip: "You are Pip, a curious, upbeat robot duck. You work the LEFT rail: the 200 g weight. Your crewmate is Nova.",

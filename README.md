@@ -28,12 +28,12 @@ Steps 1–4 need no API keys.
 
 Measured on October 25, in headless Chromium with fast-stepped physics (times are simulated seconds):
 
-| Benchmark                                                         | Result                                                                                                                                             |
-| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/bench/coop-bench.mjs`: two-robot balance, 5 target pairs | 5/5 completed, 0 falls. Weights stopped within 0.2 cm of their marks. The predicted side matched the measured side every time. 10.6–12.3 s per run |
-| `scripts/bench/speed-bench.mjs`: navigation, 6 runs               | 6/6 arrived, 0 falls. Mean 4.2 s, mean final error 2.4 cm (90th percentile 3 cm)                                                                   |
+| Benchmark                        | Result                                                                                                                                             |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Two-robot balance, 5 target pairs | 5/5 completed, 0 falls. Weights stopped within 0.2 cm of their marks. The predicted side matched the measured side every time. 10.6–12.3 s per run |
+| Navigation, 6 runs               | 6/6 arrived, 0 falls. Mean 4.2 s, mean final error 2.4 cm (90th percentile 3 cm)                                                                   |
 
-To rerun one, start `pnpm dev`, then run `CI=1 node scripts/bench/coop-bench.mjs`.
+The one-off benchmark scripts were retired on 2026-10-31 (they are in git history). The real-physics Playwright specs in `tests/` (for example `beam-xp-levels.spec.ts` and `triangle-build.spec.ts`) now check these behaviours.
 
 ## Lessons and objectives
 
@@ -159,10 +159,9 @@ apps/web/            React + Vite: landing page, console, playground scene, MuJo
 apps/api/            Fastify routes, Bedrock agent, ElevenLabs speech-to-text, Tiger Data progress
 packages/contracts/  Shared types and Zod schemas: tasks, lessons, rescue graph, agent messages
 tests/               Playwright browser tests (desktop and mobile)
-scripts/bench/       Real-physics benchmarks: navigation, speed, two-robot balance and build
 docs/judges/         Judging-table deck and a looping screen
 deploy/              Caddyfile and deploy script for one server
 agent-memory/        Shared notes for the coding agents working on this repo
 ```
 
-Stack: TypeScript, React 19, React Three Fiber 9, Three.js, Zustand, MuJoCo 3.11 WASM, ONNX Runtime Web, Fastify, Zod, Claude on AWS Bedrock, ElevenLabs and Tiger Data (TimescaleDB, via `pg`). Exact versions are in `pnpm-lock.yaml`.
+Stack: TypeScript, React 19, React Three Fiber 9, Three.js, MuJoCo 3.11 WASM, ONNX Runtime Web, Fastify, Zod, Claude on AWS Bedrock, ElevenLabs and Tiger Data (TimescaleDB, via `pg`). Exact versions are in `pnpm-lock.yaml`.

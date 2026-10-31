@@ -21,7 +21,7 @@ import {
   type TurnHandle,
 } from "./types.js";
 
-export type CoordinatorDeps = {
+type CoordinatorDeps = {
   sim: SimAdapter;
   provider: Provider;
   config?: Partial<CoordinatorConfig>;

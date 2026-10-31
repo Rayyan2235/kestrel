@@ -4,7 +4,7 @@ import { balanceSnapshot } from "./agentSession";
 
 export type { ObjectiveId };
 
-export type Objective = {
+type Objective = {
   id: ObjectiveId;
   kit: KitId;
   title: string;

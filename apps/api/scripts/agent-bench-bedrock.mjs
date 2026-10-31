@@ -1,6 +1,6 @@
 // Same 6 learner requests as scripts/agent-bench.mjs, against Claude on Bedrock.
 // Usage (from apps/api): node --env-file=../../.env scripts/agent-bench-bedrock.mjs [modelId]
-// Default model is the one this account can use: global.anthropic.claude-sonnet-4-6 (legacy Bedrock route).
+// Default model: the API's own default, global.anthropic.claude-sonnet-4-6.
 import { AnthropicBedrock } from "@anthropic-ai/bedrock-sdk";
 
 const model = process.argv[2] || "global.anthropic.claude-sonnet-4-6";

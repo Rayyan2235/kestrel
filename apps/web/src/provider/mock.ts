@@ -1,7 +1,7 @@
 import { BOT_NAMES, type Respond } from "@kestrel/contracts";
 import type { Provider, ProviderRequest } from "./types.js";
 
-export type MockProviderOptions = {
+type MockProviderOptions = {
   /** Injected latency per call: 1000, 3000 or 6000 in the demo. */
   delayMs: number;
   /** Test hook for deterministic time. Defaults to setTimeout. */

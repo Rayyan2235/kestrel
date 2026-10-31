@@ -9,7 +9,7 @@ export type FastContext = {
   undo: ReadonlyArray<{ side: Side; cm: number }>;
 };
 
-export type FastResult =
+type FastResult =
   | { kind: "move"; side: Side; cm: number }
   | { kind: "undo" }
   | { kind: "miss"; hint: string };

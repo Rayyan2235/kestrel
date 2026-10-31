@@ -24,7 +24,7 @@ export type Bubble = {
 };
 
 /** Visual character caps, applied in CSS with line-clamp. Never truncate in JS. */
-export const CAPS = { learner: 120, peer: 80, mobile: 32 } as const;
+const CAPS = { learner: 120, peer: 80, mobile: 32 } as const;
 
 const nameOf = (who: Addressee): string =>
   who === "you" ? "You" : BOT_NAMES[who];

@@ -2,7 +2,7 @@ import type { LedgerEvent } from "@kestrel/contracts";
 import { useEffect, useRef, useState } from "react";
 import { createDirector, makeBeat, type Snapshot } from "./director.js";
 
-export type PresentationOptions = {
+type PresentationOptions = {
   paused: boolean;
   /** 0.5 or 1. Scales dwell, gap and capsule only; never model timeouts. */
   speed: number;

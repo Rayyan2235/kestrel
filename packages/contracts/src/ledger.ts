@@ -4,7 +4,6 @@ import { BotSchema } from "./bot.js";
 /** Who an event is for. `to` is the single source of truth for addressee. */
 export const AddresseeSchema = z.enum(["you", ...BotSchema.options]);
 export type Addressee = z.infer<typeof AddresseeSchema>;
-export const SpeakerSchema = AddresseeSchema;
 
 /** Where the words came from. `live` only when a real model call answered. */
 export const SourceSchema = z.enum(["built-in", "mock", "scripted", "live"]);
@@ -33,7 +32,7 @@ export const LedgerEventSchema = z
     source: SourceSchema,
     kind: LedgerKindSchema,
     hop: z.number().int().min(0).max(MAX_HOP),
-    from: SpeakerSchema,
+    from: AddresseeSchema,
     to: AddresseeSchema,
     text: z.string().min(1).max(500),
     /** Handoff only: what the asker is showing the peer. */
