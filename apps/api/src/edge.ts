@@ -10,6 +10,12 @@ import type { FastifyInstance } from "fastify";
 const LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 const digest = (value: string) => createHash("sha256").update(value).digest();
 
+/** On Lambda the gate must be configured: fail closed rather than serve without the secret check. */
+export function assertEdgeConfigured(env: NodeJS.ProcessEnv = process.env) {
+  if (!env.ORIGIN_HEADER || !env.ORIGIN_SECRET || !env.SITE_ORIGIN)
+    throw new Error("Refusing to start: ORIGIN_HEADER, ORIGIN_SECRET and SITE_ORIGIN must be set on Lambda.");
+}
+
 export function registerEdge(app: FastifyInstance, env: NodeJS.ProcessEnv = process.env) {
   const { ORIGIN_HEADER: header, ORIGIN_SECRET: secret, SITE_ORIGIN: site } = env;
   // Hash both sides so the constant-time compare never sees unequal lengths.

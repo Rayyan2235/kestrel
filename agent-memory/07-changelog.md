@@ -531,5 +531,6 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
   - `edge.test.ts`: AWS (secret required; wrong, short and long secrets fail; foreign origin fails) and local behaviour;
   - `scripts/check-api.mjs` invokes the built bundle with an HTTP API v2 event (200 with the secret, 403 without);
   - pytest: synth has no dependency cycle (CDK's `Template.from_stack` refuses cycles; a mutation proved it), and the origin secret is the SSM reference in both the Lambda env and CloudFront.
+- Fails closed on AWS (tester's finding): `lambda.ts` throws at cold start unless `ORIGIN_HEADER`, `ORIGIN_SECRET` and `SITE_ORIGIN` are all set (`assertEdgeConfigured`). Tested on the helper and on importing the entry.
 - Gaps for P6: on AWS the API reads `ELEVENLABS_API_KEY` and `DATABASE_URL` from its env. Reading the SSM SecureString and DSQL IAM auth need the first deploy.
 - Checks: pnpm check 124 passed, 3 skipped, plus the bundle check. Infra pytest 8 passed. `python app.py` uses the real bundle (S3 asset, nodejs22.x, arm64).

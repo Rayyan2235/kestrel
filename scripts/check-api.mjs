@@ -13,6 +13,7 @@ try {
 // The Lambda bundle answers an HTTP API (payload v2) event, behind the origin secret.
 process.env.ORIGIN_HEADER = "x-kestrel-origin";
 process.env.ORIGIN_SECRET = "check";
+process.env.SITE_ORIGIN = "https://check.cloudfront.net";
 const { handler } = await import("../apps/api/dist-lambda/lambda.mjs");
 const event = (headers) => ({
   version: "2.0",

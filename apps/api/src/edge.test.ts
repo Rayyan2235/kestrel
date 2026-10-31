@@ -1,6 +1,6 @@
 import Fastify from "fastify";
 import { expect, it } from "vitest";
-import { registerEdge } from "./edge.js";
+import { assertEdgeConfigured, registerEdge } from "./edge.js";
 
 const SITE = "https://d111.cloudfront.net";
 const aws = { ORIGIN_HEADER: "x-kestrel-origin", ORIGIN_SECRET: "s3cret", SITE_ORIGIN: SITE };
@@ -39,5 +39,13 @@ it("locally and on Vultr, needs no secret and allows only localhost origins", as
     expect(await call(SITE)).toBe(403);
   } finally {
     await app.close();
+  }
+});
+
+it("refuses to start on Lambda unless the gate is fully configured", () => {
+  expect(() => assertEdgeConfigured(aws)).not.toThrow();
+  for (const missing of ["ORIGIN_HEADER", "ORIGIN_SECRET", "SITE_ORIGIN"] as const) {
+    expect(() => assertEdgeConfigured({ ...aws, [missing]: undefined })).toThrow(/Refusing to start/);
+    expect(() => assertEdgeConfigured({ ...aws, [missing]: "" })).toThrow(/Refusing to start/);
   }
 });
