@@ -1,12 +1,24 @@
-# Current handoff — fix/triangle-build
+# Current handoff — feat/p5-cdk-infra (PR #5)
 
-Owner repo `Rayyan2235/kestrel`, branch `fix/triangle-build` off main `e39c395`. Pushed to `rayyan`; the orchestrator or owner opens the PR (body draft from the implementer). Flag: it changes `apps/web/src/simulation/` (task layer only).
-
-Done: "Build it together" fills 3/3 slots on the real sim (see `07-changelog.md`, 2026-10-28). Vultr runs `e39c395` and `pnpm smoke:live` passed.
+Owner repo `Rayyan2235/kestrel`. Main is `2537c38`: PR #4 (triangle build fix) is merged, and CI ran the triangle spec green on desktop. PR #5 (P5, Python CDK in `infra/`, synth only) is in review; the tester passed it (pytest 5/5, synth 32 resources), and this branch now includes main.
 
 Next:
-1. Tester (executor-c9): run `tests/triangle-build.spec.ts` alone, once, desktop, with nothing else heavy running; then CI.
-2. Implementer: P5 on a new branch off `rayyan/main`: a Python CDK app in `infra/` with pytest assertions; `cdk synth` only, no deploy (no AWS account yet).
+1. PR #5: CI, then the owner merges.
+2. P5b, after #5 merges, on a new branch off `rayyan/main`. Approved scope:
+   - `POST /api/voice/upload-url` returns a presigned POST (≤ 10 MB, key `voice/<uuid>`, 5 min expiry).
+   - `/api/voice/transcribe` also takes JSON `{key}`, accepting only `^voice/<uuid>$`. It reads the object and deletes it in a `finally`, even when transcription fails.
+   - The raw-body path stays for Vultr; the web client picks a path from a `/api/health` flag.
+   - Dependencies: `@aws-sdk/client-s3` and `@aws-sdk/s3-presigned-post`, pinned, in `apps/api`, and bundled.
+   - Infra: `grant_put` on `voice/*` only, with a pytest assertion.
+   - Unit tests use fake credentials (signing is local). The 9 MB end-to-end check is an [owner] item in `11-remaining-steps.md` (needs the AWS account).
+3. Still not built (need P6 or an AWS account): the `@fastify/aws-lambda` bundle and origin-header check, and `cdk destroy` verification.
+4. Owner: create SSM `/kestrel/elevenlabs-api-key` (SecureString) and `/kestrel/origin-header` (String) before the first deploy.
+
+---
+
+# Previous handoff — fix/triangle-build (PR #4, merged)
+
+"Build it together" fills 3/3 slots on the real sim (see `07-changelog.md`, 2026-10-28). Merged as `2537c38`; CI desktop 141 passed, 7 skipped.
 
 ---
 
