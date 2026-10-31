@@ -62,7 +62,13 @@ def test_http_api_throttles_bedrock_and_voice_routes(template: Template) -> None
     props = next(iter(stages.values()))["Properties"]
     assert props["DefaultRouteSettings"]["ThrottlingRateLimit"] > 0
     keys = {r["Properties"]["RouteKey"] for r in template.find_resources("AWS::ApiGatewayV2::Route").values()}
-    for key in ("POST /api/agent/turn", "POST /api/two-bot/respond", "POST /api/voice/transcribe", "POST /api/voice/speak"):
+    for key in (
+        "POST /api/agent/turn",
+        "POST /api/two-bot/respond",
+        "POST /api/voice/transcribe",
+        "POST /api/voice/speak",
+        "POST /api/voice/upload-url",
+    ):
         assert key in COSTLY_ROUTES and key in keys, key
         limits = props["RouteSettings"][key]
         assert 0 < limits["ThrottlingRateLimit"] < props["DefaultRouteSettings"]["ThrottlingRateLimit"], key

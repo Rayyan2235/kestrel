@@ -489,5 +489,5 @@ Omitted-start fix verified: regression failed before fix, then pnpm check passed
   - `/api/health` gains top-level `voiceUpload: "s3" | "direct"`. It is not inside `capabilities`, which `app.test.ts` pins exactly.
   - `AUDIO_TYPE` and `AUDIO_MAX_BYTES` now live in `voice.ts`, shared by the parser and the presign.
 - Web: `sandbox/voiceUpload.ts` `transcribeRecording()` replaces the two copies of the transcribe fetch in `agentSession.ts` and `rescueVoice.ts`; it reads the health flag once.
-- Infra: `grant_put` on `voice/*` (presigned POSTs are signed with the API role), plus a pytest assertion that PutObject covers only `voice/*` and `replays/*`.
+- Infra: `grant_put` on `voice/*` (presigned POSTs are signed with the API role), plus a pytest assertion that PutObject covers only `voice/*` and `replays/*`. `POST /api/voice/upload-url` is throttled 1/3 like transcribe (tester's finding: each grant allows a 10 MB upload).
 - Checks: 3 new unit tests (presign policy with fake credentials, delete on success and on failure, route key rules and the health flag). pnpm check 240 passed, 3 skipped. Infra pytest 6 passed. The 9 MB end-to-end check waits for the AWS account ([owner] in `11-remaining-steps.md`).

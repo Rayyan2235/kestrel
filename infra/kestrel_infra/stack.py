@@ -42,6 +42,8 @@ COSTLY_ROUTES = {
     # ElevenLabs
     "POST /api/voice/transcribe": {"rate": 1, "burst": 3},
     "POST /api/voice/speak": {"rate": 1, "burst": 3},
+    # Each grant allows a 10 MB S3 upload
+    "POST /api/voice/upload-url": {"rate": 1, "burst": 3},
 }
 
 VOICE_PREFIX = "voice/"
