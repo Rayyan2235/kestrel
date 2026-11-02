@@ -88,6 +88,8 @@ No hosting or deployment is configured.
 
 ## Infra (Python CDK, `infra/`, P5)
 
+`pnpm build` also bundles the API for Lambda (`apps/api/dist-lambda/lambda.mjs`), and `python app.py` then synthesizes that real bundle instead of the 503 placeholder.
+
 Synth only: no AWS account yet, so no credentials, no `cdk deploy`. The CDK CLI is not needed; the tests and `python app.py` synthesize in-process (Node must be on PATH for jsii). From the repo root, in Git Bash (on Windows the venv's Python is `.venv/Scripts/python`; elsewhere it is `.venv/bin/python`):
 
 ```sh
@@ -102,7 +104,7 @@ On Windows each run may end by printing a jsii `ENOTEMPTY ... jsii-kernel-*` err
 
 ## CI
 
-`.github/workflows/ci.yml` runs on push to main and on PRs: Node 24, `pnpm install --frozen-lockfile`, `pnpm check`, the infra pytest (Python 3.12), Playwright install with deps, `pnpm test:e2e`. It uploads `test-results/` and `playwright-report/` on failure.
+`.github/workflows/ci.yml` runs on push to main and on PRs: Node 24, `pnpm install --frozen-lockfile`, `pnpm check`, the infra pytest (Python 3.12), Playwright install with deps, `pnpm test:e2e`. It uploads `test-results/` and `playwright-report/` on failure. `rescue-navigation.spec.ts` runs alone in a second job, `e2e-rescue`, a matrix of desktop and mobile on separate runners (1 worker each); the main job skips it via `KESTREL_E2E_SKIP_RESCUE=1` (`playwright.config.ts` `testIgnore`). Both jobs share `.github/actions/setup`.
 
 ## Shell notes
 

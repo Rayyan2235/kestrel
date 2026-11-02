@@ -31,6 +31,8 @@ from constructs import Construct
 ELEVENLABS_KEY_PARAM = "/kestrel/elevenlabs-api-key"  # SecureString
 ORIGIN_HEADER_PARAM = "/kestrel/origin-header"  # String: CloudFront can't resolve a SecureString
 ORIGIN_HEADER = "x-kestrel-origin"
+# A CloudFormation dynamic reference: resolved at deploy, never written into the template.
+ORIGIN_SECRET_REF = f"{{{{resolve:ssm:{ORIGIN_HEADER_PARAM}}}}}"
 
 # Requests per second, per route, across all learners. HTTP API has no
 # per-client limit; these cap what a runaway client can spend.
@@ -120,8 +122,9 @@ class KestrelStack(Stack):
                 "VERIFY_QUEUE_URL": queue.queue_url,
                 "DATA_BUCKET": data.bucket_name,
                 "ELEVENLABS_KEY_PARAM": ELEVENLABS_KEY_PARAM,
-                "ORIGIN_HEADER_PARAM": ORIGIN_HEADER_PARAM,
+                # apps/api/src/edge.ts: requests must carry CloudFront's secret.
                 "ORIGIN_HEADER": ORIGIN_HEADER,
+                "ORIGIN_SECRET": ORIGIN_SECRET_REF,
             },
         )
 
@@ -136,10 +139,7 @@ class KestrelStack(Stack):
         api_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],
-                resources=[
-                    self.format_arn(service="ssm", resource="parameter", resource_name=p.lstrip("/"))
-                    for p in (ELEVENLABS_KEY_PARAM, ORIGIN_HEADER_PARAM)
-                ],
+                resources=[self.format_arn(service="ssm", resource="parameter", resource_name=ELEVENLABS_KEY_PARAM.lstrip("/"))],
             )
         )
         api_fn.add_to_role_policy(
@@ -173,7 +173,7 @@ class KestrelStack(Stack):
         # ── Edge ─────────────────────────────────────────────────────────
         api_origin = origins.HttpOrigin(
             Fn.select(2, Fn.split("/", http.api_endpoint)),
-            custom_headers={ORIGIN_HEADER: f"{{{{resolve:ssm:{ORIGIN_HEADER_PARAM}}}}}"},
+            custom_headers={ORIGIN_HEADER: ORIGIN_SECRET_REF},
         )
         site = cloudfront.Distribution(
             self,
@@ -193,6 +193,9 @@ class KestrelStack(Stack):
                 )
             },
         )
+
+        # The browser's Origin on AWS; edge.ts allows it alongside localhost.
+        api_fn.add_environment("SITE_ORIGIN", f"https://{site.distribution_domain_name}")
 
         # Presigned POST uploads come from the site's own origin only.
         data.add_cors_rule(
