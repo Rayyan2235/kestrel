@@ -1,0 +1,16 @@
+name: Set up Kestrel
+description: pnpm, Node 24, a frozen install and Playwright's Chromium, shared by the CI jobs.
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 9.15.9
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash
+    - run: pnpm exec playwright install --with-deps chromium
+      shell: bash

@@ -4,6 +4,8 @@ import { expect, test } from "@playwright/test";
 // modes. A CI trace showed every action taking 3–20 s on the runner's software
 // WebGL (the sequence reached its last click at 172 s), so the budget is 300 s.
 test.setTimeout(300000);
+// Each step after boot is just as slow, so it outgrows the 5 s expect default.
+const STEP = { timeout: 30000 };
 
 test("explore camera persists, controls frame and reset, and keyboard stays out of robot input", async ({
   page,
@@ -19,9 +21,12 @@ test("explore camera persists, controls frame and reset, and keyboard stays out 
   await page.waitForTimeout(1200);
   const zoom = Number(await canvas.getAttribute("data-camera-zoom"));
   await page.getByRole("button", { name: "Zoom in", exact: true }).click();
-  await expect(canvas).toHaveAttribute("data-camera-mode", "explore");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "explore", STEP);
   await expect
-    .poll(async () => Number(await canvas.getAttribute("data-camera-zoom")))
+    .poll(
+      async () => Number(await canvas.getAttribute("data-camera-zoom")),
+      STEP,
+    )
     .toBeGreaterThan(zoom * 1.1);
   const box = (await canvas.boundingBox())!;
   const x = box.x + box.width * 0.65,
@@ -32,7 +37,7 @@ test("explore camera persists, controls frame and reset, and keyboard stays out 
   await page.mouse.move(x + 35, y + 20, { steps: 6 });
   await page.mouse.up();
   await expect
-    .poll(() => canvas.getAttribute("data-camera-target"))
+    .poll(() => canvas.getAttribute("data-camera-target"), STEP)
     .not.toBe(before);
   await page.waitForTimeout(1200);
   const panned = await canvas.getAttribute("data-camera-target");
@@ -47,12 +52,12 @@ test("explore camera persists, controls frame and reset, and keyboard stays out 
   await page
     .getByRole("button", { name: "Frame experiment", exact: true })
     .click();
-  await expect(canvas).toHaveAttribute("data-camera-mode", "experiment");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "experiment", STEP);
   await page.getByRole("button", { name: "Zoom in", exact: true }).focus();
   await page.keyboard.press("ArrowRight");
-  await expect(canvas).toHaveAttribute("data-camera-mode", "explore");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "explore", STEP);
   await page.getByRole("button", { name: "Reset view", exact: true }).click();
-  await expect(canvas).toHaveAttribute("data-camera-mode", "follow");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "follow", STEP);
   expect(errors).toEqual([]);
   expect(
     await page.evaluate(
@@ -87,6 +92,7 @@ test("both lessons keep the camera controls and workshop available", async ({
   await expect(page.locator("canvas[data-camera-mode]")).toHaveAttribute(
     "data-camera-mode",
     "experiment",
+    STEP,
   );
   await page.screenshot({
     path: testInfo.outputPath("workshop-moments.png"),
@@ -107,7 +113,7 @@ test("Space activates camera controls without starting voice", async ({
     .getByRole("button", { name: "Frame experiment", exact: true })
     .focus();
   await page.keyboard.press("Space");
-  await expect(canvas).toHaveAttribute("data-camera-mode", "experiment");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "experiment", STEP);
 });
 
 test("pinch zoom works and cancellation leaves the camera usable", async ({
@@ -124,7 +130,7 @@ test("pinch zoom works and cancellation leaves the camera usable", async ({
   await page
     .getByRole("button", { name: "Frame experiment", exact: true })
     .click();
-  await expect(canvas).toHaveAttribute("data-camera-mode", "experiment");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "experiment", STEP);
   const zoom = Number(await canvas.getAttribute("data-camera-zoom"));
   const box = (await canvas.boundingBox())!;
   const x = box.x + box.width / 2,
@@ -148,10 +154,13 @@ test("pinch zoom works and cancellation leaves the camera usable", async ({
     type: "touchCancel",
     touchPoints: [],
   });
-  await expect(canvas).toHaveAttribute("data-camera-mode", "explore");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "explore", STEP);
   await expect
-    .poll(async () => Number(await canvas.getAttribute("data-camera-zoom")))
+    .poll(
+      async () => Number(await canvas.getAttribute("data-camera-zoom")),
+      STEP,
+    )
     .toBeGreaterThan(zoom * 1.2);
   await page.getByRole("button", { name: "Reset view", exact: true }).click();
-  await expect(canvas).toHaveAttribute("data-camera-mode", "follow");
+  await expect(canvas).toHaveAttribute("data-camera-mode", "follow", STEP);
 });
