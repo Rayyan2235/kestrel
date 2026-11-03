@@ -25,5 +25,6 @@ tests/.probe-*
 # Python CDK app (infra/): local venv and synth output
 infra/.venv/
 infra/cdk.out/
+infra/cdk-outputs.json
 __pycache__/
 .pytest_cache/

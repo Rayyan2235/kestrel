@@ -1,6 +1,6 @@
 # Kestrel infra (AWS CDK, Python)
 
-The serverless stack from the upscale plan (P5). It is **synth only** for now: there is no AWS account yet, so nothing here has been deployed.
+The serverless stack from the upscale plan (P5), and its keyless deploy pipeline (P6). Nothing here has been deployed yet: the pipeline stays off until the owner does the one-time setup below.
 
 ```
 Browser -> CloudFront -+-> S3 web (Origin Access Control)
@@ -37,9 +37,44 @@ python -m venv .venv
 
 The CDK CLI is not needed: both commands synthesize in-process (Node must be on PATH). The tests check that there is no VPC or NAT, that the buckets block public access, that `voice/` expires after 1 day and `replays/` after 30, that the costly routes are throttled below the default, and that no IAM statement grants `*`.
 
+## Deploys (P6)
+
+`.github/workflows/deploy.yml` runs after **Check Kestrel** passes on main:
+
+1. It trades the job's GitHub OIDC token for the deploy role; no AWS key is stored in GitHub.
+2. It runs `pnpm build`, then `cdk deploy Kestrel`. The stack publishes a new API Lambda version and points the `live` alias at it; API Gateway calls only the alias. The web build is uploaded to the site bucket and CloudFront is invalidated in the same deploy.
+3. The gate runs against the CloudFront URL: `/api/health`, then `tests/beam-xp-levels.spec.ts` (Level 1 to Level 2) with `KESTREL_BASE_URL` set. The spec fulfils the agent turn and aborts every other `/api` call, so the gate makes no Bedrock or ElevenLabs call.
+4. If the gate fails, the `live` alias is moved back to the version it had before the deploy.
+
+What rolls back and what doesn't:
+- **The API rolls back** (alias). The stack then drifts from CloudFormation until the next deploy, which sets the alias again.
+- **The web files don't roll back.** To restore them, re-run the workflow on the last good commit (`workflow_dispatch`).
+- **A failed `cdk deploy`** is rolled back by CloudFormation itself.
+
+**The deploy role** (`kestrel_infra/github_oidc.py`, stack `KestrelDeployAccess`):
+- Only jobs in this repo's `production` environment can assume it (`sub` = `repo:Rayyan2235/kestrel:environment:production`, exact match).
+- It can assume the CDK bootstrap roles (`cdk-hnb659fds-*`), which do the CloudFormation work, and read or update the `kestrel-api` alias. Nothing else.
+
+**One exception to "no `*` resource":** CDK's `BucketDeployment` grants `cloudfront:CreateInvalidation` and `cloudfront:GetInvalidation` on `*`, with no option to scope them. They can only start or read a cache invalidation. The policy test allows exactly these two.
+
+### One-time owner setup (creates AWS resources)
+
+Needs an AWS account with a billing alert. Run from this folder with admin credentials:
+
+```sh
+npx aws-cdk@2.1145.0 bootstrap aws://<account>/us-east-1
+npx aws-cdk@2.1145.0 deploy KestrelDeployAccess   # prints DeployRoleArn
+```
+
+Then, on GitHub:
+1. Create the SSM parameters from **Secrets** above.
+2. Settings, Environments: create `production` and limit deployment branches to `main`.
+3. Settings, Variables: set `AWS_DEPLOY_ROLE_ARN` to the printed role ARN. Until this is set, the deploy job is skipped.
+
 ## Not yet
 
 - The API bundle is real: `pnpm build` writes `apps/api/dist-lambda/lambda.mjs` (`@fastify/aws-lambda`, esbuild), and `app.py` deploys it. Without a build it synthesizes a 503 placeholder.
-- On AWS the API still reads `ELEVENLABS_API_KEY` and `DATABASE_URL` from its environment. Reading the SecureString key from SSM, and connecting to DSQL with IAM tokens, come with the first deploy (P6). Until then `ELEVENLABS_KEY_PARAM` and `DSQL_ENDPOINT` are set but unread.
+- On AWS the API still reads `ELEVENLABS_API_KEY` and `DATABASE_URL` from its environment. Reading the SecureString key from SSM, and connecting to DSQL with IAM tokens, are the next PR (P6b). Until then `ELEVENLABS_KEY_PARAM` and `DSQL_ENDPOINT` are set but unread, so a deployed site runs without voice or saved progress (the web falls back to its offline level).
+- The deliberately broken deploy that proves the rollback (P6's done-check) needs the first deploy.
 - The presigned voice upload route is built (`apps/api/src/storage/s3.ts`; the API role may put only to `voice/*` and `replays/*`). The 9 MB end-to-end check needs a deployed stack.
 - The verifier Lambda that reads the queue comes in P3.
