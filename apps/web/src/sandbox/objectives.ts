@@ -1,4 +1,4 @@
-import { MOMENTS, type KitId, type ObjectiveId } from "@kestrel/contracts";
+import { MOMENTS, OBJECTIVE_LEVEL_DEG, type KitId, type ObjectiveId } from "@kestrel/contracts";
 import type { SimStatus } from "../simulation/duckSim";
 import { balanceSnapshot } from "./agentSession";
 
@@ -64,12 +64,8 @@ export function beamLevel(status: SimStatus): boolean {
   return b.plank === "released" && b.lowSide === "level";
 }
 
-/**
- * How far from level still counts for the objective. The beam is stiff and
- * sensitive (about 0.5° per millimetre on the 200 g weight), so a real push
- * that lands 1–2 mm off its mark must still count. "Level" itself stays < 0.5°.
- */
-export const OBJECTIVE_LEVEL_DEG = 1.5;
+// How far from level still counts for the objective; shared with the verifier.
+export { OBJECTIVE_LEVEL_DEG } from "@kestrel/contracts";
 
 /** Like beamLevel, but within the objective's tolerance. */
 export function beamBalanced(status: SimStatus): boolean {

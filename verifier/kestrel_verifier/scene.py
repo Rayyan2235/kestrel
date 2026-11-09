@@ -80,10 +80,11 @@ def load_kit(kit_id: str) -> dict:
     return json.loads((KITS / f"{kit_id}.json").read_text(encoding="utf-8"))
 
 
-def build_scene(kit_id: str) -> Scene:
+def build_scene(kit_id: str, bots: tuple[str, ...] = tuple(BOTS)) -> Scene:
+    """The kit's scene with these robots (all of them by default; none for apparatus-only re-sims)."""
     kit = load_kit(kit_id)
     props = kit["props"]
-    ducks = [(d, kit["spawns"][d]) for d in BOTS]
+    ducks = [(d, kit["spawns"][d]) for d in bots]
     root = ET.fromstring((ASSETS / "robot" / "robot_allcollisions.xml").read_text(encoding="utf-8"))
     parent = {c: p for p in root.iter() for c in p}
     worldbody = root.find("worldbody")
@@ -200,7 +201,8 @@ def build_scene(kit_id: str) -> Scene:
         else:
             qpos.append(p.get("rest", 0))
     key = ET.SubElement(ET.SubElement(root, "keyframe"), "key", name="STAND", qpos=fmt(qpos))
-    key.set("ctrl", fmt([float(v) for _ in ducks for v in DEFAULT_POSE]))
+    if ducks:
+        key.set("ctrl", fmt([float(v) for _ in ducks for v in DEFAULT_POSE]))
 
     files = {f"assets/{f}": pinned_bytes(f"robot/meshes/{f}") for f in mesh_files}
     model = mujoco.MjModel.from_xml_string(ET.tostring(root, encoding="unicode"), files)

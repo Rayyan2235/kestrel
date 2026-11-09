@@ -1,4 +1,4 @@
-import { AgentResponseSchema, DuckTaskSchema, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type DuckTask } from "@kestrel/contracts";
+import { AgentResponseSchema, DuckTaskSchema, LEVEL_DEG, MOMENTS, slotFilled, type AgentMessage, type AgentRequest, type DuckTask } from "@kestrel/contracts";
 import type { DuckSim, SimEvent } from "../simulation/duckSim";
 import { transcribeRecording } from "./voiceUpload";
 
@@ -19,7 +19,7 @@ export function balanceSnapshot(b: NonNullable<ReturnType<DuckSim["status"]>["ba
   const deg = Math.round(Math.abs((b.angle * 180) / Math.PI) * 10) / 10;
   return {
     plank: b.pin === "free" ? "released" : b.pin,
-    lowSide: deg < 0.5 ? "level" : b.angle > 0 ? "left" : "right",
+    lowSide: deg < LEVEL_DEG ? "level" : b.angle > 0 ? "left" : "right",
     tiltDeg: deg,
     weights: [...b.rails].map(([id, at]) => ({
       id,

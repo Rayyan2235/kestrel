@@ -1,0 +1,41 @@
+{
+ "xp": {
+  "locked": 10,
+  "matched": 15,
+  "comeback": 10,
+  "objective": 100
+ },
+ "promptChallenge": "moments",
+ "prompts": [
+  {
+   "id": "m-10-20",
+   "left": 10,
+   "right": 20,
+   "answer": "level"
+  },
+  {
+   "id": "m-15-20",
+   "left": 15,
+   "right": 20,
+   "answer": "left"
+  },
+  {
+   "id": "m-10-30",
+   "left": 10,
+   "right": 30,
+   "answer": "right"
+  },
+  {
+   "id": "m-15-30",
+   "left": 15,
+   "right": 30,
+   "answer": "level"
+  }
+ ],
+ "levelDeg": 0.5,
+ "objectiveLevelDeg": 1.5,
+ "markCm": [
+  5,
+  30
+ ]
+}
