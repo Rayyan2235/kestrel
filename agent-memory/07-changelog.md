@@ -514,6 +514,14 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - **Kept:** #16-19 paid and live scripts (except two-bot-live-check), #27 simulation exports, and #12-13 Tiger legacy until the owner confirms the data move.
 - Checks: pnpm check 122 passed, 3 skipped. The drop from 240 is the 12 deleted test files, including `it.each` rows. Infra pytest 6 passed. E2e runs in CI.
 
+## 2026-10-31 · Claude Code · CI: run rescue-navigation in its own job (owner repo, branch `fix/ci-split-rescue` off `0d02914`)
+
+- main CI went red after the cleanup. With the light specs gone, `rescue-navigation.spec.ts` shared the 2-vCPU runner with the MuJoCo specs and took about 20 min, against 9 (tester's trace; CPU contention, not a product bug).
+- `.github/workflows/ci.yml`: new job `e2e-rescue` runs `pnpm exec playwright test tests/rescue-navigation.spec.ts --project=desktop --workers=1`. The `verify` job sets `KESTREL_E2E_SKIP_RESCUE=1`, which `playwright.config.ts` turns into a path `testIgnore`. Both jobs use the composite `.github/actions/setup` (pnpm, Node 24, frozen install, Chromium).
+- Coverage is kept: `e2e-rescue` is a matrix over `desktop` and `mobile` (`fail-fast: false`), each on its own runner, with artifacts `rescue-results-<project>`.
+- Checks: `playwright test --list` excludes the file with the env var and lists 1 desktop test in the rescue job's command. pnpm check 122 passed, 3 skipped. CI proves the split.
+- Follow-up: PR #9 run 41245540603 showed both rescue jobs green, but `verify` failed in `tests/workshop-camera.spec.ts`. Post-boot `toHaveAttribute` and `expect.poll` calls still used Playwright's 5 s default, while each camera step takes 3-20 s on the runner's software WebGL (main run 41241409788 failed the same way). The spec now passes a shared `const STEP = { timeout: 30000 }` to every post-boot expect. Spec-only change; no product code. Checks: the spec on desktop locally, 3 passed and 1 skipped (mobile-only pinch). pnpm check passes.
+
 ## 2026-11-09 · Claude Code · P3 outcome-verifier scene port and ADR-003 (owner repo, branch `feat/p3-scene-port` off `0d02914`)
 
 - Lands the P3 determinism spike's result without the spike harness. ADR-003 (accepted 2026-10-31): replaying browser commands in native MuJoCo agreed in 4/20 triangle builds (20%; 0/16 browser successes). Walking diverges chaotically between WASM and native, with error doubling about every 0.2 s. So the verifier re-simulates the beam from the learner's decision and checks walking trajectories for plausibility. The plan's 60 s verifier timeout stands (spike replay p99 7.9 s).
