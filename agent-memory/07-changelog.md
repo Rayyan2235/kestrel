@@ -559,3 +559,12 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - Policy test exception: CDK's `BucketDeployment` grants `cloudfront:CreateInvalidation` and `cloudfront:GetInvalidation` on `*` and can't be scoped; the wildcard test allows exactly these two.
 - Not rolled back: the web files (re-run the workflow on the last good commit). Not yet: the SSM key read and DSQL IAM auth (P6b); the broken-deploy rollback check needs the first deploy.
 - Checks: infra pytest 17 passed (was 8); `python app.py` synthesizes both stacks; the workflow YAML parses. `pnpm check` was not re-run locally (disk at 2.8 GB free); CI runs it.
+
+## 2026-11-09 · Claude Code · P6b runtime secrets on AWS (owner repo, branch `feat/p6b-runtime-secrets`, stacked on `feat/p6-deploy`)
+
+- `apps/api/src/secrets/ssm.ts` (the only SSM module): at Lambda cold start, if `ELEVENLABS_KEY_PARAM` is set and `ELEVENLABS_API_KEY` isn't, it reads the SecureString with decryption into `process.env`. On failure it logs only the error name and leaves voice off (503); the rest of the API starts. Locally and on Vultr it does nothing.
+- `apps/api/src/db/dsql.ts`: `databaseConfig()` uses `DATABASE_URL` (or the legacy `TIGER_DATABASE_URL`) when set. Otherwise, with `DSQL_ENDPOINT`, it logs in to DSQL as the non-admin role `kestrel_api` over verified TLS, with `password` as a function that signs a fresh IAM token per new connection (`@aws-sdk/dsql-signer`). `connectProgress()` now takes a `pg.PoolConfig`.
+- `lambda.ts` calls `loadElevenLabsKey()` after the edge check. New pinned deps: `@aws-sdk/client-ssm` and `@aws-sdk/dsql-signer` 3.1156.0, the same release as the S3 client.
+- Stack outputs `ApiRoleArn` and `DsqlEndpoint` for the one-time DSQL role setup, documented in `infra/README.md` (migrate as admin, `CREATE ROLE kestrel_api`, `AWS IAM GRANT`, table grants). It is written from the DSQL docs and not run yet.
+- `lambda.test.ts` timeout raised to 30 s: the import loads the whole Lambda graph and took 5.0 s on this machine on the base branch too.
+- Checks: API vitest 31 passed, 3 skipped (new `ssm.test.ts` and `dsql.test.ts`). `pnpm typecheck` passes. The Lambda bundle builds (6.8 MB) and `scripts/check-api.mjs` passes. Infra pytest 17 passed. The full `pnpm check` and e2e run in CI.

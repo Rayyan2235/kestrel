@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import pg from "pg";
 import { AttemptSchema, LearnerIdSchema, ObjectiveIdSchema, type Attempt, type Progress } from "../../../packages/contracts/src/index.js";
+import { databaseConfig } from "./db/dsql.js";
 import { retrying } from "./db/retry.js";
 import { pgLedger, type LedgerStore } from "./ledger.js";
 
@@ -40,15 +41,14 @@ export function pgStore(db: Queryable): ProgressStore {
 }
 
 /**
- * Connect and check the `attempts` table is there. Without a URL, if the database is
- * unreachable, or if it was never migrated, progress stays off.
- * DATABASE_URL is the migrated schema; TIGER_DATABASE_URL is the legacy hypertable, still read until moved.
+ * Connect and check the `attempts` table is there. Without a database configured
+ * (db/dsql.ts), if it is unreachable, or if it was never migrated, progress stays off.
  */
 export async function connectProgress(
-  url = process.env.DATABASE_URL || process.env.TIGER_DATABASE_URL,
+  config: pg.PoolConfig | null = databaseConfig(),
 ): Promise<{ store: ProgressStore; ledger: LedgerStore | null; close(): Promise<void> } | null> {
-  if (!url) return null;
-  const pool = new pg.Pool({ connectionString: url, max: 4, connectionTimeoutMillis: 5000 });
+  if (!config) return null;
+  const pool = new pg.Pool({ ...config, max: 4, connectionTimeoutMillis: 5000 });
   try {
     await pool.query("SELECT 1 FROM attempts LIMIT 0");
     // The legacy Tiger hypertable has attempts but no ledger: progress works, XP stays in the browser.

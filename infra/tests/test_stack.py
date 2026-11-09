@@ -175,4 +175,4 @@ def test_without_a_web_build_nothing_is_uploaded() -> None:
 
 
 def test_outputs_name_what_the_deploy_workflow_reads(template: Template) -> None:
-    assert {"SiteUrl", "ApiFunctionName", "ApiAlias"} <= set(template.find_outputs("*"))
+    assert {"SiteUrl", "ApiFunctionName", "ApiAlias", "ApiRoleArn", "DsqlEndpoint"} <= set(template.find_outputs("*"))
