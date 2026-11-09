@@ -26,3 +26,6 @@ infra/.venv/
 infra/cdk.out/
 __pycache__/
 .pytest_cache/
+
+# Outcome verifier (verifier/): local venv
+verifier/.venv/

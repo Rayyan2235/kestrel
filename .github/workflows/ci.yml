@@ -41,8 +41,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python -m pip install -r infra/requirements.txt
+      - run: python -m pip install -r infra/requirements.txt -r verifier/requirements.txt
       - run: python -m pytest -q infra/tests
+      # Outcome verifier (ADR-003): the scene port compiles both kits from the pinned assets.
+      - run: python -m pytest -q verifier/tests
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
