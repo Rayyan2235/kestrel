@@ -1,0 +1,5 @@
+# Outcome verifier (ADR-003). Same engine version as the browser (@mujoco/mujoco 3.11.0).
+# onnxruntime joins when a check needs the walking policy; the Moments re-sim has no inference.
+mujoco==3.11.0
+numpy==2.3.4
+pytest==9.1.1

@@ -568,3 +568,12 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - Stack outputs `ApiRoleArn` and `DsqlEndpoint` for the one-time DSQL role setup, documented in `infra/README.md` (migrate as admin, `CREATE ROLE kestrel_api`, `AWS IAM GRANT`, table grants). It is written from the DSQL docs and not run yet.
 - `lambda.test.ts` timeout raised to 30 s: the import loads the whole Lambda graph and took 5.0 s on this machine on the base branch too.
 - Checks: API vitest 31 passed, 3 skipped (new `ssm.test.ts` and `dsql.test.ts`). `pnpm typecheck` passes. The Lambda bundle builds (6.8 MB) and `scripts/check-api.mjs` passes. Infra pytest 17 passed. The full `pnpm check` and e2e run in CI.
+
+## 2026-11-09 · Claude Code · P3 outcome-verifier scene port and ADR-003 (owner repo, branch `feat/p3-scene-port` off `0d02914`)
+
+- Lands the P3 determinism spike's result without the spike harness. ADR-003 (accepted 2026-10-31): replaying browser commands in native MuJoCo agreed in 4/20 triangle builds (20%; 0/16 browser successes). Walking diverges chaotically between WASM and native, with error doubling about every 0.2 s. So the verifier re-simulates the beam from the learner's decision and checks walking trajectories for plausibility. The plan's 60 s verifier timeout stands (spike replay p99 7.9 s).
+- Kept: `verifier/kestrel_verifier/scene.py`, the Python port of `mjcf.ts` (it compiled the same model as the browser, 0 difference in every compared field, 20/20), `verifier/kits/{moments,pythagoras}.json`, `scripts/export-kits.ts` and the drift test `packages/contracts/src/verifier-kits.test.ts`.
+- New: `scene.pinned_bytes()` refuses a mesh that doesn't match `apps/web/public/microduck/SHA256SUMS`. `verifier/tests/test_scene.py` checks that both kits compile with both robots and every prop, that the STAND keyframe covers the state, that native re-simulation is repeatable, and that a tampered mesh is refused. CI installs `verifier/requirements.txt` (mujoco 3.11.0, numpy) and runs it.
+- Dropped as superseded by the ADR: the replay harness (`replay.py`, `replay_all.py`, `scripts/record-replays.mjs`) and the browser recording hooks in `duckSim.ts`. They remain only on the local branch `feat/p3-determinism-spike` (013f067).
+- Finding: with no policy running, the robots fall from the keyframe (z 0.12 to 0.05 m in 1 s). Stand-still checks need the ONNX stand policy, so P4 adds onnxruntime only if a check needs it.
+- Checks: verifier pytest 6 passed. The kit drift vitest passes, and `export-kits.ts` regenerates both kits byte-identical.
