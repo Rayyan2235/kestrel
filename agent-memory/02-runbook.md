@@ -88,6 +88,8 @@ No hosting or deployment is configured.
 
 ## Infra (Python CDK, `infra/`, P5)
 
+`pnpm build` also bundles the API for Lambda (`apps/api/dist-lambda/lambda.mjs`), and `python app.py` then synthesizes that real bundle instead of the 503 placeholder.
+
 Synth only: no AWS account yet, so no credentials, no `cdk deploy`. The CDK CLI is not needed; the tests and `python app.py` synthesize in-process (Node must be on PATH for jsii). From the repo root, in Git Bash (on Windows the venv's Python is `.venv/Scripts/python`; elsewhere it is `.venv/bin/python`):
 
 ```sh
