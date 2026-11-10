@@ -28,13 +28,21 @@ if web is None:
 # The verifier image (verifier/Dockerfile), built at deploy from the repo root.
 # Only verifier/ and the pinned robot assets go into the build context.
 REPO = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
-verifier = lambda_.DockerImageCode.from_image_asset(
-    REPO,
-    file="verifier/Dockerfile",
-    platform=ecr_assets.Platform.LINUX_ARM64,
-    ignore_mode=cdk.IgnoreMode.DOCKER,
-    exclude=VERIFIER_CONTEXT_EXCLUDE,
-)
+# The nightly analytics job runs the same image with another entry point;
+# CMD is function config, so both share one image asset.
+def python_image(cmd: str) -> lambda_.DockerImageCode:
+    return lambda_.DockerImageCode.from_image_asset(
+        REPO,
+        file="verifier/Dockerfile",
+        platform=ecr_assets.Platform.LINUX_ARM64,
+        ignore_mode=cdk.IgnoreMode.DOCKER,
+        exclude=VERIFIER_CONTEXT_EXCLUDE,
+        cmd=[cmd],
+    )
+
+
+verifier = python_image("kestrel_verifier.handler.handler")
+analytics = python_image("kestrel_analytics.nightly.handler")
 
 # Without the CDK CLI (which sets CDK_OUTDIR), `python app.py` writes to cdk.out/.
 app = cdk.App(outdir=os.environ.get("CDK_OUTDIR", "cdk.out"))
@@ -49,6 +57,7 @@ KestrelStack(
     api_code=code,
     web_source=web,
     verifier_code=verifier,
+    analytics_code=analytics,
     alarm_email=alarm_email,
     credits_usd=credits_usd,
     env=env,

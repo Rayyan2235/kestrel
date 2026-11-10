@@ -1,10 +1,11 @@
 """Alarms and the spend guard (P7): every alarm emails the owner through one SNS topic.
 
-Seven CloudWatch alarms (the free tier covers 10) and one AWS Budget:
+Eight CloudWatch alarms (the free tier covers 10) and one AWS Budget:
 
   queue health   verify DLQ holds a message ; oldest verify message > 60 s
   API            HTTP API 5xx ; API Lambda errors
   verifier       Lambda errors (crash, timeout, out of memory) ; duration > 80% of its timeout
+  analytics      the nightly job failed (P8)
   cost           estimated charges > $10 (us-east-1 only) ; gross spend > 50% of the credits
 
 The verifier reports a failed message in batchItemFailures instead of
@@ -67,6 +68,7 @@ def add_alarms(
     http: apigw.HttpApi,
     api_fn: lambda_.IFunction,
     verifier: lambda_.Function | None,
+    analytics: lambda_.Function | None = None,
     credits_usd: float,
 ) -> list[cw.Alarm]:
     action = cw_actions.SnsAction(topic)
@@ -124,6 +126,13 @@ def add_alarms(
             verifier.metric_duration(period=five, statistic="Maximum"),
             VERIFIER_SLOW_FRACTION * timeout_ms,
             f"A verification took over {VERIFIER_SLOW_FRACTION:.0%} of the verifier's {timeout_ms // 1000} s timeout.",
+        )
+    if analytics is not None:
+        alarm(
+            "AnalyticsErrors",
+            analytics.metric_errors(period=Duration.hours(1), statistic="Sum"),
+            1,
+            "The nightly analytics and retention job failed. Its logs say which step.",
         )
     if Stack.of(scope).region == BILLING_REGION:
         alarm(

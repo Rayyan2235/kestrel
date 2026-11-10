@@ -614,3 +614,14 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - The paid-route throttles from P5 cover the plan's "throttled paid LLM routes".
 - Checks: infra pytest 32 passed (10 new), vitest for log.ts (3 new), typecheck passes.
 - Not yet: the done-check (a poison message emails an alarm) needs a deploy plus the owner's setup (billing alerts preference, `ALARM_EMAIL`, confirming the SNS email). Steps are in infra/README.md.
+
+## 2026-11-10 · Claude Code · P8a nightly analytics and retention (owner repo, branch `feat/p8a-nightly-analytics`, stacked on `feat/p7-observability`)
+
+- `verifier/kestrel_analytics/`: the verifier's image with another entry point (`nightly.handler`). EventBridge Scheduler runs it at 07:00 UTC as the DSQL role `kestrel_analytics`.
+  - `retention.py`: deletes learners not seen for 180 days, plus attempts over 180 days old whose learner row never existed. Children go before parents; each DELETE is its own transaction of at most 1,000 rows (DSQL limit 3,000).
+  - `model.py` (pure): a Beta(1+s, 1+f) mastery per learner and concept, and per-prompt attempts, successes and median tries to first success. Only `verified` attempts count. Prompts and the beam map to the `moments` concept.
+  - `nightly.py`: retention, then a full recompute upserted in 500-row transactions. Mastery is skipped for learners with no learners row.
+  - `forget.py`: the owner's delete-one-learner script; it needs an admin `DATABASE_URL`.
+- `kestrel_verifier/db.connect(user)` takes the DSQL role. Infra: the `kestrel-analytics` Lambda (arm64, 512 MB, 5 min, JSON logs, `dsql:DbConnect` only), the `Nightly` schedule, the `AnalyticsErrors` alarm (8 alarms now) and the `AnalyticsRoleArn` output. The README has the role grants.
+- Done-check (pytest): a synthetic 200-learner cohort recovers the four prompts' difficulty order. Local: 6 model tests and 11 infra alarm tests pass; the 3 Postgres tests run in CI.
+- Not yet (P8b): the owner-only `/owner/insights` page (owner token in SSM, "demo data" when n is small).

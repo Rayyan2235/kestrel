@@ -93,6 +93,11 @@ AWS IAM GRANT kestrel_verifier TO '<VerifierRoleArn>';
 GRANT SELECT, UPDATE ON attempts TO kestrel_verifier;
 GRANT SELECT ON prediction_locks TO kestrel_verifier;
 GRANT INSERT ON learners, xp_events TO kestrel_verifier;
+-- 4. The nightly job's role (AnalyticsRoleArn): read everything, write the summaries, delete for retention.
+CREATE ROLE kestrel_analytics WITH LOGIN;
+AWS IAM GRANT kestrel_analytics TO '<AnalyticsRoleArn>';
+GRANT SELECT, DELETE ON learners, prediction_locks, attempts, xp_events TO kestrel_analytics;
+GRANT SELECT, INSERT, UPDATE, DELETE ON concept_mastery, prompt_stats TO kestrel_analytics;
 SQL
 ```
 
@@ -100,7 +105,7 @@ These steps are written from the AWS DSQL docs and have not been run yet; the fi
 
 ## Alarms and logs (P7)
 
-`kestrel_infra/alarms.py` adds seven CloudWatch alarms (the free tier covers 10) and one AWS Budget. All of them email the owner through one SNS topic (`AlarmTopicArn`):
+`kestrel_infra/alarms.py` adds eight CloudWatch alarms (the free tier covers 10) and one AWS Budget. All of them email the owner through one SNS topic (`AlarmTopicArn`):
 
 | Alarm | Fires when |
 | --- | --- |
@@ -109,6 +114,7 @@ These steps are written from the AWS DSQL docs and have not been run yet; the fi
 | `ApiServerErrors` | The HTTP API returns 5 or more 5xx responses in 5 minutes. |
 | `ApiFunctionErrors`, `VerifierErrors` | A Lambda invocation crashes, times out or runs out of memory. |
 | `VerifierSlow` | A verification takes 80% or more of the verifier's 60 s timeout. |
+| `AnalyticsErrors` | The nightly analytics and retention job fails (P8). |
 | `BillingOver10` | Estimated charges for the month reach $10 (us-east-1 only, where the billing metric lives). |
 | `kestrel-credits` budget | Spend before credits passes 50% of `AWS_CREDITS_USD` (default 100) for the year. Credits keep the bill near $0, so the $10 alarm alone would not notice them running out. |
 
@@ -128,6 +134,21 @@ QUEUE=$(aws cloudformation describe-stacks --stack-name Kestrel --query "Stacks[
 aws sqs send-message --queue-url "$QUEUE" --message-body 'not a verify message'
 # Expect a VerifyQueueStuck email within minutes, then VerifyDlqNotEmpty. Then clear the DLQ:
 #   aws sqs purge-queue --queue-url <the DLQ url, from the SQS console>
+```
+
+## Nightly analytics and retention (P8)
+
+EventBridge Scheduler runs `kestrel-analytics` at 07:00 UTC. It is the verifier's image with another entry point (`verifier/kestrel_analytics/nightly.py`), connecting to DSQL as `kestrel_analytics`.
+
+1. **Retention first** (`retention.py`): learners not seen for 180 days are deleted with their XP, mastery, attempts and locks. So are attempts over 180 days old whose learner row never existed. Each DELETE is its own transaction of at most 1,000 rows (DSQL allows 3,000), children before parents, because the foreign keys don't cascade.
+2. **Then the summaries**, recomputed from attempts the verifier marked `verified` (`model.py`):
+   - `concept_mastery`: a Beta(1 + successes, 1 + failures) posterior per learner and concept. Moments prompts and the balance beam are both the `moments` concept.
+   - `prompt_stats`: attempts, successes and the median tries to the first success, per prompt.
+
+To delete one learner now (for example, on request), run from `verifier/` with an admin `DATABASE_URL` (see the DSQL steps above):
+
+```sh
+DATABASE_URL=... python -m kestrel_analytics.forget <learner-uuid>
 ```
 
 ## Not yet

@@ -15,6 +15,8 @@ from aws_cdk import (
     aws_logs as logs,
     aws_s3 as s3,
     aws_s3_deployment as s3deploy,
+    aws_scheduler as scheduler,
+    aws_scheduler_targets as scheduler_targets,
     aws_sqs as sqs,
 )
 from constructs import Construct
@@ -28,6 +30,7 @@ from kestrel_infra.alarms import add_alarms, alarm_topic
 #                          +-> /api/* -> HTTP API -> API Lambda (Fastify, arm64)
 #   Browser -presigned POST-> S3 data voice/ (1 day) ; replays/ (30 days)
 #   API Lambda -> Aurora DSQL (IAM auth) ; SQS verify queue (+ DLQ) ; Bedrock
+#   EventBridge Scheduler (nightly) -> analytics Lambda -> DSQL summaries + retention deletes
 #   Alarms and a credits budget -> SNS -> the owner's email (alarms.py)
 #
 # Secrets are SSM parameters the owner creates by hand; CloudFormation can't
@@ -59,6 +62,10 @@ API_FUNCTION_NAME = "kestrel-api"
 # a new version and moves the alias; a failed post-deploy gate moves it back.
 LIVE_ALIAS = "live"
 VERIFIER_FUNCTION_NAME = "kestrel-verifier"
+# The nightly job (verifier/kestrel_analytics): same image, its own entry point.
+ANALYTICS_FUNCTION_NAME = "kestrel-analytics"
+# 07:00 UTC, about 2-3 a.m. in US Eastern time.
+NIGHTLY_UTC_HOUR = "7"
 # Docker-style ignore rules for the verifier image's build context (the repo
 # root): everything except what verifier/Dockerfile copies.
 VERIFIER_CONTEXT_EXCLUDE = [
@@ -97,6 +104,7 @@ class KestrelStack(Stack):
         api_code: lambda_.Code,
         web_source: s3deploy.ISource | None = None,
         verifier_code: lambda_.DockerImageCode | None = None,
+        analytics_code: lambda_.DockerImageCode | None = None,
         alarm_email: str | None = None,
         credits_usd: float = 100,
         **kwargs,
@@ -147,6 +155,7 @@ class KestrelStack(Stack):
         # Deletion protection off so `cdk destroy` leaves nothing behind.
         cluster = dsql.CfnCluster(self, "Db", deletion_protection_enabled=False)
         cluster.apply_removal_policy(RemovalPolicy.DESTROY)
+        dsql_endpoint = f"{cluster.attr_identifier}.dsql.{self.region}.on.aws"
 
         # ── API ──────────────────────────────────────────────────────────
         api_fn = lambda_.Function(
@@ -169,7 +178,7 @@ class KestrelStack(Stack):
                 removal_policy=RemovalPolicy.DESTROY,
             ),
             environment={
-                "DSQL_ENDPOINT": f"{cluster.attr_identifier}.dsql.{self.region}.on.aws",
+                "DSQL_ENDPOINT": dsql_endpoint,
                 "VERIFY_QUEUE_URL": queue.queue_url,
                 "DATA_BUCKET": data.bucket_name,
                 "ELEVENLABS_KEY_PARAM": ELEVENLABS_KEY_PARAM,
@@ -247,7 +256,7 @@ class KestrelStack(Stack):
                     removal_policy=RemovalPolicy.DESTROY,
                 ),
                 environment={
-                    "DSQL_ENDPOINT": f"{cluster.attr_identifier}.dsql.{self.region}.on.aws",
+                    "DSQL_ENDPOINT": dsql_endpoint,
                     "DATA_BUCKET": data.bucket_name,
                 },
             )
@@ -259,6 +268,39 @@ class KestrelStack(Stack):
             verifier.add_to_role_policy(iam.PolicyStatement(actions=["dsql:DbConnect"], resources=[cluster.attr_resource_arn]))
             CfnOutput(self, "VerifierRoleArn", value=verifier.role.role_arn)
 
+        # ── Nightly analytics (P8) ───────────────────────────────────────
+        # Retention deletes, then mastery and prompt difficulty, recomputed
+        # from verified attempts once a night (batch, apart from the API).
+        analytics: lambda_.Function | None = None
+        if analytics_code is not None:
+            analytics = lambda_.DockerImageFunction(
+                self,
+                "Analytics",
+                function_name=ANALYTICS_FUNCTION_NAME,
+                code=analytics_code,
+                architecture=lambda_.Architecture.ARM_64,
+                memory_size=512,
+                # DSQL's transaction limit; each statement is far shorter.
+                timeout=Duration.minutes(5),
+                logging_format=lambda_.LoggingFormat.JSON,
+                log_group=logs.LogGroup(
+                    self,
+                    "AnalyticsLogs",
+                    retention=logs.RetentionDays.ONE_MONTH,
+                    removal_policy=RemovalPolicy.DESTROY,
+                ),
+                environment={"DSQL_ENDPOINT": dsql_endpoint},
+            )
+            analytics.add_to_role_policy(iam.PolicyStatement(actions=["dsql:DbConnect"], resources=[cluster.attr_resource_arn]))
+            scheduler.Schedule(
+                self,
+                "Nightly",
+                description="Kestrel nightly analytics and retention",
+                schedule=scheduler.ScheduleExpression.cron(minute="0", hour=NIGHTLY_UTC_HOUR),
+                target=scheduler_targets.LambdaInvoke(analytics, retry_attempts=2),
+            )
+            CfnOutput(self, "AnalyticsRoleArn", value=analytics.role.role_arn)
+
         # ── Alarms (P7) ──────────────────────────────────────────────────
         topic = alarm_topic(self, alarm_email)
         add_alarms(
@@ -269,6 +311,7 @@ class KestrelStack(Stack):
             http=http,
             api_fn=api_fn,
             verifier=verifier,
+            analytics=analytics,
             credits_usd=credits_usd,
         )
 
@@ -341,7 +384,7 @@ class KestrelStack(Stack):
         CfnOutput(self, "ApiAlias", value=live.alias_name)
         # For the one-time DSQL role setup (infra/README.md).
         CfnOutput(self, "ApiRoleArn", value=api_fn.role.role_arn)
-        CfnOutput(self, "DsqlEndpoint", value=f"{cluster.attr_identifier}.dsql.{self.region}.on.aws")
+        CfnOutput(self, "DsqlEndpoint", value=dsql_endpoint)
         # For the poison-message check (infra/README.md) and alarm subscriptions.
         CfnOutput(self, "VerifyQueueUrl", value=queue.queue_url)
         CfnOutput(self, "AlarmTopicArn", value=topic.topic_arn)
