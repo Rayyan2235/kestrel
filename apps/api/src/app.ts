@@ -7,13 +7,25 @@ import { registerRequestLog } from "./log.js";
 import { registerProgress, type ProgressStore } from "./progress.js";
 import type { VoiceStore } from "./storage/s3.js";
 import type { Verifier } from "./verify.js";
-export function buildApp(providers: LiveProviders = liveProviders, progress: ProgressStore | null = null, ledger: LedgerStore | null = null, voice: VoiceStore | null = null, verify: Verifier | null = null) {
+import { registerInsights, type InsightsStore } from "./insights.js";
+
+/** What the API is connected to. Each is optional: a missing service turns its routes off, never the API. */
+export type Services = {
+  progress?: ProgressStore | null;
+  ledger?: LedgerStore | null;
+  voice?: VoiceStore | null;
+  verify?: Verifier | null;
+  insights?: InsightsStore | null;
+};
+
+export function buildApp(providers: LiveProviders = liveProviders, { progress = null, ledger = null, voice = null, verify = null, insights = null }: Services = {}) {
   const app = Fastify({ bodyLimit: 16_384, logger: false });
   registerRequestLog(app);
   registerEdge(app);
   registerLive(app, providers, voice);
   registerProgress(app, progress, ledger);
   registerLedger(app, ledger, verify);
+  registerInsights(app, insights);
   app.get("/api/health", async () => ({
     name: "Kestrel",
     mode: "sandbox",

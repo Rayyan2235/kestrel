@@ -9,6 +9,11 @@ const Console = lazy(() =>
     default: SandboxApp,
   })),
 );
+const Insights = lazy(() =>
+  import("./owner/InsightsPage").then(({ InsightsPage }) => ({
+    default: InsightsPage,
+  })),
+);
 const path = window.location.pathname.replace(/\/$/, "");
 const inConsole =
   path === "/console" || path === "/lab" || path.startsWith("/lab/");
@@ -25,6 +30,10 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     {/* MuJoCo and ONNX initialize once; keep the console outside StrictMode. */}
     {inConsole ? (
       <Console />
+    ) : path === "/owner/insights" ? (
+      <React.StrictMode>
+        <Insights />
+      </React.StrictMode>
     ) : (
       <React.StrictMode>
         <WelcomePage />

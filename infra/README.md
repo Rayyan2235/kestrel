@@ -17,12 +17,13 @@ API Lambda -> Aurora DSQL (IAM auth) ; SQS verify queue (+ DLQ after 3 receives)
 
 ## Secrets
 
-The template never holds a secret. The owner creates two SSM parameters once, before the first deploy:
+The template never holds a secret. The owner creates three SSM parameters once, before the first deploy:
 
 | Parameter | Type | Used for |
 | --- | --- | --- |
 | `/kestrel/elevenlabs-api-key` | SecureString | The API Lambda reads it at run time. |
 | `/kestrel/origin-header` | String | CloudFront sends it as `x-kestrel-origin` on every `/api/*` request, and the API Lambda receives it as `ORIGIN_SECRET` through the same dynamic reference. `apps/api/src/edge.ts` rejects requests without it (compared in constant time), which blocks direct calls to the API endpoint. It has to be a String because CloudFront can't resolve a SecureString. |
+| `/kestrel/owner-token` | SecureString | The owner insights page (`/owner/insights`). The API reads it at cold start and compares the page's `Authorization: Bearer` token to it in constant time. Use 32 or more random characters, e.g. `openssl rand -base64 33`; a shorter token turns the page off. Without it the page answers 503. |
 
 ## Check it
 
@@ -150,6 +151,8 @@ To delete one learner now (for example, on request), run from `verifier/` with a
 ```sh
 DATABASE_URL=... python -m kestrel_analytics.forget <learner-uuid>
 ```
+
+**The owner page** (`/owner/insights`, P8b) shows these numbers to whoever has the owner token (see **Secrets**). There are no teacher accounts. It shows only aggregates, never a learner id. Below 20 learners it labels everything demo data. The page is `noindex`, and the token is never stored in the browser.
 
 ## Not yet
 

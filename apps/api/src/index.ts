@@ -7,7 +7,7 @@ import { resolve } from "node:path";
 const envFile = [resolve("../../.env"), resolve(".env")].find(existsSync);
 if (envFile) process.loadEnvFile(envFile);
 const progress = await connectProgress();
-const app = buildApp(undefined, progress?.store ?? null, progress?.ledger ?? null, voiceStoreFromEnv());
+const app = buildApp(undefined, { progress: progress?.store, ledger: progress?.ledger, voice: voiceStoreFromEnv(), insights: progress?.insights });
 try {
   await app.listen({
     host: "127.0.0.1",

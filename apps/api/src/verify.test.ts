@@ -36,7 +36,7 @@ it("puts the claim in S3 before the message that points at it", async () => {
 it("submits a pending prompt trial and a met objective to the verifier", async () => {
   const verify: Verifier = { submit: vi.fn().mockResolvedValue(undefined) };
   const ledger = fakeLedger();
-  const app = buildApp(providers, null, ledger, null, verify);
+  const app = buildApp(providers, { ledger, verify });
   try {
     expect((await app.inject("/api/health")).json().verifiedXp).toBe(true);
     const prompt = await app.inject({ method: "POST", url: "/api/attempts/submit", payload: { learnerId, attemptId, leftCm: 10, rightCm: 20 } });
@@ -53,8 +53,8 @@ it("submits a pending prompt trial and a met objective to the verifier", async (
 
 it("refuses submissions it cannot verify", async () => {
   const verify: Verifier = { submit: vi.fn() };
-  const app = buildApp(providers, null, fakeLedger(false), null, verify);
-  const off = buildApp(providers, null, fakeLedger(), null, null);
+  const app = buildApp(providers, { ledger: fakeLedger(false), verify });
+  const off = buildApp(providers, { ledger: fakeLedger() });
   try {
     const submit = (a: typeof app, payload: object) => a.inject({ method: "POST", url: "/api/attempts/submit", payload });
     expect((await submit(app, { learnerId, attemptId, leftCm: 10, rightCm: 20 })).statusCode).toBe(409); // not pending, or not theirs
@@ -75,7 +75,7 @@ it("refuses submissions it cannot verify", async () => {
 
 it("with a verifier, the browser can no longer award what the verifier owns", async () => {
   const ledger = fakeLedger();
-  const app = buildApp(providers, null, ledger, null, { submit: vi.fn() });
+  const app = buildApp(providers, { ledger, verify: { submit: vi.fn() } });
   try {
     const award = (payload: object) => app.inject({ method: "POST", url: "/api/xp-events", payload: { learnerId, ...payload } });
     expect((await award({ ruleId: "matched", challengeId: "moments", promptId: "m-10-20" })).statusCode).toBe(409);
