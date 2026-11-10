@@ -38,6 +38,8 @@ from kestrel_infra.alarms import add_alarms, alarm_topic
 
 # SSM parameters, created once by the owner (see infra/README.md).
 ELEVENLABS_KEY_PARAM = "/kestrel/elevenlabs-api-key"  # SecureString
+# SecureString, 32+ characters: the owner insights page (apps/api/src/insights.ts).
+OWNER_TOKEN_PARAM = "/kestrel/owner-token"
 ORIGIN_HEADER_PARAM = "/kestrel/origin-header"  # String: CloudFront can't resolve a SecureString
 ORIGIN_HEADER = "x-kestrel-origin"
 # A CloudFormation dynamic reference: resolved at deploy, never written into the template.
@@ -181,7 +183,9 @@ class KestrelStack(Stack):
                 "DSQL_ENDPOINT": dsql_endpoint,
                 "VERIFY_QUEUE_URL": queue.queue_url,
                 "DATA_BUCKET": data.bucket_name,
+                # apps/api/src/secrets/ssm.ts reads both at cold start.
                 "ELEVENLABS_KEY_PARAM": ELEVENLABS_KEY_PARAM,
+                "OWNER_TOKEN_PARAM": OWNER_TOKEN_PARAM,
                 # apps/api/src/edge.ts: requests must carry CloudFront's secret.
                 "ORIGIN_HEADER": ORIGIN_HEADER,
                 "ORIGIN_SECRET": ORIGIN_SECRET_REF,
@@ -199,7 +203,10 @@ class KestrelStack(Stack):
         api_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["ssm:GetParameter"],
-                resources=[self.format_arn(service="ssm", resource="parameter", resource_name=ELEVENLABS_KEY_PARAM.lstrip("/"))],
+                resources=[
+                    self.format_arn(service="ssm", resource="parameter", resource_name=name.lstrip("/"))
+                    for name in (ELEVENLABS_KEY_PARAM, OWNER_TOKEN_PARAM)
+                ],
             )
         )
         api_fn.add_to_role_policy(

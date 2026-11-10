@@ -20,7 +20,7 @@ it("awards a comeback only for a right prediction after a wrong one", () => {
 });
 
 it("refuses malformed ledger requests and answers 503 without a database", async () => {
-  const app = buildApp(providers, null, null);
+  const app = buildApp(providers);
   try {
     const lock = { learnerId, challengeId: "moments", promptId: "m-10-20", value: "level" };
     expect((await app.inject({ method: "POST", url: "/api/locks", payload: { ...lock, promptId: "m-99" } })).statusCode).toBe(400);

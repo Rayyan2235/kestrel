@@ -9,7 +9,7 @@ const providers: LiveProviders = { agentTurn: vi.fn(), speak: vi.fn(), transcrib
 
 it("returns 503 for valid requests when no database is connected", async () => {
   expect(await connectProgress(null)).toBeNull();
-  const app = buildApp(providers, null);
+  const app = buildApp(providers);
   try {
     expect((await app.inject({ method: "POST", url: "/api/progress", payload: attempt })).statusCode).toBe(503);
     expect((await app.inject(`/api/progress/${learnerId}`)).statusCode).toBe(503);
@@ -19,7 +19,7 @@ it("returns 503 for valid requests when no database is connected", async () => {
 
 it("validates attempts before they reach the store", async () => {
   const store = { record: vi.fn(), progress: vi.fn() };
-  const app = buildApp(providers, store);
+  const app = buildApp(providers, { progress: store });
   try {
     for (const payload of [{ ...attempt, learnerId: "me" }, { ...attempt, objective: "win-everything" }, { ...attempt, name: "Ada" }, { ...attempt, tiltDeg: -1 }])
       expect((await app.inject({ method: "POST", url: "/api/progress", payload })).statusCode).toBe(400);
@@ -31,7 +31,7 @@ it("validates attempts before they reach the store", async () => {
 
 it("inserts the measured attempt and reads earned objectives with attempt counts", async () => {
   const query = vi.fn().mockResolvedValue({ rows: [] });
-  const app = buildApp(providers, pgStore({ query } as never));
+  const app = buildApp(providers, { progress: pgStore({ query } as never) });
   try {
     const r = await app.inject({ method: "POST", url: "/api/progress", payload: attempt });
     expect(r.statusCode).toBe(201);
@@ -47,7 +47,7 @@ it("inserts the measured attempt and reads earned objectives with attempt counts
 
 it("hides database errors from the browser", async () => {
   const query = vi.fn().mockRejectedValue(new Error("password authentication failed for user tsdbadmin"));
-  const app = buildApp(providers, pgStore({ query } as never));
+  const app = buildApp(providers, { progress: pgStore({ query } as never) });
   try {
     const r = await app.inject({ method: "POST", url: "/api/progress", payload: attempt });
     expect(r.statusCode).toBe(502);

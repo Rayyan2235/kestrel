@@ -1,3 +1,4 @@
+import json
 import re
 
 import aws_cdk as cdk
@@ -247,3 +248,19 @@ def test_verifier_image_context_is_only_the_verifier_and_robot_assets(tmp_path) 
     assert any(p.startswith("apps/web/public/microduck/robot/meshes/") for p in copied)
     assert {p.split("/")[0] for p in copied} == {"verifier", "apps"}
     assert not any(p.startswith(("verifier/tests", "apps/web/src", "apps/api")) or ".env" in p for p in copied)
+
+
+def test_api_reads_only_the_two_secret_parameters_it_names(template: Template) -> None:
+    statements = [
+        st
+        for policy in template.find_resources("AWS::IAM::Policy").values()
+        for st in policy["Properties"]["PolicyDocument"]["Statement"]
+        if st["Action"] == "ssm:GetParameter"
+    ]
+    (st,) = statements
+    names = sorted(json.dumps(r) for r in st["Resource"])
+    assert len(names) == 2
+    assert "elevenlabs-api-key" in names[0] and "owner-token" in names[1]
+    (api,) = [f for f in template.find_resources("AWS::Lambda::Function").values() if f["Properties"].get("FunctionName") == API_FUNCTION_NAME]
+    env = api["Properties"]["Environment"]["Variables"]
+    assert env["OWNER_TOKEN_PARAM"] == "/kestrel/owner-token" and "OWNER_TOKEN" not in env

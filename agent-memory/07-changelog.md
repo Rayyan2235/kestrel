@@ -625,3 +625,15 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - `kestrel_verifier/db.connect(user)` takes the DSQL role. Infra: the `kestrel-analytics` Lambda (arm64, 512 MB, 5 min, JSON logs, `dsql:DbConnect` only), the `Nightly` schedule, the `AnalyticsErrors` alarm (8 alarms now) and the `AnalyticsRoleArn` output. The README has the role grants.
 - Done-check (pytest): a synthetic 200-learner cohort recovers the four prompts' difficulty order. Local: 6 model tests and 11 infra alarm tests pass; the 3 Postgres tests run in CI.
 - Not yet (P8b): the owner-only `/owner/insights` page (owner token in SSM, "demo data" when n is small).
+
+## 2026-11-10 · Claude Code · P8b owner insights page (owner repo, branch `feat/p8b-owner-insights`, stacked on `feat/p8a-nightly-analytics`)
+
+- API:
+  - `buildApp(providers, services)` now takes a named `Services` object (progress, ledger, voice, verify, insights) instead of 5 positional arguments. All 18 call sites are updated.
+  - `insights.ts`: `GET /api/owner/insights` reads only aggregates from `concept_mastery` and `prompt_stats`, ranks prompts hardest first (the job's smoothed rate) and sets `demo` below `DEMO_MIN_LEARNERS` (20). It needs `Authorization: Bearer <OWNER_TOKEN>`, compared with `edge.ts` `sameSecret`. A token under 32 characters, or no database, answers 503. The response is `no-store`.
+  - `secrets/ssm.ts` `loadSecrets()` replaces `loadElevenLabsKey()` and loads each `*_PARAM` SecureString (ElevenLabs key, owner token). A failure turns off only that feature.
+  - `connectProgress` returns `insights` when the summary tables exist.
+- Contracts: `InsightsSchema`, `DEMO_MIN_LEARNERS`.
+- Web: `/owner/insights` (`apps/web/src/owner/`). It is lazy-loaded and `noindex`. The token goes in a password field and is never stored. It shows a "Demo data" banner, a mastery table, and a prompts table hardest first.
+- Infra: `OWNER_TOKEN_PARAM=/kestrel/owner-token` on the API. The API role reads exactly the two SecureStrings (new stack test). The README has the parameter row.
+- Checks: vitest for the API route, token and summary, the SSM loader and the web loader; `tests/owner-insights.spec.ts` (the page says "Demo data" for a small cohort and isn't labelled for 40) runs in CI. Locally the Playwright browser isn't installed. Infra stack tests: 20 passed.

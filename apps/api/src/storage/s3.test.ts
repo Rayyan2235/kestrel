@@ -45,7 +45,7 @@ it("transcribes an uploaded key only on an S3 server, and only for voice/<uuid> 
   const transcribe = vi.fn().mockResolvedValue({ text: "Move right" });
   const providers = { agentTurn: vi.fn(), speak: vi.fn(), transcribe };
   const { store } = stubbed();
-  const s3 = buildApp(providers, null, null, store as VoiceStore);
+  const s3 = buildApp(providers, { voice: store as VoiceStore });
   const direct = buildApp(providers);
   try {
     expect((await s3.inject("/api/health")).json().voiceUpload).toBe("s3");

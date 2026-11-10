@@ -3,6 +3,7 @@ import pg from "pg";
 import { AttemptSchema, LearnerIdSchema, ObjectiveIdSchema, type Attempt, type Progress } from "../../../packages/contracts/src/index.js";
 import { databaseConfig } from "./db/dsql.js";
 import { retrying } from "./db/retry.js";
+import { pgInsights, type InsightsStore } from "./insights.js";
 import { pgLedger, type LedgerStore } from "./ledger.js";
 
 /** Where attempts live. Only the anonymous learner ID and the measurements are stored. */
@@ -46,14 +47,16 @@ export function pgStore(db: Queryable): ProgressStore {
  */
 export async function connectProgress(
   config: pg.PoolConfig | null = databaseConfig(),
-): Promise<{ store: ProgressStore; ledger: LedgerStore | null; close(): Promise<void> } | null> {
+): Promise<{ store: ProgressStore; ledger: LedgerStore | null; insights: InsightsStore | null; close(): Promise<void> } | null> {
   if (!config) return null;
   const pool = new pg.Pool({ ...config, max: 4, connectionTimeoutMillis: 5000 });
   try {
     await pool.query("SELECT 1 FROM attempts LIMIT 0");
     // The legacy Tiger hypertable has attempts but no ledger: progress works, XP stays in the browser.
     const ledger = await pool.query("SELECT 1 FROM xp_events LIMIT 0").then(() => pgLedger(pool), () => null);
-    return { store: pgStore(pool), ledger, close: () => pool.end() };
+    // The nightly job's summary tables, read by the owner insights page.
+    const insights = await pool.query("SELECT 1 FROM concept_mastery, prompt_stats LIMIT 0").then(() => pgInsights(pool), () => null);
+    return { store: pgStore(pool), ledger, insights, close: () => pool.end() };
   } catch (error) {
     // The code only: a driver message can echo the host or user.
     const code = (error as { code?: string }).code ?? "error";
