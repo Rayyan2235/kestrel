@@ -605,3 +605,12 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
   - Without the verifier (local, Vultr), nothing changes.
 - The "client-trusted" label now applies only where no verifier runs and to objectives without one; the ledger header comment says so.
 - Checks: vitest 141 passed, 4 DB tests skipped locally (new `verify.test.ts` and `verdict.test.ts`). Typecheck passes. `pnpm build` passes, including the Lambda bundle check. E2e (offline path, `/api` aborted) runs in CI.
+
+## 2026-11-09 · Claude Code · P7 alarms and JSON logs (owner repo, branch `feat/p7-observability`, stacked on `feat/p4b-submit-verify`)
+
+- Infra: `kestrel_infra/alarms.py` adds 7 CloudWatch alarms and a credits budget, all emailed through one SNS topic. The alarms are DLQ not empty, oldest verify message 60 s or more, API 5xx (5 in 5 min), API and verifier Lambda errors, verifier duration 80% or more of its timeout, and billing $10 (us-east-1 only). The budget alerts when spend before credits passes 50% of `AWS_CREDITS_USD`. The topic policy lets only CloudWatch and Budgets in this account publish.
+- `app.py` reads `KESTREL_ALARM_EMAIL` and `KESTREL_CREDITS_USD`; `deploy.yml` sets them from the repo variables `ALARM_EMAIL` and `AWS_CREDITS_USD`. New outputs: `VerifyQueueUrl` (for the poison-message check) and `AlarmTopicArn`.
+- Logs: both Lambdas use Lambda's JSON log format (30-day retention was already set). `apps/api/src/log.ts` logs one object per request on Lambda only: method, route pattern, status, ms, and on a 5xx the error name plus 200 characters of its message. It never logs a raw URL, body or header.
+- The paid-route throttles from P5 cover the plan's "throttled paid LLM routes".
+- Checks: infra pytest 32 passed (10 new), vitest for log.ts (3 new), typecheck passes.
+- Not yet: the done-check (a poison message emails an alarm) needs a deploy plus the owner's setup (billing alerts preference, `ALARM_EMAIL`, confirming the SNS email). Steps are in infra/README.md.

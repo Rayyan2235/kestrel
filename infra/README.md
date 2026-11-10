@@ -98,6 +98,38 @@ SQL
 
 These steps are written from the AWS DSQL docs and have not been run yet; the first deploy will confirm them.
 
+## Alarms and logs (P7)
+
+`kestrel_infra/alarms.py` adds seven CloudWatch alarms (the free tier covers 10) and one AWS Budget. All of them email the owner through one SNS topic (`AlarmTopicArn`):
+
+| Alarm | Fires when |
+| --- | --- |
+| `VerifyDlqNotEmpty` | A verify message is in the dead-letter queue (it failed 3 receives). |
+| `VerifyQueueStuck` | The oldest verify message has waited 60 s or more. |
+| `ApiServerErrors` | The HTTP API returns 5 or more 5xx responses in 5 minutes. |
+| `ApiFunctionErrors`, `VerifierErrors` | A Lambda invocation crashes, times out or runs out of memory. |
+| `VerifierSlow` | A verification takes 80% or more of the verifier's 60 s timeout. |
+| `BillingOver10` | Estimated charges for the month reach $10 (us-east-1 only, where the billing metric lives). |
+| `kestrel-credits` budget | Spend before credits passes 50% of `AWS_CREDITS_USD` (default 100) for the year. Credits keep the bill near $0, so the $10 alarm alone would not notice them running out. |
+
+The verifier reports a failed message in `batchItemFailures` instead of raising, so a poison message is never a Lambda error. SQS retries it and, after 3 receives (each after the 360 s visibility timeout), moves it to the DLQ. `VerifyQueueStuck` fires first, within a few minutes; `VerifyDlqNotEmpty` fires after about 12-18 minutes.
+
+**Logs:** both Lambdas log JSON, kept 30 days. The API writes one object per request (`apps/api/src/log.ts`): method, route pattern, status and ms, plus the error name and the first 200 characters of its message on a 5xx. It never logs a raw URL, a body or a header. The verifier logs the attempt id and outcome, never the claim.
+
+**Setup (once):**
+1. Billing console, Billing preferences: turn on **Receive CloudWatch billing alerts**. Without it the billing metric never appears and `BillingOver10` stays at "insufficient data".
+2. GitHub, Settings, Variables: set `ALARM_EMAIL`, and `AWS_CREDITS_USD` to your credit amount. The deploy passes both to `app.py`.
+3. After the next deploy, confirm the subscription in the email AWS sends.
+
+**The done-check (a poison message emails an alarm).** With admin credentials, after a deploy:
+
+```sh
+QUEUE=$(aws cloudformation describe-stacks --stack-name Kestrel --query "Stacks[0].Outputs[?OutputKey=='VerifyQueueUrl'].OutputValue" --output text)
+aws sqs send-message --queue-url "$QUEUE" --message-body 'not a verify message'
+# Expect a VerifyQueueStuck email within minutes, then VerifyDlqNotEmpty. Then clear the DLQ:
+#   aws sqs purge-queue --queue-url <the DLQ url, from the SQS console>
+```
+
 ## Not yet
 
 - The API bundle is real: `pnpm build` writes `apps/api/dist-lambda/lambda.mjs` (`@fastify/aws-lambda`, esbuild), and `app.py` deploys it. Without a build it synthesizes a 503 placeholder.

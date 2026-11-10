@@ -58,6 +58,10 @@ jobs:
           platforms: arm64
       - name: cdk deploy
         working-directory: infra
+        env:
+          # Read by infra/app.py: where alarms are emailed, and the credits the budget tracks.
+          KESTREL_ALARM_EMAIL: ${{ vars.ALARM_EMAIL }}
+          KESTREL_CREDITS_USD: ${{ vars.AWS_CREDITS_USD }}
         run: npx --yes aws-cdk@2.1145.0 deploy Kestrel --require-approval never --outputs-file cdk-outputs.json
       - name: Read outputs
         id: out
