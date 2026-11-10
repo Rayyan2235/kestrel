@@ -18,8 +18,8 @@ import { CREW_TASKS, handoffLine, type CrewLine } from "./crewChannel";
 import { LEVEL_HOLD_MS, OBJECTIVES, OBJECTIVE_LEVEL_DEG, balanceHint, beamBalanced, xpOf, type ObjectiveId } from "./objectives";
 import { leveledUp } from "../progress/levels";
 import { LevelUpToast } from "./LevelUpToast";
-import { awardXp, beamReading, loadProgress, lockPrediction, logAttempt, startTrial } from "./progress";
-import { XP_RULES, levelOf, type Prediction, type XpAward, type XpEvent, type XpTotals } from "@kestrel/contracts";
+import { awardXp, beamReading, loadProgress, lockPrediction, logAttempt, startTrial, submitForVerdict, verifiedXp } from "./progress";
+import { MOMENTS_PROMPTS, VERIFIED_OBJECTIVES, XP_RULES, levelOf, type Prediction, type XpAward, type XpEvent, type XpTotals } from "@kestrel/contracts";
 import { SandboxScene } from "./SandboxScene";
 import styles from "./Sandbox.module.css";
 import { ArrowPill, Button } from "./gic";
@@ -181,7 +181,12 @@ export function SandboxApp() {
       if (ids.length > 0) setEarned((e) => new Set([...e, ...ids]));
       if (!totals) return;
       let latest = totals;
-      for (const id of ids) latest = (await awardXp({ ruleId: "objective", challengeId: id, promptId: "" })) ?? latest;
+      // A verified objective can't be re-claimed without its marks; the verifier awarded it when it was met.
+      const verified = await verifiedXp();
+      for (const id of ids) {
+        if (verified && (VERIFIED_OBJECTIVES as readonly string[]).includes(id)) continue;
+        latest = (await awardXp({ ruleId: "objective", challengeId: id, promptId: "" })) ?? latest;
+      }
       if (live) setLedger(latest);
     });
     return () => {
@@ -198,28 +203,45 @@ export function SandboxApp() {
     return r;
   }, []);
 
-  /** A Moments XP prompt was run: lock the prediction, claim the lock, start the trial. */
+  /** The verifier's XP has landed; celebrate when the server says the level went up. */
+  const verdict = useCallback((r: Awaited<ReturnType<typeof submitForVerdict>>) => {
+    if (!r) return;
+    setLedger(r.after);
+    if (r.after.level > r.before.level) setLevelUp(r.after.level);
+  }, []);
+
+  /** A Moments XP prompt was run: lock the prediction, claim the lock (unless the verifier will), start the trial. */
   const promptRun = useCallback(
     (promptId: string, value: Prediction) => {
       const trial = lockPrediction(promptId, value).then(async (lockId) => {
         if (!lockId) return null;
-        await claim({ ruleId: "locked", challengeId: "moments", promptId });
+        if (!(await verifiedXp())) await claim({ ruleId: "locked", challengeId: "moments", promptId });
         return startTrial(lockId);
       });
       promptTrials.current.set(promptId, trial);
     },
     [claim],
   );
-  /** Its measured result: a right prediction claims matched, then comeback (the server decides). */
+  /**
+   * Its measured result. With the verifier, the trial is submitted whatever was
+   * measured and the verifier decides every award. Without it, a right
+   * prediction claims matched, then comeback (the ledger decides).
+   */
   const promptResult = useCallback(
     async (promptId: string, value: Prediction, measured: Prediction) => {
       const attemptId = await promptTrials.current.get(promptId);
-      if (!attemptId || value !== measured) return;
+      if (!attemptId) return;
+      if (await verifiedXp()) {
+        const prompt = MOMENTS_PROMPTS.find((p) => p.id === promptId);
+        if (prompt) verdict(await submitForVerdict({ attemptId, leftCm: prompt.left, rightCm: prompt.right }));
+        return;
+      }
+      if (value !== measured) return;
       const event = { challengeId: "moments", promptId, attemptId } as const;
       await claim({ ruleId: "matched", ...event });
       await claim({ ruleId: "comeback", ...event });
     },
-    [claim],
+    [claim, verdict],
   );
 
   const crewSay = useCallback((from: CrewLine["from"], text: string, ok?: boolean) => {
@@ -590,14 +612,23 @@ export function SandboxApp() {
     setConfetti((c) => c + 1);
     // The ledger decides the level; offline, the board counts this browser's wins.
     const localUp = earned.has(objective) ? undefined : leveledUp(xpOf(earned), xpOf(new Set(earned).add(objective))).at(-1);
-    void claim({ ruleId: "objective", challengeId: objective, promptId: "" }).then((r) => {
+    const reading = objective === "balance-beam" ? beamReading(status) : null;
+    void verifiedXp().then(async (verified) => {
+      // The verifier re-simulates the beam from where the weights ended up; the browser never claims it.
+      if (verified && reading?.leftCm != null && reading.rightCm != null) {
+        const r = await submitForVerdict({ objective: "balance-beam", leftCm: reading.leftCm, rightCm: reading.rightCm });
+        if (r) verdict(r);
+        else if (localUp) setLevelUp(localUp.to);
+        return;
+      }
+      const r = await claim({ ruleId: "objective", challengeId: objective, promptId: "" });
       if (!r && localUp) setLevelUp(localUp.to);
     });
     setEarned((e) => new Set(e).add(objective));
     add("duck", `${o.win} +${o.xp} XP!`, true);
     const none = { tiltDeg: null, leftCm: null, rightCm: null };
     void logAttempt({ objective, ok: true, ...(objective === "balance-beam" ? beamReading(status) : none) });
-  }, [objective, won, status, kitId, solved, rescueOutcome, add, earned, claim]);
+  }, [objective, won, status, kitId, solved, rescueOutcome, add, earned, claim, verdict]);
   const hint = kitId === "moments" && status ? balanceHint(status) : null;
 
   return (

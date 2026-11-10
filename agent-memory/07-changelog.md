@@ -591,3 +591,17 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - Re-sim result: all 4 Moments prompts reproduce their answers; ±1 mm stays within 1.5°; 12/20 cm does not. It takes under 0.1 s per attempt.
 - Checks: verifier pytest 45 passed, 7 DB tests skipped locally (they run against the CI Postgres). Infra pytest 22 passed. Vitest 134 passed, and typecheck passes. `python app.py` synthesizes, with the image context checked.
 - Not yet (P4b): the API submit route (S3 claim, SQS send), the browser switch, and removing the client-trusted `/api/xp-events` path and label. Manual done-checks (forced redelivery, poison to DLQ) need a deploy.
+
+## 2026-11-09 · Claude Code · P4b submit to the verifier (owner repo, branch `feat/p4b-submit-verify`, stacked on `feat/p4a-async-verifier`)
+
+- Contracts: `SubmitAttemptSchema`, either a prompt trial `{learnerId, attemptId, leftCm, rightCm}` or a verified objective `{learnerId, objective: "balance-beam", leftCm, rightCm}`. Marks are bounded by `MOMENTS.minCm`/`maxCm`, and the client never names XP. `VERIFIED_OBJECTIVES = ["balance-beam"]`.
+- API:
+  - `queue/sqs.ts` is the only SQS module. `storage/s3.ts` adds `s3ClaimStore` (`replays/<id>.json`). `verify.ts` puts the claim, then sends the message (claim check), and is on only when `DATA_BUCKET` and `VERIFY_QUEUE_URL` are set (AWS).
+  - `POST /api/attempts/submit` returns 202. A prompt submission needs this learner's pending trial (409 otherwise). An objective submission stamps a new attempt (`ledger.startObjective`).
+  - With a verifier, `/api/xp-events` refuses (409) prompt rules and verified objectives. Objectives without a verifier yet (triangle, rescue) are still ledger-awarded.
+  - `/api/health` has `verifiedXp`. New pinned dependency: `@aws-sdk/client-sqs` 3.1156.0.
+- Web: `health.ts` is one memoized `/api/health`, also used by voice upload. `progress.ts` adds `verifiedXp()`, `xpTotals()` and `submitForVerdict()`, which submits then polls totals every 1.5 s for up to 20 s. `SandboxApp`:
+  - With the verifier, it doesn't claim `locked`. It submits each prompt trial with the prompt's marks, whatever was measured. It submits the met beam objective with the measured marks, and celebrates a level-up from the server's totals. It skips re-claiming verified objectives on load.
+  - Without the verifier (local, Vultr), nothing changes.
+- The "client-trusted" label now applies only where no verifier runs and to objectives without one; the ledger header comment says so.
+- Checks: vitest 141 passed, 4 DB tests skipped locally (new `verify.test.ts` and `verdict.test.ts`). Typecheck passes. `pnpm build` passes, including the Lambda bundle check. E2e (offline path, `/api` aborted) runs in CI.

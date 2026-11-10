@@ -3,15 +3,18 @@ import {
   ObjectiveIdSchema,
   ProgressSchema,
   XpAwardSchema,
+  XpTotalsSchema,
   type Attempt,
   type ObjectiveId,
   type Prediction,
+  type SubmitAttempt,
   type XpAward,
   type XpEvent,
   type XpTotals,
 } from "@kestrel/contracts";
 import type { SimStatus } from "../simulation/duckSim";
 import { balanceSnapshot } from "./agentSession";
+import { serverHealth } from "./health";
 
 const LEARNER_KEY = "kestrel.learner";
 const EARNED_KEY = "kestrel.progress.earned";
@@ -87,10 +90,52 @@ async function post(url: string, body: object): Promise<unknown> {
 }
 
 /*
- * The XP ledger (client-trusted until P4): the browser reports what the simulator
- * measured, and the server stamps the times, sets the XP and refuses repeats.
+ * The XP ledger. Where the server runs its verifier (AWS), the browser submits
+ * its decision for Moments prompts and verified objectives, and the verifier
+ * decides and awards (submitForVerdict). Elsewhere, and for objectives without
+ * a verifier yet, the browser reports what the simulator measured, and the
+ * server stamps the times, sets the XP and refuses repeats (awardXp).
  * Every call resolves to null when the ledger is offline or refuses.
  */
+
+/** Whether the server's verifier awards prompts and verified objectives. */
+export async function verifiedXp(): Promise<boolean> {
+  return (await serverHealth()).verifiedXp === true;
+}
+
+/** This learner's XP and level from the server, or null offline. */
+export async function xpTotals(): Promise<XpTotals | null> {
+  try {
+    const response = await fetch(`/api/xp/${learnerId()}`, { signal: AbortSignal.timeout(5000) });
+    const parsed = XpTotalsSchema.safeParse(response.ok ? await response.json() : null);
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+const VERDICT_POLL_MS = 1500;
+const VERDICT_WAIT_MS = 20000;
+
+/**
+ * Submit a decision to the verifier, then wait for its XP to land: totals are
+ * polled until they change, or for up to 20 s (a wrong prediction may earn
+ * nothing). Null when the server would not take the submission.
+ */
+export async function submitForVerdict(
+  submission: SubmitAttempt extends infer T ? (T extends unknown ? Omit<T, "learnerId"> : never) : never,
+  sleep = (ms: number) => new Promise((r) => setTimeout(r, ms)),
+): Promise<{ before: XpTotals; after: XpTotals } | null> {
+  const before = await xpTotals();
+  const r = (await post("/api/attempts/submit", submission)) as { attemptId?: string } | null;
+  if (!before || !r?.attemptId) return null;
+  let after = before;
+  for (let waited = 0; waited < VERDICT_WAIT_MS && after.xp === before.xp; waited += VERDICT_POLL_MS) {
+    await sleep(VERDICT_POLL_MS);
+    after = (await xpTotals()) ?? after;
+  }
+  return { before, after };
+}
 
 /** Lock a prediction before the trial; the server stamps the time. */
 export async function lockPrediction(promptId: string, value: Prediction): Promise<string | null> {

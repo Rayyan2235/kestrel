@@ -5,23 +5,30 @@ import {
   LearnerIdSchema,
   LockRequestSchema,
   MOMENTS_PROMPTS,
+  SubmitAttemptSchema,
+  VERIFIED_OBJECTIVES,
   XP_RULES,
   XpEventSchema,
   totalsOf,
   type AttemptStart,
   type LockRequest,
+  type ObjectiveId,
   type XpAward,
   type XpEvent,
   type XpTotals,
 } from "../../../packages/contracts/src/index.js";
 import { retrying } from "./db/retry.js";
+import type { Verifier } from "./verify.js";
 
 /*
  * The XP ledger: an append-only log of awards, one row per (learner, rule,
  * challenge, prompt). XP and level are derived on read, never stored.
- * Client-trusted until P4: the browser reports what the simulator measured;
- * the server stamps the clock, sets the amounts, checks the prediction locks
- * and refuses repeats. Server-side replay verification arrives in P4.
+ * Where the server's verifier runs (AWS, P4), it alone awards Moments prompts
+ * and verified objectives: the browser submits its decision, the verifier
+ * re-simulates it and writes the XP (verifier/, ADR-003). Elsewhere (local,
+ * Vultr) and for objectives without a verifier yet, the browser reports what
+ * the simulator measured; the server stamps the clock, sets the amounts,
+ * checks the prediction locks and refuses repeats.
  */
 export type LedgerStore = {
   lock(req: LockRequest): Promise<{ lockId: string; lockedAt: string }>;
@@ -30,6 +37,10 @@ export type LedgerStore = {
   /** Null when a prompt rule's prediction-lock prerequisite is not met. */
   award(event: XpEvent): Promise<XpAward | null>;
   totals(learnerId: string): Promise<XpTotals>;
+  /** Whether this learner has a trial waiting for its verdict. */
+  pendingAttempt(attemptId: string, learnerId: string): Promise<boolean>;
+  /** Stamp a verified objective's attempt, to be decided by the verifier. */
+  startObjective(learnerId: string, objective: ObjectiveId): Promise<string>;
 };
 type Queryable = Pick<pg.Pool, "query">;
 const code = (error: unknown) => (error as { code?: string }).code;
@@ -118,10 +129,27 @@ export function pgLedger(db: Queryable): LedgerStore {
         return { awarded, ...(await totals(event.learnerId)) };
       }),
     totals: (learnerId) => retrying(() => totals(learnerId)),
+    pendingAttempt: (attemptId, learnerId) =>
+      retrying(async () => {
+        const { rows } = await db.query("SELECT 1 FROM attempts WHERE id = $1 AND learner_id = $2 AND status = 'pending'", [attemptId, learnerId]);
+        return rows.length === 1;
+      }),
+    startObjective: (learnerId, objective) =>
+      retrying(async () => {
+        await touch(learnerId);
+        const { rows } = await db.query<{ id: string }>(
+          "INSERT INTO attempts (learner_id, objective, status, trial_started_at, ok) VALUES ($1, $2, 'pending', now(), false) RETURNING id",
+          [learnerId, objective],
+        );
+        return rows[0]!.id;
+      }),
   };
 }
 
-export function registerLedger(app: FastifyInstance, ledger: LedgerStore | null) {
+const verifierOwns = (event: XpEvent) =>
+  event.ruleId !== "objective" || (VERIFIED_OBJECTIVES as readonly string[]).includes(event.challengeId);
+
+export function registerLedger(app: FastifyInstance, ledger: LedgerStore | null, verify: Verifier | null = null) {
   const off = { message: "The XP ledger is not connected. Set DATABASE_URL and run pnpm db:migrate." };
   const failed = { message: "The XP ledger is unavailable." };
   app.post("/api/locks", async (request, reply) => {
@@ -150,10 +178,28 @@ export function registerLedger(app: FastifyInstance, ledger: LedgerStore | null)
     const parsed = XpEventSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ message: "Invalid XP event." });
     if (!ledger) return reply.code(503).send(off);
+    if (verify && verifierOwns(parsed.data)) return reply.code(409).send({ message: "The server's verifier awards this. Submit the attempt instead." });
     try {
       const award = await ledger.award(parsed.data);
       if (!award) return reply.code(409).send({ message: "No prediction lock earns this award." });
       return award;
+    } catch {
+      return reply.code(502).send(failed);
+    }
+  });
+  app.post("/api/attempts/submit", async (request, reply) => {
+    const parsed = SubmitAttemptSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ message: "Invalid attempt." });
+    if (!ledger || !verify) return reply.code(503).send({ message: "Server verification is not set up here." });
+    const { learnerId, leftCm, rightCm } = parsed.data;
+    try {
+      let attemptId: string;
+      if ("attemptId" in parsed.data) {
+        attemptId = parsed.data.attemptId;
+        if (!(await ledger.pendingAttempt(attemptId, learnerId))) return reply.code(409).send({ message: "No trial of yours is waiting for a verdict." });
+      } else attemptId = await ledger.startObjective(learnerId, parsed.data.objective);
+      await verify.submit({ attemptId, learnerId, leftCm, rightCm });
+      return reply.code(202).send({ attemptId });
     } catch {
       return reply.code(502).send(failed);
     }

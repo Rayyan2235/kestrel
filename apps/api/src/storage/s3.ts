@@ -1,4 +1,4 @@
-import { DeleteObjectCommand, GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
 import { AUDIO_MAX_BYTES } from "../voice.js";
@@ -51,4 +51,21 @@ export function s3VoiceStore(client: S3Client, bucket: string): VoiceStore {
 export function voiceStoreFromEnv(): VoiceStore | null {
   const bucket = process.env.DATA_BUCKET;
   return bucket ? s3VoiceStore(new S3Client({}), bucket) : null;
+}
+
+/**
+ * Verify claims (P4): what a learner submitted for an attempt, read by the
+ * verifier Lambda. The queue message carries only the key (claim check);
+ * replays/ expires after 30 days.
+ */
+export type ClaimStore = { put(attemptId: string, claim: object): Promise<string> };
+
+export function s3ClaimStore(client: S3Client, bucket: string): ClaimStore {
+  return {
+    async put(attemptId, claim) {
+      const key = `replays/${attemptId}.json`;
+      await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: JSON.stringify(claim), ContentType: "application/json" }));
+      return key;
+    },
+  };
 }
