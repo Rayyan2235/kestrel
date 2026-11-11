@@ -14,11 +14,17 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-RULES = json.loads((Path(__file__).resolve().parents[1] / "kits" / "rules.json").read_text(encoding="utf-8"))
+KITS = Path(__file__).resolve().parents[1] / "kits"
+RULES = json.loads((KITS / "rules.json").read_text(encoding="utf-8"))
 XP: dict[str, int] = RULES["xp"]
 PROMPTS = {p["id"]: p for p in RULES["prompts"]}
 MIN_CM, MAX_CM = RULES["markCm"]
 BEAM_OBJECTIVE = "balance-beam"
+
+
+def load_kit(kit_id: str) -> dict:
+    """A pinned lab kit (verifier/kits/<kit>.json): spawns, props and slots."""
+    return json.loads((KITS / f"{kit_id}.json").read_text(encoding="utf-8"))
 
 
 def tilt_deg(angle: float) -> float:
@@ -65,12 +71,18 @@ class Lock:
 
 @dataclass
 class Claim:
-    """The client's submission, from S3: who it is and where the weights ended up."""
+    """The client's submission, from S3: who it is and what it did.
+
+    Moments and the beam carry where the weights ended up (left_cm, right_cm).
+    A walking objective carries its pose log and, for the rescue, the route.
+    """
 
     attempt_id: str
     learner_id: str
-    left_cm: float
-    right_cm: float
+    left_cm: float | None = None
+    right_cm: float | None = None
+    trajectory: dict | None = None
+    route: list[str] | None = None
 
 
 @dataclass
@@ -89,12 +101,18 @@ def reject(reason: str) -> Verdict:
 def decide(attempt: Attempt, claim: Claim, lock: Lock | None, lock_values: list[str], angle: float | None) -> Verdict:
     """
     lock_values: this learner's locks on the lock's prompt made before the trial started, oldest first.
-    angle: the re-simulated plank angle for the claim's marks (moments.resim).
+    angle: the re-simulated plank angle for the claim's marks (moments.resim); None for a walking objective.
     """
     if claim.learner_id != attempt.learner_id or claim.attempt_id != attempt.id:
         return reject("claim does not match the attempt")
     if attempt.trial_started_at is None:
         return reject("trial was never started")
+    from kestrel_verifier import walking  # walking reads RULES from this module
+
+    if attempt.objective in walking.KIT_OF:
+        return _walking(attempt, claim, walking)
+    if claim.left_cm is None or claim.right_cm is None or angle is None:
+        return reject("no weight marks")
     if not (MIN_CM <= claim.left_cm <= MAX_CM and MIN_CM <= claim.right_cm <= MAX_CM):
         return reject("weight marks off the rail")
     if attempt.objective == RULES["promptChallenge"]:
@@ -121,3 +139,15 @@ def _prompt(attempt: Attempt, claim: Claim, lock: Lock | None, lock_values: list
     answer = low_side(angle)
     awards = [(r, RULES["promptChallenge"], lock.prompt_id, XP[r]) for r in ("locked", "matched", "comeback") if eligible(r, lock_values, answer)]
     return Verdict("verified", f"beam went {answer}", lock_values[-1] == answer if lock_values else False, tilt_deg(angle), awards)
+
+
+def _walking(attempt: Attempt, claim: Claim, walking) -> Verdict:
+    """ADR-003: plausibility of the pose log, then the objective on its final state."""
+    if claim.trajectory is None:
+        return reject("no trajectory")
+    try:
+        met, why = walking.check(attempt.objective, claim.trajectory, claim.route)
+    except walking.Implausible as error:
+        return reject(f"implausible: {error}")
+    awards = [("objective", attempt.objective, "", XP["objective"])] if met else []
+    return Verdict("verified", why, met, None, awards)

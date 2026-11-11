@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import json
 import math
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -20,9 +19,10 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from kestrel_verifier.rules import load_kit  # noqa: F401 - scene builders and tests read kits through here
+
 REPO = Path(__file__).resolve().parents[2]
 ASSETS = REPO / "apps" / "web" / "public" / "microduck"
-KITS = REPO / "verifier" / "kits"
 
 # apps/web/src/simulation/constants.ts
 JOINT_NAMES = [
@@ -74,10 +74,6 @@ def pinned_bytes(rel: str) -> bytes:
     if sums.get(rel) != hashlib.sha256(data).hexdigest():
         raise ValueError(f"{rel} does not match apps/web/public/microduck/SHA256SUMS")
     return data
-
-
-def load_kit(kit_id: str) -> dict:
-    return json.loads((KITS / f"{kit_id}.json").read_text(encoding="utf-8"))
 
 
 def build_scene(kit_id: str, bots: tuple[str, ...] = tuple(BOTS)) -> Scene:

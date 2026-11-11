@@ -625,3 +625,11 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - `kestrel_verifier/db.connect(user)` takes the DSQL role. Infra: the `kestrel-analytics` Lambda (arm64, 512 MB, 5 min, JSON logs, `dsql:DbConnect` only), the `Nightly` schedule, the `AnalyticsErrors` alarm (8 alarms now) and the `AnalyticsRoleArn` output. The README has the role grants.
 - Done-check (pytest): a synthetic 200-learner cohort recovers the four prompts' difficulty order. Local: 6 model tests and 11 infra alarm tests pass; the 3 Postgres tests run in CI.
 - Not yet (P8b): the owner-only `/owner/insights` page (owner token in SSM, "demo data" when n is small).
+
+## 2026-11-10 · Claude Code · P4c-1 walking plausibility checks (owner repo, branch `feat/p4c-walking-plausibility`, from main after #9-#16 merged)
+
+- Contracts `trajectory.ts`: `GAIT` (the policy's legal range; web `VEL_*` now read it), a 4 Hz `TrajectorySchema` (`[x, y, yaw°]` per robot and prop, equal lengths, 10 min max), `WALKING_OBJECTIVES`, `RescueRouteSchema` and `logPose` (mm, 0.1°).
+- `export-kits.ts`: `verifier/kits/rescue.json`, plus `rules.json.walking` (rate, gait, slot tolerance, and the rescue map and rules from tasks.ts).
+- Verifier: `walking.py` checks shape, then start against the kit, then robot speed and turn limits, then prop jumps and untouched moves, then the objective. Triangle: 3/3 slots. Rescue: legal route, corridor 0.35 m, battery, barriers, the other robot, waypoints in order, stops at H. An implausible log is `rejected`; a plausible miss is `verified` but not met. `Claim` gains `trajectory` and `route`; marks are optional. `load_kit` moves to rules.py so the checks don't import MuJoCo.
+- Not switched on yet: the API still accepts only `balance-beam` submissions, and the browser doesn't record logs. That's P4c-2, which also calibrates the margins on real logs. P4c-3 is the triangle start-jitter fix that ADR-003 asks for first.
+- Checks: verifier pytest 76 passed locally (10 DB tests skipped; scene tests now compile the rescue kit). Contracts and web vitest pass, typecheck passes.

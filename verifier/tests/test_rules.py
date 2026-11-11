@@ -95,6 +95,12 @@ def test_beam_objective_within_tolerance(deg: float, ok: bool) -> None:
     assert v.awards == ([("objective", "balance-beam", "", XP["objective"])] if ok else [])
 
 
-def test_walking_objectives_stay_unverified_until_their_checks_exist() -> None:
+def test_a_walking_objective_needs_its_pose_log_not_weight_marks() -> None:
+    # Plausibility checks on the log are in test_walking.py; marks alone earn nothing.
     v = decide(attempt("build-triangle", lock_id=None), claim(), None, [], LEVEL)
+    assert (v.status, v.reason, v.awards) == ("rejected", "no trajectory", [])
+
+
+def test_an_objective_without_a_verifier_stays_unverified() -> None:
+    v = decide(attempt("some-new-objective", lock_id=None), claim(), None, [], LEVEL)
     assert v.status == "unverified" and v.awards == []

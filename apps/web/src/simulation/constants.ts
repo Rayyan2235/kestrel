@@ -1,3 +1,4 @@
+import { GAIT } from "@kestrel/contracts";
 // Microduck policy interface, from pollen-robotics/microduck-simulator
 // (app/src/game/constants.js, revision ad9d41a). Changing any of these
 // breaks the trained policies; see public/microduck/PROVENANCE.md.
@@ -36,9 +37,10 @@ export const CTRL_DT = TIMESTEP * DECIMATION; // 50 Hz
 
 // Manual commands, aligned with the measured Navigator gait.
 // Steering while walking uses a gentler turn command than an in-place pivot.
-export const VEL_FWD = 0.65;
-export const VEL_BACK = -0.4;
-export const VEL_ANG = 3.6;
+// The policy's legal range lives in contracts (GAIT), where the verifier's plausibility checks read it too.
+export const VEL_FWD = GAIT.fwd;
+export const VEL_BACK = GAIT.back;
+export const VEL_ANG = GAIT.spin;
 export const VEL_STEER = 1.2;
 export const VEL_TURN_WALK = 0.35;
 

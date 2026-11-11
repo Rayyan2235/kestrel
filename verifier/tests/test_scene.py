@@ -11,7 +11,7 @@ from kestrel_verifier.scene import BOTS, DEFAULT_POSE, TIMESTEP, build_scene, lo
 # The verifier builds every scene from its own pinned assets (ADR-003). These
 # checks need no browser: they compile each kit natively and run it briefly.
 
-KITS = ["moments", "pythagoras"]
+KITS = ["moments", "pythagoras", "rescue"]
 
 
 @pytest.mark.parametrize("kit_id", KITS)

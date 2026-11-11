@@ -1,7 +1,8 @@
 """Lambda entry: SQS messages in, verdicts and XP out.
 
 Each message is a claim check, {"attemptId", "s3Key"}: the claim itself (the
-learner and where the weights ended up) is in the data bucket under replays/.
+learner, and where the weights ended up or a walking objective's pose log) is
+in the data bucket under replays/.
 A message that fails is reported in batchItemFailures, so only it is retried;
 after 3 receives SQS moves it to the dead-letter queue. A malformed message
 (a poison message) fails every time and ends up there too. A business
@@ -34,7 +35,14 @@ def parse_message(body: str) -> tuple[str, str]:
 
 def parse_claim(attempt_id: str, raw: bytes) -> Claim:
     c = json.loads(raw)
-    claim = Claim(c["attemptId"], c["learnerId"], float(c["leftCm"]), float(c["rightCm"]))
+    if "trajectory" in c:
+        # A walking objective: the pose log, and the rescue route if any. walking.py checks their contents.
+        route = c.get("route")
+        if not isinstance(c["trajectory"], dict) or not (route is None or (isinstance(route, list) and all(isinstance(b, str) for b in route))):
+            raise ValueError("malformed walking claim")
+        claim = Claim(c["attemptId"], c["learnerId"], trajectory=c["trajectory"], route=route)
+    else:
+        claim = Claim(c["attemptId"], c["learnerId"], float(c["leftCm"]), float(c["rightCm"]))
     if claim.attempt_id != attempt_id or not re.fullmatch(UUID, claim.learner_id):
         raise ValueError("malformed claim")
     return claim
