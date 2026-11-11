@@ -3,12 +3,9 @@
 // presigned POST, because Lambda can't take a 10 MB request; otherwise
 // (Vultr, local) it rides in the request body.
 
-let mode: Promise<string> | null = null;
-const uploadMode = () =>
-  (mode ??= fetch("/api/health")
-    .then((r) => r.json())
-    .then((h) => (h.voiceUpload === "s3" ? "s3" : "direct"))
-    .catch(() => "direct"));
+import { serverHealth } from "./health";
+
+const uploadMode = async () => ((await serverHealth()).voiceUpload === "s3" ? "s3" : "direct");
 
 export async function transcribeRecording(blob: Blob, signal: AbortSignal): Promise<Response> {
   const type = blob.type || "audio/webm";

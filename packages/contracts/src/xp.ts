@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MOMENTS } from "./lab.js";
 import { LearnerIdSchema, ObjectiveIdSchema } from "./progress.js";
 
 /*
@@ -92,6 +93,22 @@ export const XpEventSchema = z.union([
     .strict(),
 ]);
 export type XpEvent = z.infer<typeof XpEventSchema>;
+
+/** Objectives the server's verifier grades (ADR-003); the rest stay ledger-awarded until their checks exist. */
+export const VERIFIED_OBJECTIVES = ["balance-beam"] as const;
+/** Rail marks in cm, as the Moments apparatus allows. */
+const MarkCmSchema = z.number().min(MOMENTS.minCm).max(MOMENTS.maxCm);
+
+/**
+ * POST /api/attempts/submit, where a verifier runs: the learner's decision, for the
+ * verifier to re-simulate. A prompt trial names its started attempt; a verified
+ * objective is submitted when it is met. The client never says what it earned.
+ */
+export const SubmitAttemptSchema = z.union([
+  z.object({ learnerId: LearnerIdSchema, attemptId: z.string().uuid(), leftCm: MarkCmSchema, rightCm: MarkCmSchema }).strict(),
+  z.object({ learnerId: LearnerIdSchema, objective: z.enum(VERIFIED_OBJECTIVES), leftCm: MarkCmSchema, rightCm: MarkCmSchema }).strict(),
+]);
+export type SubmitAttempt = z.infer<typeof SubmitAttemptSchema>;
 
 /** XP and level, derived on read from the ledger. */
 export const XpTotalsSchema = z.object({ xp: z.number().int().min(0), level: z.number().int().min(1) });
