@@ -122,3 +122,4 @@ export * from "./rescue.js";
 
 export * from "./progress.js";
 export * from "./xp.js";
+export * from "./trajectory.js";

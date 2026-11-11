@@ -1,0 +1,62 @@
+{
+ "id": "rescue",
+ "spawns": {
+  "pip": [
+   -1.2,
+   0,
+   0
+  ],
+  "nova": [
+   1.15,
+   1.35,
+   3.141592653589793
+  ]
+ },
+ "props": [
+  {
+   "id": "rescue-barrier-0",
+   "label": "Supply island",
+   "role": "furniture",
+   "shape": {
+    "type": "box",
+    "size": [
+     0.16,
+     0.14,
+     0.24
+    ]
+   },
+   "joint": "fixed",
+   "pos": [
+    -0.05,
+    0.6,
+    0.12
+   ],
+   "yaw": 0,
+   "mass": 0,
+   "color": "#d98b65"
+  },
+  {
+   "id": "rescue-barrier-1",
+   "label": "Supply island",
+   "role": "furniture",
+   "shape": {
+    "type": "box",
+    "size": [
+     0.1,
+     0.22,
+     0.24
+    ]
+   },
+   "joint": "fixed",
+   "pos": [
+    -0.7,
+    -0.45,
+    0.12
+   ],
+   "yaw": 0,
+   "mass": 0,
+   "color": "#e5b37d"
+  }
+ ],
+ "slots": []
+}

@@ -37,6 +37,15 @@ def test_a_claim_for_another_attempt_is_refused() -> None:
         handler.parse_claim(ATTEMPT, raw.encode())
 
 
+def test_a_walking_claim_carries_its_log_and_route() -> None:
+    log = {"hz": 4, "bots": {"pip": [[-1.2, 0, 0], [-1.2, 0, 0]]}, "props": {}}
+    raw = json.dumps({"attemptId": ATTEMPT, "learnerId": LEARNER, "trajectory": log, "route": ["A", "B", "E", "H"]})
+    assert handler.parse_claim(ATTEMPT, raw.encode()) == Claim(ATTEMPT, LEARNER, trajectory=log, route=["A", "B", "E", "H"])
+    for bad in ({"trajectory": [1, 2]}, {"trajectory": log, "route": "ABEH"}, {"trajectory": log, "route": [1]}):
+        with pytest.raises(ValueError):
+            handler.parse_claim(ATTEMPT, json.dumps({"attemptId": ATTEMPT, "learnerId": LEARNER, **bad}).encode())
+
+
 def test_only_the_failed_message_is_reported(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
     def process(body: str) -> None:
         if body == "boom":

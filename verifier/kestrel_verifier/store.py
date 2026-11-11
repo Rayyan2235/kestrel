@@ -27,7 +27,8 @@ RETRIES = 5
 def verify(conn: psycopg.Connection, claim: Claim, measure: Callable[[float, float], float]) -> Verdict | None:
     """Decide and record one attempt. None when it was already decided (a redelivery) or doesn't exist."""
     # The re-sim depends only on the claim's marks: run it before the transaction, so the transaction stays short.
-    angle = measure(claim.left_cm, claim.right_cm)
+    # A walking claim has no marks; its checks are pure and run inside decide().
+    angle = measure(claim.left_cm, claim.right_cm) if claim.left_cm is not None and claim.right_cm is not None else None
     for attempt_no in range(RETRIES):
         try:
             with conn.transaction():

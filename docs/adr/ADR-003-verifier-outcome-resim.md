@@ -50,3 +50,12 @@ The verifier does not replay motor commands. Per objective:
 - `verifier/kestrel_verifier/scene.py` and the kit JSON drift test stay. They are how the verifier owns the scene. `verifier/tests` checks that both kits compile from the pinned assets and that a mesh which doesn't match `SHA256SUMS` is refused.
 - P4 needs the Lambda base-image check (mujoco 3.11.0 and onnxruntime 1.27.0 have manylinux aarch64 wheels for cp312). It waits for Docker or AWS.
 - The triangle's start-jitter failures (4/20) should be fixed separately before the build objective awards server-verified XP.
+
+## Implementation notes
+
+- 2026-11-10, P4c-1: `verifier/kestrel_verifier/walking.py` checks the walking objectives as decided above.
+  - The log is 4 Hz `[x, y, yaw°]` per robot and prop since the last reset (`packages/contracts/src/trajectory.ts`).
+  - It checks the start against the pinned kit, then gait speed and turn limits (with margins for falls), then prop jumps and props moving with nothing within reach.
+  - Then the objective on the final state: all three slots filled; for the rescue, the learner's route followed within its corridor, under the battery, clear of barriers and the other robot.
+  - An implausible log is rejected; a plausible one that misses the objective is verified as not met.
+  - The margins are first estimates. P4c-2 calibrates them on real browser logs, when the browser starts sending them. The triangle's start-jitter fix (above) comes before the triangle awards verified XP.
