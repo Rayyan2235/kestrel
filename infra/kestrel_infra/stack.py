@@ -19,6 +19,8 @@ from aws_cdk import (
 )
 from constructs import Construct
 
+from kestrel_infra.alarms import add_alarms, alarm_topic
+
 # The serverless stack from the upscale plan (P5), with every Lambda outside
 # a VPC, so there is no NAT and no interface endpoint to pay for:
 #
@@ -26,6 +28,7 @@ from constructs import Construct
 #                          +-> /api/* -> HTTP API -> API Lambda (Fastify, arm64)
 #   Browser -presigned POST-> S3 data voice/ (1 day) ; replays/ (30 days)
 #   API Lambda -> Aurora DSQL (IAM auth) ; SQS verify queue (+ DLQ) ; Bedrock
+#   Alarms and a credits budget -> SNS -> the owner's email (alarms.py)
 #
 # Secrets are SSM parameters the owner creates by hand; CloudFormation can't
 # create a SecureString, and the template never holds a secret value.
@@ -94,6 +97,8 @@ class KestrelStack(Stack):
         api_code: lambda_.Code,
         web_source: s3deploy.ISource | None = None,
         verifier_code: lambda_.DockerImageCode | None = None,
+        alarm_email: str | None = None,
+        credits_usd: float = 100,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
@@ -155,6 +160,8 @@ class KestrelStack(Stack):
             memory_size=512,
             # Under HTTP API's 30 s integration limit.
             timeout=Duration.seconds(28),
+            # One JSON object per line: console.log({...}) stays an object (apps/api/src/log.ts).
+            logging_format=lambda_.LoggingFormat.JSON,
             log_group=logs.LogGroup(
                 self,
                 "ApiLogs",
@@ -220,6 +227,7 @@ class KestrelStack(Stack):
         # SQS -> a Python container Lambda that re-simulates each attempt and
         # writes its verdict and XP in one transaction. Batch size 1 with
         # partial batch failure reporting, at most 2 running at once.
+        verifier: lambda_.Function | None = None
         if verifier_code is not None:
             verifier = lambda_.DockerImageFunction(
                 self,
@@ -230,6 +238,8 @@ class KestrelStack(Stack):
                 # >= 1 vCPU for MuJoCo; the queue's 360 s visibility is 6x this timeout.
                 memory_size=2048,
                 timeout=Duration.seconds(60),
+                # handler.py prints JSON lines; Lambda keeps them as they are.
+                logging_format=lambda_.LoggingFormat.JSON,
                 log_group=logs.LogGroup(
                     self,
                     "VerifierLogs",
@@ -248,6 +258,19 @@ class KestrelStack(Stack):
             data.grant_read(verifier, f"{REPLAYS_PREFIX}*")
             verifier.add_to_role_policy(iam.PolicyStatement(actions=["dsql:DbConnect"], resources=[cluster.attr_resource_arn]))
             CfnOutput(self, "VerifierRoleArn", value=verifier.role.role_arn)
+
+        # ── Alarms (P7) ──────────────────────────────────────────────────
+        topic = alarm_topic(self, alarm_email)
+        add_alarms(
+            self,
+            topic,
+            queue=queue,
+            dlq=dlq,
+            http=http,
+            api_fn=api_fn,
+            verifier=verifier,
+            credits_usd=credits_usd,
+        )
 
         # ── Edge ─────────────────────────────────────────────────────────
         api_origin = origins.HttpOrigin(
@@ -319,3 +342,6 @@ class KestrelStack(Stack):
         # For the one-time DSQL role setup (infra/README.md).
         CfnOutput(self, "ApiRoleArn", value=api_fn.role.role_arn)
         CfnOutput(self, "DsqlEndpoint", value=f"{cluster.attr_identifier}.dsql.{self.region}.on.aws")
+        # For the poison-message check (infra/README.md) and alarm subscriptions.
+        CfnOutput(self, "VerifyQueueUrl", value=queue.queue_url)
+        CfnOutput(self, "AlarmTopicArn", value=topic.topic_arn)

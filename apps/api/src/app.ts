@@ -3,11 +3,13 @@ import { CommandSchema } from "../../../packages/contracts/src/index.js";
 import { registerEdge } from "./edge.js";
 import { registerLive, liveProviders, type LiveProviders } from "./live.js";
 import { registerLedger, type LedgerStore } from "./ledger.js";
+import { registerRequestLog } from "./log.js";
 import { registerProgress, type ProgressStore } from "./progress.js";
 import type { VoiceStore } from "./storage/s3.js";
 import type { Verifier } from "./verify.js";
 export function buildApp(providers: LiveProviders = liveProviders, progress: ProgressStore | null = null, ledger: LedgerStore | null = null, voice: VoiceStore | null = null, verify: Verifier | null = null) {
   const app = Fastify({ bodyLimit: 16_384, logger: false });
+  registerRequestLog(app);
   registerEdge(app);
   registerLive(app, providers, voice);
   registerProgress(app, progress, ledger);

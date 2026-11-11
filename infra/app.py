@@ -39,7 +39,20 @@ verifier = lambda_.DockerImageCode.from_image_asset(
 # Without the CDK CLI (which sets CDK_OUTDIR), `python app.py` writes to cdk.out/.
 app = cdk.App(outdir=os.environ.get("CDK_OUTDIR", "cdk.out"))
 env = cdk.Environment(account=os.environ.get("CDK_DEFAULT_ACCOUNT"), region=os.environ.get("CDK_DEFAULT_REGION", "us-east-1"))
-KestrelStack(app, "Kestrel", api_code=code, web_source=web, verifier_code=verifier, env=env)
+# Where alarms go, and the AWS credits the budget tracks (deploy.yml sets both
+# from repository variables). Without an email the alarms still fire, unseen.
+alarm_email = os.environ.get("KESTREL_ALARM_EMAIL") or None
+credits_usd = float(os.environ.get("KESTREL_CREDITS_USD") or 100)
+KestrelStack(
+    app,
+    "Kestrel",
+    api_code=code,
+    web_source=web,
+    verifier_code=verifier,
+    alarm_email=alarm_email,
+    credits_usd=credits_usd,
+    env=env,
+)
 # Deployed once by the owner, by hand (infra/README.md); the workflow never touches it.
 DeployAccessStack(app, "KestrelDeployAccess", env=env)
 app.synth()
