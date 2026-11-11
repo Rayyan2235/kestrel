@@ -6,4 +6,5 @@ it("the Lambda entry refuses to start without the CloudFront gate configured", a
   vi.stubEnv("SITE_ORIGIN", "https://d111.cloudfront.net");
   await expect(import("./lambda.js")).rejects.toThrow(/Refusing to start/);
   vi.unstubAllEnvs();
-});
+  // The import loads the whole Lambda graph (Fastify, the AWS SDKs); about 5 s on a busy machine.
+}, 30000);

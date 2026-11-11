@@ -8,7 +8,7 @@ const attempt = { learnerId, objective: "balance-beam", ok: true, tiltDeg: 0.3, 
 const providers: LiveProviders = { agentTurn: vi.fn(), speak: vi.fn(), transcribe: vi.fn() };
 
 it("returns 503 for valid requests when no database is connected", async () => {
-  expect(await connectProgress("")).toBeNull();
+  expect(await connectProgress(null)).toBeNull();
   const app = buildApp(providers, null);
   try {
     expect((await app.inject({ method: "POST", url: "/api/progress", payload: attempt })).statusCode).toBe(503);

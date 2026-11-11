@@ -71,10 +71,30 @@ Then, on GitHub:
 2. Settings, Environments: create `production` and limit deployment branches to `main`.
 3. Settings, Variables: set `AWS_DEPLOY_ROLE_ARN` to the printed role ARN. Until this is set, the deploy job is skipped.
 
+### After the first deploy: the database role (once)
+
+On AWS the API reads the ElevenLabs key from `/kestrel/elevenlabs-api-key` at cold start (`apps/api/src/secrets/ssm.ts`) and logs in to DSQL with a fresh IAM token per connection as the non-admin role `kestrel_api` (`apps/api/src/db/dsql.ts`). Until the role exists, the site runs with progress off (the web shows its offline level).
+
+The first deploy prints `DsqlEndpoint` and `ApiRoleArn`. With admin credentials:
+
+```sh
+ENDPOINT=<DsqlEndpoint>
+TOKEN=$(aws dsql generate-db-connect-admin-auth-token --hostname "$ENDPOINT" --region us-east-1 --expires-in 900)
+# 1. The schema, as admin (the token must be URL-encoded inside the URL).
+DATABASE_URL="postgres://admin:$(node -p 'encodeURIComponent(process.argv[1])' "$TOKEN")@$ENDPOINT:5432/postgres?sslmode=require" pnpm db:migrate
+# 2. The API's role, linked to the Lambda role.
+psql "host=$ENDPOINT user=admin dbname=postgres sslmode=require password=$TOKEN" <<'SQL'
+CREATE ROLE kestrel_api WITH LOGIN;
+AWS IAM GRANT kestrel_api TO '<ApiRoleArn>';
+GRANT SELECT, INSERT, UPDATE, DELETE ON learners, prediction_locks, attempts, xp_events, concept_mastery, prompt_stats TO kestrel_api;
+SQL
+```
+
+These steps are written from the AWS DSQL docs and have not been run yet; the first deploy will confirm them.
+
 ## Not yet
 
 - The API bundle is real: `pnpm build` writes `apps/api/dist-lambda/lambda.mjs` (`@fastify/aws-lambda`, esbuild), and `app.py` deploys it. Without a build it synthesizes a 503 placeholder.
-- On AWS the API still reads `ELEVENLABS_API_KEY` and `DATABASE_URL` from its environment. Reading the SecureString key from SSM, and connecting to DSQL with IAM tokens, are the next PR (P6b). Until then `ELEVENLABS_KEY_PARAM` and `DSQL_ENDPOINT` are set but unread, so a deployed site runs without voice or saved progress (the web falls back to its offline level).
 - The deliberately broken deploy that proves the rollback (P6's done-check) needs the first deploy.
 - The presigned voice upload route is built (`apps/api/src/storage/s3.ts`; the API role may put only to `voice/*` and `replays/*`). The 9 MB end-to-end check needs a deployed stack.
 - The verifier Lambda that reads the queue comes in P3.

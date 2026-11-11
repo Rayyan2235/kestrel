@@ -264,3 +264,6 @@ class KestrelStack(Stack):
         CfnOutput(self, "SiteUrl", value=f"https://{site.distribution_domain_name}")
         CfnOutput(self, "ApiFunctionName", value=api_fn.function_name)
         CfnOutput(self, "ApiAlias", value=live.alias_name)
+        # For the one-time DSQL role setup (infra/README.md).
+        CfnOutput(self, "ApiRoleArn", value=api_fn.role.role_arn)
+        CfnOutput(self, "DsqlEndpoint", value=f"{cluster.attr_identifier}.dsql.{self.region}.on.aws")
