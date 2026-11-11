@@ -37,6 +37,7 @@ jobs:
       - run: python -m pip install -r infra/requirements.txt -r verifier/requirements-dev.txt
       - run: python -m pytest -q infra/tests
       # Outcome verifier (ADR-003): rules, beam re-sim, SQS handling and, against the CI Postgres, exactly-once awards.
+      # Nightly analytics (P8): mastery, prompt difficulty and batched retention deletes.
       - run: python -m pytest -q verifier/tests
       # rescue-navigation runs in its own job: on a shared 2-vCPU runner the
       # MuJoCo specs starve it (about 20 min, against 9 alone).
