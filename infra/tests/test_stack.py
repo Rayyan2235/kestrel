@@ -1,24 +1,35 @@
+import re
+
 import aws_cdk as cdk
 import pytest
-from aws_cdk import aws_lambda as lambda_
+from aws_cdk import aws_lambda as lambda_, aws_s3_deployment as s3deploy
 from aws_cdk.assertions import Match, Template
 
-from kestrel_infra.stack import COSTLY_ROUTES, ORIGIN_SECRET_REF, KestrelStack
+from kestrel_infra.stack import API_FUNCTION_NAME, COSTLY_ROUTES, LIVE_ALIAS, ORIGIN_SECRET_REF, SPA_FILE_RE, SPA_ROUTES_JS, KestrelStack
 
 # Infra policy checks on the synthesized template. In-process synth: no CDK
 # CLI, no AWS credentials, nothing deployed.
 
 
-@pytest.fixture(scope="module")
-def template() -> Template:
+def synth(web_source: s3deploy.ISource | None = None) -> Template:
     app = cdk.App()
     stack = KestrelStack(
         app,
         "Test",
         api_code=lambda_.Code.from_inline("exports.handler = async () => ({ statusCode: 503 });"),
+        web_source=web_source,
         env=cdk.Environment(region="us-east-1"),
     )
     return Template.from_stack(stack)
+
+
+# With a web build, as the deploy workflow synthesizes it; the checks below
+# then cover the upload's own Lambda and role too.
+@pytest.fixture(scope="module")
+def template(tmp_path_factory: pytest.TempPathFactory) -> Template:
+    web = tmp_path_factory.mktemp("web")
+    (web / "index.html").write_text("<!doctype html>")
+    return synth(s3deploy.Source.asset(str(web)))
 
 
 def test_no_vpc_or_nat(template: Template) -> None:
@@ -76,7 +87,9 @@ def test_http_api_throttles_bedrock_and_voice_routes(template: Template) -> None
 
 def test_api_role_can_sign_voice_uploads_only_under_voice(template: Template) -> None:
     put = []
-    for policy in template.find_resources("AWS::IAM::Policy").values():
+    for name, policy in template.find_resources("AWS::IAM::Policy").items():
+        if not name.startswith("ApiServiceRole"):
+            continue
         for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
             actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
             if "s3:PutObject" in actions:
@@ -85,12 +98,18 @@ def test_api_role_can_sign_voice_uploads_only_under_voice(template: Template) ->
     assert sorted(put) == ["/replays/*", "/voice/*"]
 
 
+# CDK's BucketDeployment grants these on "*" and offers no way to scope them.
+# They can only start or read a cache invalidation, never read or change data.
+INVALIDATION_ONLY = {"cloudfront:CreateInvalidation", "cloudfront:GetInvalidation"}
+
+
 def test_api_role_grants_no_wildcard_actions(template: Template) -> None:
     for name, policy in template.find_resources("AWS::IAM::Policy").items():
         for statement in policy["Properties"]["PolicyDocument"]["Statement"]:
             actions = statement["Action"] if isinstance(statement["Action"], list) else [statement["Action"]]
             assert "*" not in actions, name
-            assert statement.get("Resource") != "*", name
+            if statement.get("Resource") == "*":
+                assert set(actions) <= INVALIDATION_ONLY, name
 
 
 def test_resources_have_no_dependency_cycle(template: Template) -> None:
@@ -110,3 +129,50 @@ def test_origin_secret_is_an_ssm_reference_never_a_literal(template: Template) -
     (site,) = template.find_resources("AWS::CloudFront::Distribution").values()
     headers = [h for o in site["Properties"]["DistributionConfig"]["Origins"] for h in o.get("OriginCustomHeaders", [])]
     assert headers == [{"HeaderName": "x-kestrel-origin", "HeaderValue": ORIGIN_SECRET_REF}]
+
+
+def test_api_routes_call_the_live_alias_not_latest(template: Template) -> None:
+    template.has_resource_properties(
+        "AWS::Lambda::Function", {"FunctionName": API_FUNCTION_NAME}
+    )
+    (alias_id, alias), = template.find_resources("AWS::Lambda::Alias").items()
+    assert alias["Properties"]["Name"] == LIVE_ALIAS
+    assert "Fn::GetAtt" in alias["Properties"]["FunctionVersion"]
+    integrations = template.find_resources("AWS::ApiGatewayV2::Integration").values()
+    assert integrations
+    for integration in integrations:
+        assert integration["Properties"]["IntegrationUri"] == {"Ref": alias_id}
+
+
+def test_site_paths_without_an_extension_serve_index_html(template: Template) -> None:
+    (fn,) = template.find_resources("AWS::CloudFront::Function").values()
+    assert fn["Properties"]["FunctionCode"] == SPA_ROUTES_JS
+    (site,) = template.find_resources("AWS::CloudFront::Distribution").values()
+    config = site["Properties"]["DistributionConfig"]
+    assert config["DefaultCacheBehavior"]["FunctionAssociations"][0]["EventType"] == "viewer-request"
+    (api,) = config["CacheBehaviors"]
+    assert api["PathPattern"] == "/api/*" and "FunctionAssociations" not in api
+
+
+def test_spa_rewrite_keeps_files_and_rewrites_routes() -> None:
+    # The same regex the CloudFront Function uses.
+    assert f"/{SPA_FILE_RE}/i" in SPA_ROUTES_JS
+    pattern = re.compile(SPA_FILE_RE, re.I)
+    for uri in ("/", "/console", "/lab/beam"):
+        assert not pattern.search(uri), uri
+    for uri in ("/index.html", "/assets/mujoco-Mp9KyG2b.wasm", "/favicon.svg"):
+        assert pattern.search(uri), uri
+
+
+def test_web_deploy_invalidates_the_whole_site(template: Template) -> None:
+    template.has_resource_properties(
+        "Custom::CDKBucketDeployment", {"DistributionPaths": ["/*"], "Prune": True}
+    )
+
+
+def test_without_a_web_build_nothing_is_uploaded() -> None:
+    synth().resource_count_is("Custom::CDKBucketDeployment", 0)
+
+
+def test_outputs_name_what_the_deploy_workflow_reads(template: Template) -> None:
+    assert {"SiteUrl", "ApiFunctionName", "ApiAlias"} <= set(template.find_outputs("*"))

@@ -1,4 +1,5 @@
 from aws_cdk import (
+    CfnOutput,
     Duration,
     Fn,
     RemovalPolicy,
@@ -12,6 +13,7 @@ from aws_cdk import (
     aws_lambda as lambda_,
     aws_logs as logs,
     aws_s3 as s3,
+    aws_s3_deployment as s3deploy,
     aws_sqs as sqs,
 )
 from constructs import Construct
@@ -47,12 +49,34 @@ COSTLY_ROUTES = {
     "POST /api/voice/upload-url": {"rate": 1, "burst": 3},
 }
 
+# Fixed names so the GitHub deploy role (github_oidc.py) can be scoped to them.
+API_FUNCTION_NAME = "kestrel-api"
+# CloudFront and API Gateway call this alias, never $LATEST. A deploy publishes
+# a new version and moves the alias; a failed post-deploy gate moves it back.
+LIVE_ALIAS = "live"
+
+# A request path that names a file (has an extension) is served as is.
+SPA_FILE_RE = r"\.[a-z0-9]+$"
+SPA_ROUTES_JS = f"""function handler(event) {{
+  var request = event.request;
+  if (!/{SPA_FILE_RE}/i.test(request.uri)) request.uri = "/index.html";
+  return request;
+}}"""
+
 VOICE_PREFIX = "voice/"
 REPLAYS_PREFIX = "replays/"
 
 
 class KestrelStack(Stack):
-    def __init__(self, scope: Construct, id: str, *, api_code: lambda_.Code, **kwargs) -> None:
+    def __init__(
+        self,
+        scope: Construct,
+        id: str,
+        *,
+        api_code: lambda_.Code,
+        web_source: s3deploy.ISource | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(scope, id, **kwargs)
 
         # ── Storage ──────────────────────────────────────────────────────
@@ -104,6 +128,7 @@ class KestrelStack(Stack):
         api_fn = lambda_.Function(
             self,
             "Api",
+            function_name=API_FUNCTION_NAME,
             runtime=lambda_.Runtime.NODEJS_22_X,
             architecture=lambda_.Architecture.ARM_64,
             handler="lambda.handler",
@@ -152,8 +177,10 @@ class KestrelStack(Stack):
             )
         )
 
+        live = lambda_.Alias(self, "ApiLive", alias_name=LIVE_ALIAS, version=api_fn.current_version)
+
         http = apigw.HttpApi(self, "Http", description="Kestrel API, behind CloudFront")
-        target = integrations.HttpLambdaIntegration("ApiTarget", api_fn)
+        target = integrations.HttpLambdaIntegration("ApiTarget", live)
         routes = http.add_routes(path="/api/{proxy+}", methods=[apigw.HttpMethod.ANY], integration=target)
         # The costly routes get their own route keys, so they can be throttled apart.
         for key in COSTLY_ROUTES:
@@ -175,6 +202,15 @@ class KestrelStack(Stack):
             Fn.select(2, Fn.split("/", http.api_endpoint)),
             custom_headers={ORIGIN_HEADER: ORIGIN_SECRET_REF},
         )
+        # The web app routes on the path (/console, /lab/...), as Caddy's
+        # try_files does on Vultr. A path without a file extension gets
+        # index.html. Only the S3 behavior runs this, so /api/* is untouched.
+        spa_routes = cloudfront.Function(
+            self,
+            "SpaRoutes",
+            runtime=cloudfront.FunctionRuntime.JS_2_0,
+            code=cloudfront.FunctionCode.from_inline(SPA_ROUTES_JS),
+        )
         site = cloudfront.Distribution(
             self,
             "Site",
@@ -182,6 +218,11 @@ class KestrelStack(Stack):
             default_behavior=cloudfront.BehaviorOptions(
                 origin=origins.S3BucketOrigin.with_origin_access_control(web),
                 viewer_protocol_policy=cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+                function_associations=[
+                    cloudfront.FunctionAssociation(
+                        function=spa_routes, event_type=cloudfront.FunctionEventType.VIEWER_REQUEST
+                    )
+                ],
             ),
             additional_behaviors={
                 "/api/*": cloudfront.BehaviorOptions(
@@ -204,3 +245,22 @@ class KestrelStack(Stack):
             allowed_headers=["*"],
             max_age=3000,
         )
+
+        # The built web app (apps/web/dist). The upload replaces the bucket's
+        # contents and invalidates the distribution in the same deploy.
+        if web_source is not None:
+            s3deploy.BucketDeployment(
+                self,
+                "WebDeploy",
+                sources=[web_source],
+                destination_bucket=web,
+                distribution=site,
+                distribution_paths=["/*"],
+                # The MuJoCo and ONNX wasm make the build about 40 MB.
+                memory_limit=1024,
+            )
+
+        # Read by .github/workflows/deploy.yml.
+        CfnOutput(self, "SiteUrl", value=f"https://{site.distribution_domain_name}")
+        CfnOutput(self, "ApiFunctionName", value=api_fn.function_name)
+        CfnOutput(self, "ApiAlias", value=live.alias_name)

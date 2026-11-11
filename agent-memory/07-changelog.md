@@ -542,3 +542,20 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - Coverage is kept: `e2e-rescue` is a matrix over `desktop` and `mobile` (`fail-fast: false`), each on its own runner, with artifacts `rescue-results-<project>`.
 - Checks: `playwright test --list` excludes the file with the env var and lists 1 desktop test in the rescue job's command. pnpm check 122 passed, 3 skipped. CI proves the split.
 - Follow-up: PR #9 run 41245540603 showed both rescue jobs green, but `verify` failed in `tests/workshop-camera.spec.ts`. Post-boot `toHaveAttribute` and `expect.poll` calls still used Playwright's 5 s default, while each camera step takes 3-20 s on the runner's software WebGL (main run 41241409788 failed the same way). The spec now passes a shared `const STEP = { timeout: 30000 }` to every post-boot expect. Spec-only change; no product code. Checks: the spec on desktop locally, 3 passed and 1 skipped (mobile-only pinch). pnpm check passes.
+
+## 2026-11-02 · Claude Code · P6a keyless deploy pipeline (owner repo, branch `feat/p6-deploy`, stacked on `feat/p5c-lambda-entry`)
+
+- Nothing deployed. `.github/workflows/deploy.yml` is skipped until the owner sets the repo variable `AWS_DEPLOY_ROLE_ARN` (one-time setup in `infra/README.md`).
+- `infra/kestrel_infra/github_oidc.py`, new stack `KestrelDeployAccess`, deployed once by the owner by hand:
+  - GitHub OIDC provider and a deploy role, trusted only for `repo:Rayyan2235/kestrel:environment:production` (exact `sub`);
+  - the role can assume the CDK bootstrap roles and get or update the `kestrel-api` alias, nothing else.
+- `infra/kestrel_infra/stack.py`:
+  - the API Lambda is named `kestrel-api`; a `live` alias points at `current_version`, and the HTTP API integration calls the alias;
+  - a CloudFront Function on the S3 behavior serves `index.html` for paths without an extension (`/console`, `/lab/...`), as Caddy's `try_files` does;
+  - a `BucketDeployment` uploads `apps/web/dist` and invalidates `/*` when a web build exists;
+  - outputs `SiteUrl`, `ApiFunctionName` and `ApiAlias` for the workflow.
+- Workflow: after **Check Kestrel** passes on main, it checks out that commit and assumes the role via OIDC. It runs `pnpm build`, records the alias version, then runs `cdk deploy Kestrel` (CLI `aws-cdk@2.1145.0`, pinned). It gates on `/api/health` and `tests/beam-xp-levels.spec.ts` against CloudFront. On failure it moves the alias back.
+- `playwright.config.ts`: `KESTREL_BASE_URL` points the specs at a deployed site and skips the local dev server.
+- Policy test exception: CDK's `BucketDeployment` grants `cloudfront:CreateInvalidation` and `cloudfront:GetInvalidation` on `*` and can't be scoped; the wildcard test allows exactly these two.
+- Not rolled back: the web files (re-run the workflow on the last good commit). Not yet: the SSM key read and DSQL IAM auth (P6b); the broken-deploy rollback check needs the first deploy.
+- Checks: infra pytest 17 passed (was 8); `python app.py` synthesizes both stacks; the workflow YAML parses. `pnpm check` was not re-run locally (disk at 2.8 GB free); CI runs it.
