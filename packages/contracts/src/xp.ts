@@ -44,6 +44,14 @@ export const MOMENTS_PROMPTS = [
   { id: "m-15-30", left: 15, right: 30, answer: "level" },
 ] as const satisfies readonly { id: string; left: number; right: number; answer: Prediction }[];
 export const PROMPT_CHALLENGE = "moments";
+/** A released beam reads "level" below this tilt, after rounding to 0.1°. */
+export const LEVEL_DEG = 0.5;
+/**
+ * How far from level still counts for the objective. The beam is stiff and
+ * sensitive (about 0.5° per millimetre on the 200 g weight), so a real push
+ * that lands 1–2 mm off its mark must still count. "Level" itself stays < LEVEL_DEG.
+ */
+export const OBJECTIVE_LEVEL_DEG = 1.5;
 export const promptFor = (left: number, right: number) =>
   MOMENTS_PROMPTS.find((p) => p.left === left && p.right === right) ?? null;
 

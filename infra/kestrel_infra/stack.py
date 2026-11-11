@@ -11,6 +11,7 @@ from aws_cdk import (
     aws_dsql as dsql,
     aws_iam as iam,
     aws_lambda as lambda_,
+    aws_lambda_event_sources as event_sources,
     aws_logs as logs,
     aws_s3 as s3,
     aws_s3_deployment as s3deploy,
@@ -54,6 +55,23 @@ API_FUNCTION_NAME = "kestrel-api"
 # CloudFront and API Gateway call this alias, never $LATEST. A deploy publishes
 # a new version and moves the alias; a failed post-deploy gate moves it back.
 LIVE_ALIAS = "live"
+VERIFIER_FUNCTION_NAME = "kestrel-verifier"
+# Docker-style ignore rules for the verifier image's build context (the repo
+# root): everything except what verifier/Dockerfile copies.
+VERIFIER_CONTEXT_EXCLUDE = [
+    "*",
+    "!verifier",
+    "verifier/.venv",
+    "verifier/tests",
+    "**/__pycache__",
+    "!apps",
+    "apps/*",
+    "!apps/web",
+    "apps/web/*",
+    "!apps/web/public",
+    "apps/web/public/*",
+    "!apps/web/public/microduck",
+]
 
 # A request path that names a file (has an extension) is served as is.
 SPA_FILE_RE = r"\.[a-z0-9]+$"
@@ -75,6 +93,7 @@ class KestrelStack(Stack):
         *,
         api_code: lambda_.Code,
         web_source: s3deploy.ISource | None = None,
+        verifier_code: lambda_.DockerImageCode | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, id, **kwargs)
@@ -196,6 +215,39 @@ class KestrelStack(Stack):
         # Route settings may only name routes that already exist.
         for route in routes:
             stage.node.add_dependency(route)
+
+        # ── Verifier (P4, ADR-003) ───────────────────────────────────────
+        # SQS -> a Python container Lambda that re-simulates each attempt and
+        # writes its verdict and XP in one transaction. Batch size 1 with
+        # partial batch failure reporting, at most 2 running at once.
+        if verifier_code is not None:
+            verifier = lambda_.DockerImageFunction(
+                self,
+                "Verifier",
+                function_name=VERIFIER_FUNCTION_NAME,
+                code=verifier_code,
+                architecture=lambda_.Architecture.ARM_64,
+                # >= 1 vCPU for MuJoCo; the queue's 360 s visibility is 6x this timeout.
+                memory_size=2048,
+                timeout=Duration.seconds(60),
+                log_group=logs.LogGroup(
+                    self,
+                    "VerifierLogs",
+                    retention=logs.RetentionDays.ONE_MONTH,
+                    removal_policy=RemovalPolicy.DESTROY,
+                ),
+                environment={
+                    "DSQL_ENDPOINT": f"{cluster.attr_identifier}.dsql.{self.region}.on.aws",
+                    "DATA_BUCKET": data.bucket_name,
+                },
+            )
+            verifier.add_event_source(
+                event_sources.SqsEventSource(queue, batch_size=1, max_concurrency=2, report_batch_item_failures=True)
+            )
+            # Reads claims only; never writes the bucket.
+            data.grant_read(verifier, f"{REPLAYS_PREFIX}*")
+            verifier.add_to_role_policy(iam.PolicyStatement(actions=["dsql:DbConnect"], resources=[cluster.attr_resource_arn]))
+            CfnOutput(self, "VerifierRoleArn", value=verifier.role.role_arn)
 
         # ── Edge ─────────────────────────────────────────────────────────
         api_origin = origins.HttpOrigin(

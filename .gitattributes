@@ -1,0 +1,2 @@
+# The kit drift test compares these byte for byte with scripts/export-kits.ts output (LF).
+verifier/kits/*.json text eol=lf

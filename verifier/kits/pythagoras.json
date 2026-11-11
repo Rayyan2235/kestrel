@@ -1,0 +1,121 @@
+{
+ "id": "pythagoras",
+ "spawns": {
+  "pip": [
+   -0.6,
+   0,
+   0
+  ],
+  "nova": [
+   -0.6,
+   -0.45,
+   0
+  ]
+ },
+ "props": [
+  {
+   "id": "square-3",
+   "label": "3×3 square",
+   "role": "tile",
+   "shape": {
+    "type": "box",
+    "size": [
+     0.12,
+     0.12,
+     0.03
+    ]
+   },
+   "joint": "free",
+   "pos": [
+    -0.25,
+    0.35,
+    0.017
+   ],
+   "yaw": 0,
+   "mass": 0.036000000000000004,
+   "color": "#5caca4",
+   "units": 3
+  },
+  {
+   "id": "square-4",
+   "label": "4×4 square",
+   "role": "tile",
+   "shape": {
+    "type": "box",
+    "size": [
+     0.16,
+     0.16,
+     0.03
+    ]
+   },
+   "joint": "free",
+   "pos": [
+    0.43,
+    -0.8,
+    0.017
+   ],
+   "yaw": 0,
+   "mass": 0.048,
+   "color": "#dc8060",
+   "units": 4
+  },
+  {
+   "id": "square-5",
+   "label": "5×5 square",
+   "role": "tile",
+   "shape": {
+    "type": "box",
+    "size": [
+     0.2,
+     0.2,
+     0.03
+    ]
+   },
+   "joint": "free",
+   "pos": [
+    0.95,
+    0.62,
+    0.017
+   ],
+   "yaw": 0,
+   "mass": 0.06,
+   "color": "#d2b54c",
+   "units": 5
+  }
+ ],
+ "slots": [
+  {
+   "id": "slot-a",
+   "forProp": "square-4",
+   "pos": [
+    0.43,
+    -0.18
+   ],
+   "yaw": 0,
+   "side": 0.16,
+   "label": "a² = 16"
+  },
+  {
+   "id": "slot-b",
+   "forProp": "square-3",
+   "pos": [
+    0.29,
+    -0.04000000000000001
+   ],
+   "yaw": 0,
+   "side": 0.12,
+   "label": "b² = 9"
+  },
+  {
+   "id": "slot-c",
+   "forProp": "square-5",
+   "pos": [
+    0.49,
+    0.039999999999999994
+   ],
+   "yaw": 0.9272952180016123,
+   "side": 0.2,
+   "label": "c² = 25"
+  }
+ ]
+}

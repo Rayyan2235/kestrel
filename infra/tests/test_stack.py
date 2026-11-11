@@ -2,22 +2,23 @@ import re
 
 import aws_cdk as cdk
 import pytest
-from aws_cdk import aws_lambda as lambda_, aws_s3_deployment as s3deploy
+from aws_cdk import aws_ecr_assets as ecr_assets, aws_lambda as lambda_, aws_s3_deployment as s3deploy
 from aws_cdk.assertions import Match, Template
 
-from kestrel_infra.stack import API_FUNCTION_NAME, COSTLY_ROUTES, LIVE_ALIAS, ORIGIN_SECRET_REF, SPA_FILE_RE, SPA_ROUTES_JS, KestrelStack
+from kestrel_infra.stack import VERIFIER_CONTEXT_EXCLUDE, VERIFIER_FUNCTION_NAME, API_FUNCTION_NAME, COSTLY_ROUTES, LIVE_ALIAS, ORIGIN_SECRET_REF, SPA_FILE_RE, SPA_ROUTES_JS, KestrelStack
 
 # Infra policy checks on the synthesized template. In-process synth: no CDK
 # CLI, no AWS credentials, nothing deployed.
 
 
-def synth(web_source: s3deploy.ISource | None = None) -> Template:
+def synth(web_source: s3deploy.ISource | None = None, verifier_code: lambda_.DockerImageCode | None = None) -> Template:
     app = cdk.App()
     stack = KestrelStack(
         app,
         "Test",
         api_code=lambda_.Code.from_inline("exports.handler = async () => ({ statusCode: 503 });"),
         web_source=web_source,
+        verifier_code=verifier_code,
         env=cdk.Environment(region="us-east-1"),
     )
     return Template.from_stack(stack)
@@ -29,7 +30,11 @@ def synth(web_source: s3deploy.ISource | None = None) -> Template:
 def template(tmp_path_factory: pytest.TempPathFactory) -> Template:
     web = tmp_path_factory.mktemp("web")
     (web / "index.html").write_text("<!doctype html>")
-    return synth(s3deploy.Source.asset(str(web)))
+    # A stand-in image context: synth only fingerprints it; nothing is built.
+    image = tmp_path_factory.mktemp("verifier")
+    (image / "Dockerfile").write_text("FROM public.ecr.aws/lambda/python:3.12\n")
+    code = lambda_.DockerImageCode.from_image_asset(str(image), platform=ecr_assets.Platform.LINUX_ARM64)
+    return synth(s3deploy.Source.asset(str(web)), code)
 
 
 def test_no_vpc_or_nat(template: Template) -> None:
@@ -176,3 +181,69 @@ def test_without_a_web_build_nothing_is_uploaded() -> None:
 
 def test_outputs_name_what_the_deploy_workflow_reads(template: Template) -> None:
     assert {"SiteUrl", "ApiFunctionName", "ApiAlias", "ApiRoleArn", "DsqlEndpoint"} <= set(template.find_outputs("*"))
+
+
+def verifier_fn(template: Template) -> tuple[str, dict]:
+    ((name, fn),) = [
+        (n, f) for n, f in template.find_resources("AWS::Lambda::Function").items()
+        if f["Properties"].get("FunctionName") == VERIFIER_FUNCTION_NAME
+    ]
+    return name, fn["Properties"]
+
+
+def test_verifier_is_an_arm64_container_sized_for_mujoco(template: Template) -> None:
+    _, props = verifier_fn(template)
+    assert props["PackageType"] == "Image"
+    assert props["Architectures"] == ["arm64"]
+    assert props["MemorySize"] == 2048 and props["Timeout"] == 60
+    assert "VpcConfig" not in props
+    assert set(props["Environment"]["Variables"]) == {"DSQL_ENDPOINT", "DATA_BUCKET"}
+
+
+def test_queue_visibility_is_six_times_the_verifier_timeout(template: Template) -> None:
+    _, props = verifier_fn(template)
+    queues = template.find_resources("AWS::SQS::Queue")
+    (verify,) = [q for q in queues.values() if "RedrivePolicy" in q["Properties"]]
+    assert verify["Properties"]["VisibilityTimeout"] >= 6 * props["Timeout"]
+    assert verify["Properties"]["RedrivePolicy"]["maxReceiveCount"] == 3
+
+
+def test_verifier_takes_one_message_at_a_time_and_reports_partial_failures(template: Template) -> None:
+    name, _ = verifier_fn(template)
+    (mapping,) = template.find_resources("AWS::Lambda::EventSourceMapping").values()
+    props = mapping["Properties"]
+    assert props["FunctionName"] == {"Ref": name}
+    assert props["BatchSize"] == 1
+    assert props["FunctionResponseTypes"] == ["ReportBatchItemFailures"]
+    assert props["ScalingConfig"] == {"MaximumConcurrency": 2}
+
+
+def test_verifier_reads_claims_but_cannot_write_the_bucket(template: Template) -> None:
+    name, props = verifier_fn(template)
+    role = props["Role"]["Fn::GetAtt"][0]
+    actions = []
+    for policy in template.find_resources("AWS::IAM::Policy").values():
+        if {"Ref": role} in policy["Properties"]["Roles"]:
+            for st in policy["Properties"]["PolicyDocument"]["Statement"]:
+                actions += st["Action"] if isinstance(st["Action"], list) else [st["Action"]]
+    assert "dsql:DbConnect" in actions and "sqs:DeleteMessage" in actions
+    assert any(a.startswith("s3:GetObject") for a in actions)
+    assert not any(a.startswith(("s3:Put", "s3:Delete")) for a in actions)
+    assert "dsql:DbConnectAdmin" not in actions
+
+
+def test_verifier_image_context_is_only_the_verifier_and_robot_assets(tmp_path) -> None:
+    # CDK's own copy (the engine that stages the image context), with the stack's rules.
+    from pathlib import Path
+
+    repo = Path(__file__).resolve().parents[2]
+    cdk.FileSystem.copy_directory(
+        str(repo), str(tmp_path), cdk.CopyOptions(exclude=VERIFIER_CONTEXT_EXCLUDE, ignore_mode=cdk.IgnoreMode.DOCKER)
+    )
+    copied = {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()}
+    for kept in ("verifier/Dockerfile", "verifier/requirements.txt", "verifier/kestrel_verifier/scene.py",
+                 "verifier/kits/rules.json", "apps/web/public/microduck/SHA256SUMS"):
+        assert kept in copied, kept
+    assert any(p.startswith("apps/web/public/microduck/robot/meshes/") for p in copied)
+    assert {p.split("/")[0] for p in copied} == {"verifier", "apps"}
+    assert not any(p.startswith(("verifier/tests", "apps/web/src", "apps/api")) or ".env" in p for p in copied)

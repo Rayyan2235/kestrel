@@ -568,3 +568,26 @@ From the tester's knip scan of `346bb8d` (owner-approved scope), in three commit
 - Stack outputs `ApiRoleArn` and `DsqlEndpoint` for the one-time DSQL role setup, documented in `infra/README.md` (migrate as admin, `CREATE ROLE kestrel_api`, `AWS IAM GRANT`, table grants). It is written from the DSQL docs and not run yet.
 - `lambda.test.ts` timeout raised to 30 s: the import loads the whole Lambda graph and took 5.0 s on this machine on the base branch too.
 - Checks: API vitest 31 passed, 3 skipped (new `ssm.test.ts` and `dsql.test.ts`). `pnpm typecheck` passes. The Lambda bundle builds (6.8 MB) and `scripts/check-api.mjs` passes. Infra pytest 17 passed. The full `pnpm check` and e2e run in CI.
+
+## 2026-11-09 · Claude Code · P3 outcome-verifier scene port and ADR-003 (owner repo, branch `feat/p3-scene-port` off `0d02914`)
+
+- Lands the P3 determinism spike's result without the spike harness. ADR-003 (accepted 2026-10-31): replaying browser commands in native MuJoCo agreed in 4/20 triangle builds (20%; 0/16 browser successes). Walking diverges chaotically between WASM and native, with error doubling about every 0.2 s. So the verifier re-simulates the beam from the learner's decision and checks walking trajectories for plausibility. The plan's 60 s verifier timeout stands (spike replay p99 7.9 s).
+- Kept: `verifier/kestrel_verifier/scene.py`, the Python port of `mjcf.ts` (it compiled the same model as the browser, 0 difference in every compared field, 20/20), `verifier/kits/{moments,pythagoras}.json`, `scripts/export-kits.ts` and the drift test `packages/contracts/src/verifier-kits.test.ts`.
+- New: `scene.pinned_bytes()` refuses a mesh that doesn't match `apps/web/public/microduck/SHA256SUMS`. `verifier/tests/test_scene.py` checks that both kits compile with both robots and every prop, that the STAND keyframe covers the state, that native re-simulation is repeatable, and that a tampered mesh is refused. CI installs `verifier/requirements.txt` (mujoco 3.11.0, numpy) and runs it.
+- Dropped as superseded by the ADR: the replay harness (`replay.py`, `replay_all.py`, `scripts/record-replays.mjs`) and the browser recording hooks in `duckSim.ts`. They remain only on the local branch `feat/p3-determinism-spike` (013f067).
+- Finding: with no policy running, the robots fall from the keyframe (z 0.12 to 0.05 m in 1 s). Stand-still checks need the ONNX stand policy, so P4 adds onnxruntime only if a check needs it.
+- Checks: verifier pytest 6 passed. The kit drift vitest passes, and `export-kits.ts` regenerates both kits byte-identical.
+
+## 2026-11-09 · Claude Code · P4a async verifier: Python Lambda behind SQS (owner repo, branch `feat/p4a-async-verifier`, stacked on `feat/p6b-runtime-secrets` with `feat/p3-scene-port` merged in)
+
+- `verifier/kestrel_verifier/`:
+  - `moments.py` re-simulates a released beam from the rail marks, with no robots (`build_scene(..., bots=())`). It uses the browser's settle rule (still 0.5 s after 0.6 s, or 6 s).
+  - `rules.py` holds the pure verdict rules. The lock must precede the trial start, and only locks made before the trial count. The weights must be at the prompt's marks. The answer is the re-simulated low side, never the client's claim. `eligible()` is ported from `ledger.ts`. Beam objective: tilt ≤ 1.5°. Walking objectives stay `unverified` until their plausibility checks exist.
+  - `store.py` writes the verdict and XP in one transaction. `FOR UPDATE` plus `status = 'pending'` guards redelivery, and `xp_events`' unique key guards repeats across attempts. It retries 40001 up to 5 times, and the re-sim runs once, outside the transaction.
+  - `handler.py` is the SQS entry. A message is a claim check, `{attemptId, s3Key}` with the claim at `replays/<id>.json`. It reports partial batch failures. A poison message fails every time, so it reaches the DLQ after 3 receives. Logs carry ids and outcomes only.
+  - `db.py` connects with `DATABASE_URL`, or with a DSQL IAM token as `kestrel_verifier`.
+- Rules shared with TypeScript: `LEVEL_DEG` and `OBJECTIVE_LEVEL_DEG` moved into `packages/contracts/src/xp.ts`, and the web uses them. `scripts/export-kits.ts` also writes `verifier/kits/rules.json`, kept in sync by the drift test.
+- Infra: `kestrel-verifier`, a `DockerImageFunction` (arm64, 2048 MB, 60 s, logs 30 days, no VPC). SQS event source: batch 1, max concurrency 2, `ReportBatchItemFailures`. It may read `replays/*` and has `dsql:DbConnect`, but no S3 writes. Output `VerifierRoleArn`. Image context limited to `verifier/` plus `apps/web/public/microduck` (8.4 MB staged). `deploy.yml` sets up QEMU for the arm64 build. README adds the `kestrel_verifier` role grants.
+- Re-sim result: all 4 Moments prompts reproduce their answers; ±1 mm stays within 1.5°; 12/20 cm does not. It takes under 0.1 s per attempt.
+- Checks: verifier pytest 45 passed, 7 DB tests skipped locally (they run against the CI Postgres). Infra pytest 22 passed. Vitest 134 passed, and typecheck passes. `python app.py` synthesizes, with the image context checked.
+- Not yet (P4b): the API submit route (S3 claim, SQS send), the browser switch, and removing the client-trusted `/api/xp-events` path and label. Manual done-checks (forced redelivery, poison to DLQ) need a deploy.

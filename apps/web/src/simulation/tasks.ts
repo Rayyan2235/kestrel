@@ -1,4 +1,4 @@
-import { RESCUE, rescuePoints, routeIsClear } from "@kestrel/contracts";
+import { LEVEL_DEG, RESCUE, rescuePoints, routeIsClear } from "@kestrel/contracts";
 import type { BotId, DuckTask, LabKit, PropSpec, Vec2 } from "@kestrel/contracts";
 import { SCREEN_DIRS } from "./constants";
 import { PlaceWeight } from "./moments";
@@ -348,7 +348,7 @@ export class TaskRunner {
     // Round first, then classify, so "stayed level (0.5°)" can never be printed.
     const deg = Math.round(Math.abs((angle * 180) / Math.PI) * 10) / 10;
     const summary =
-      deg < 0.5
+      deg < LEVEL_DEG
         ? `Released the plank. It stayed level (${deg.toFixed(1)}°).`
         : `Released the plank. The ${angle > 0 ? "left" : "right"} side went down ${deg.toFixed(1)}°.`;
     return { vx: 0, wz: 0, done: { ok: true, summary } };

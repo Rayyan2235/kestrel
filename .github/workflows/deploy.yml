@@ -52,6 +52,10 @@ jobs:
           # Empty on the first deploy, when there is nothing to roll back to.
           v=$(aws lambda get-alias --function-name kestrel-api --name live --query FunctionVersion --output text 2>/dev/null || true)
           echo "version=$v" >> "$GITHUB_OUTPUT"
+      # The verifier image is arm64 (verifier/Dockerfile); the runner is x86.
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
       - name: cdk deploy
         working-directory: infra
         run: npx --yes aws-cdk@2.1145.0 deploy Kestrel --require-approval never --outputs-file cdk-outputs.json

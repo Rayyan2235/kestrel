@@ -87,6 +87,12 @@ psql "host=$ENDPOINT user=admin dbname=postgres sslmode=require password=$TOKEN"
 CREATE ROLE kestrel_api WITH LOGIN;
 AWS IAM GRANT kestrel_api TO '<ApiRoleArn>';
 GRANT SELECT, INSERT, UPDATE, DELETE ON learners, prediction_locks, attempts, xp_events, concept_mastery, prompt_stats TO kestrel_api;
+-- 3. The verifier's role (VerifierRoleArn): read attempts and locks, decide attempts, append XP.
+CREATE ROLE kestrel_verifier WITH LOGIN;
+AWS IAM GRANT kestrel_verifier TO '<VerifierRoleArn>';
+GRANT SELECT, UPDATE ON attempts TO kestrel_verifier;
+GRANT SELECT ON prediction_locks TO kestrel_verifier;
+GRANT INSERT ON learners, xp_events TO kestrel_verifier;
 SQL
 ```
 
@@ -97,4 +103,4 @@ These steps are written from the AWS DSQL docs and have not been run yet; the fi
 - The API bundle is real: `pnpm build` writes `apps/api/dist-lambda/lambda.mjs` (`@fastify/aws-lambda`, esbuild), and `app.py` deploys it. Without a build it synthesizes a 503 placeholder.
 - The deliberately broken deploy that proves the rollback (P6's done-check) needs the first deploy.
 - The presigned voice upload route is built (`apps/api/src/storage/s3.ts`; the API role may put only to `voice/*` and `replays/*`). The 9 MB end-to-end check needs a deployed stack.
-- The verifier Lambda that reads the queue comes in P3.
+- **The verifier Lambda** (`verifier/`, P4) reads the verify queue: batch size 1, at most 2 at once, partial batch failure reporting, 3 receives then the DLQ. It re-simulates Moments attempts and writes the verdict and XP in one transaction (ADR-003). Nothing sends to the queue yet; the API's submit route is P4b.
